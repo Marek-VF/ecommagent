@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moderner Zähler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="counter-app" role="main">
+      <h1 class="counter-app__title">Modernes Zähler-Interface</h1>
+      <output
+        id="counterValue"
+        class="counter-display"
+        data-counter-value
+        aria-live="polite"
+        aria-atomic="true"
+        for="incrementButton"
+      >0</output>
+      <button
+        id="incrementButton"
+        class="counter-button"
+        type="button"
+        data-increment
+        aria-describedby="counterValue"
+      >
+        Zahl erhöhen
+      </button>
+    </main>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
