@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+<<<<<<< HEAD
     <main class="app" role="main">
       <section class="display" aria-live="polite">
         <h1 class="display__label">Dein Counter</h1>
@@ -16,6 +17,26 @@
       </section>
       <button id="incrementButton" class="button" type="button">
         +1 addieren
+=======
+    <main class="counter-app" role="main">
+      <h1 class="counter-app__title">Modernes Zähler-Interface</h1>
+      <output
+        id="counterValue"
+        class="counter-display"
+        data-counter-value
+        aria-live="polite"
+        aria-atomic="true"
+        for="incrementButton"
+      >0</output>
+      <button
+        id="incrementButton"
+        class="counter-button"
+        type="button"
+        data-increment
+        aria-describedby="counterValue"
+      >
+        Zahl erhöhen
+>>>>>>> origin/codex/develop-modern-web-application-with-counter-3hpy2y
       </button>
     </main>
     <script type="module" src="script.js"></script>
