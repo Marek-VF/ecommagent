@@ -62,7 +62,8 @@ try {
     }
 
     $originalName = $file['name'] ?? 'upload';
-    $sanitized = preg_replace('/[\\\/\x00-\x1F\x7F]+/u', '_', $originalName);
+    $sanitized = preg_replace('/[\\\\\/\x00-\x1F\x7F]+/u', '_', $originalName);
+
     $sanitized = trim((string) $sanitized);
     $sanitized = $sanitized === '' ? 'upload_' . date('Ymd_His') : $sanitized;
     $storedName = basename($sanitized);
