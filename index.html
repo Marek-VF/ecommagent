@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moderner Zähler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app" role="main">
+      <h1 class="app__title">Moderner Zähler</h1>
+      <p class="app__subtitle">
+        Klicke auf den Button, um die Zahl in der Mitte zu erhöhen.
+      </p>
+      <div class="counter" aria-live="polite">
+        <span id="counterValue" class="counter__value">0</span>
+      </div>
+      <button id="incrementButton" class="button" type="button">
+        Zahl erhöhen
+      </button>
+    </main>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
