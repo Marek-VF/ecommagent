@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moderner Zähler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app" role="main">
+      <section class="display" aria-live="polite">
+        <h1 class="display__label">Zählerstand</h1>
+        <output id="counterValue" class="display__value" aria-atomic="true" for="incrementButton">
+          0
+        </output>
+      </section>
+      <button id="incrementButton" class="button" type="button">
+        +1 hinzufügen
+      </button>
+    </main>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
