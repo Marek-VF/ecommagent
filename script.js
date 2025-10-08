@@ -9,9 +9,22 @@ const updateCounter = () => {
   counterValueEl.textContent = formatNumber.format(counter);
 };
 
-incrementButton.addEventListener('click', () => {
+const increment = () => {
   counter += 1;
   updateCounter();
+};
+
+incrementButton.addEventListener('click', increment);
+
+document.addEventListener('keydown', (event) => {
+  const isSpace = event.code === 'Space';
+  const isEnter = event.code === 'Enter';
+
+  if ((isSpace || isEnter) && !event.repeat) {
+    event.preventDefault();
+    incrementButton.focus();
+    increment();
+  }
 });
 
 updateCounter();

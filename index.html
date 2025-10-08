@@ -8,15 +8,14 @@
   </head>
   <body>
     <main class="app" role="main">
-      <h1 class="app__title">Moderner Zähler</h1>
-      <p class="app__subtitle">
-        Klicke auf den Button, um die Zahl in der Mitte zu erhöhen.
-      </p>
-      <div class="counter" aria-live="polite">
-        <span id="counterValue" class="counter__value">0</span>
-      </div>
+      <section class="display" aria-live="polite">
+        <h1 class="display__label">Zählerstand</h1>
+        <output id="counterValue" class="display__value" aria-atomic="true" for="incrementButton">
+          0
+        </output>
+      </section>
       <button id="incrementButton" class="button" type="button">
-        Zahl erhöhen
+        +1 hinzufügen
       </button>
     </main>
     <script type="module" src="script.js"></script>
