@@ -5,8 +5,35 @@ const previewList = document.getElementById('upload-previews');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
+const statusMessages = document.getElementById('status-messages');
 
 const uploadEndpoint = 'upload.php';
+const MAX_STATUS_ITEMS = 10;
+
+const addStatusMessage = (text, type = 'info', detail) => {
+    const item = document.createElement('li');
+    item.className = `status__message status__message--${type}`;
+
+    const content = document.createElement('div');
+    content.className = 'status__message-content';
+    content.textContent = text;
+    item.appendChild(content);
+
+    if (detail !== undefined) {
+        const detailElement = document.createElement('pre');
+        detailElement.className = 'status__message-detail';
+        detailElement.textContent = detail;
+        item.appendChild(detailElement);
+    }
+
+    statusMessages.prepend(item);
+
+    while (statusMessages.children.length > MAX_STATUS_ITEMS) {
+        statusMessages.removeChild(statusMessages.lastElementChild);
+    }
+
+    statusMessages.scrollTop = 0;
+};
 
 const createPreviewItem = (url, name) => {
     const item = document.createElement('figure');
@@ -39,25 +66,43 @@ const uploadFiles = async (files) => {
         const formData = new FormData();
         formData.append('image', file);
 
+        addStatusMessage(`Starte Upload: ${file.name}`, 'info');
+
         try {
             const response = await fetch(uploadEndpoint, {
                 method: 'POST',
                 body: formData,
             });
 
+            const rawText = await response.text();
             if (!response.ok) {
-                throw new Error('Upload fehlgeschlagen.');
+                throw new Error(`Upload fehlgeschlagen (${response.status}). ${rawText}`);
             }
 
-            const result = await response.json();
+            let result;
+            try {
+                result = rawText ? JSON.parse(rawText) : {};
+            } catch (parseError) {
+                throw new Error(`Antwort konnte nicht gelesen werden: ${rawText}`);
+            }
+
             if (result.success) {
-                addPreviews([{ url: result.url, name: result.name }]);
+                addPreviews([{ url: result.url, name: result.name || file.name }]);
+                addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
+
+                if (typeof result.forward_response !== 'undefined' && result.forward_response !== null && result.forward_response !== '') {
+                    const formatted = typeof result.forward_response === 'object'
+                        ? JSON.stringify(result.forward_response, null, 2)
+                        : String(result.forward_response);
+                    const statusLabel = result.forward_status ? `Zielserver (${result.forward_status})` : 'Zielserver';
+                    addStatusMessage(`${statusLabel} Antwort`, 'info', formatted);
+                }
             } else {
-                alert(result.error || 'Upload fehlgeschlagen.');
+                addStatusMessage(result.error || `Upload fehlgeschlagen: ${file.name}`, 'error');
             }
         } catch (error) {
             console.error(error);
-            alert('Beim Upload ist ein Fehler aufgetreten.');
+            addStatusMessage(error.message || `Beim Upload ist ein Fehler aufgetreten (${file.name}).`, 'error');
         }
     });
 
