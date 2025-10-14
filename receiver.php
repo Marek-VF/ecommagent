@@ -19,7 +19,7 @@ $respond = static function (array $payload, int $statusCode = 200): never {
     exit;
 };
 
-$timestamp = static fn (): string => gmdate('c');
+$timestamp = static fn (): string => (new DateTimeImmutable('now'))->format(DATE_ATOM);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -54,6 +54,25 @@ try {
 
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $newData = [];
+    $logEntries = [];
+
+    $appendLogEntry = static function (string $message, ?string $type = null) use (&$logEntries, $timestamp): void {
+        $trimmedMessage = trim($message);
+        if ($trimmedMessage === '') {
+            return;
+        }
+
+        $entry = [
+            'timestamp' => $timestamp(),
+            'message'   => $trimmedMessage,
+        ];
+
+        if ($type !== null && $type !== '') {
+            $entry['type'] = $type;
+        }
+
+        $logEntries[] = $entry;
+    };
 
     $storeFile = static function (array $file, string $uploadDir): string {
         if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
@@ -120,7 +139,16 @@ try {
         }
 
         foreach ($decoded as $key => $value) {
-            $newData[$key] = $normalizeValue((string) $key, $value);
+            $normalizedKey = (string) $key;
+            $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
+
+            if ($normalizedKey === 'statusmessage' && is_string($value)) {
+                $appendLogEntry($value, null);
+            }
+
+            if ($normalizedKey === 'error' && is_string($value)) {
+                $appendLogEntry($value, 'error');
+            }
         }
     } else {
         $targetField = $_POST['field'] ?? 'image_1';
@@ -133,7 +161,16 @@ try {
                 continue;
             }
 
-            $newData[$key] = $normalizeValue((string) $key, $value);
+            $normalizedKey = (string) $key;
+            $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
+
+            if ($normalizedKey === 'statusmessage' && is_string($value)) {
+                $appendLogEntry($value, null);
+            }
+
+            if ($normalizedKey === 'error' && is_string($value)) {
+                $appendLogEntry($value, 'error');
+            }
         }
 
         $normalizeFiles = static function (array $files): array {
@@ -184,6 +221,15 @@ try {
     }
 
     $merged = array_merge($existingData, $newData);
+
+    if (!empty($logEntries)) {
+        $existingLog = [];
+        if (isset($merged['statuslog']) && is_array($merged['statuslog'])) {
+            $existingLog = $merged['statuslog'];
+        }
+
+        $merged['statuslog'] = array_merge($existingLog, $logEntries);
+    }
     $merged['updated_at'] = $timestamp();
 
     file_put_contents($dataFile, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
