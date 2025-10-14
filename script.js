@@ -25,7 +25,31 @@ const galleryImages = [
 
 let isProcessing = false;
 let pollingTimer = null;
+let isPollingActive = false;
 let lastStatusText = '';
+let hasShownCompletion = false;
+
+const toBoolean = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'ja'].includes(normalized)) {
+            return true;
+        }
+        if (['false', '0', 'no', 'nein'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return false;
+};
 
 const addStatusMessage = (text, type = 'info', detail) => {
     if (!statusMessages) {
@@ -88,6 +112,8 @@ const setLoadingState = (loading) => {
 
         if (loading) {
             element.dataset.isLoading = 'true';
+            element.dataset.hasContent = 'false';
+            element.dataset.currentSrc = '';
             element.src = LOADING_SRC;
         } else {
             element.dataset.isLoading = 'false';
@@ -100,6 +126,10 @@ const setLoadingState = (loading) => {
             }
         }
     });
+
+    if (loading) {
+        hasShownCompletion = false;
+    }
 };
 
 const getDataField = (data, key) => {
@@ -155,16 +185,30 @@ const addPreviews = (files) => {
     });
 };
 
+const stopPolling = () => {
+    if (pollingTimer !== null) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
+    isPollingActive = false;
+};
+
+const startPolling = () => {
+    if (isPollingActive) {
+        return;
+    }
+
+    isPollingActive = true;
+    fetchLatestData();
+    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
+};
+
 const uploadFiles = async (files) => {
     const uploads = Array.from(files).map(async (file) => {
         const formData = new FormData();
         formData.append('image', file);
 
         addStatusMessage(`Starte Upload: ${file.name}`, 'info');
-        setLoadingState(true);
-        if (processingIndicator) {
-            processingIndicator.textContent = 'Verarbeitung läuft…';
-        }
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -189,6 +233,12 @@ const uploadFiles = async (files) => {
                     addPreviews([{ url: result.file, name: result.name || file.name }]);
                 }
                 addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
+                setLoadingState(true);
+                if (processingIndicator) {
+                    processingIndicator.textContent = 'Verarbeitung läuft…';
+                }
+                hasShownCompletion = false;
+                startPolling();
 
                 if (typeof result.webhook_response !== 'undefined' && result.webhook_response !== null && result.webhook_response !== '') {
                     const formatted = typeof result.webhook_response === 'object'
@@ -239,7 +289,7 @@ const updateInterfaceFromData = (data) => {
     }
 
     const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
-    const isRunning = hasIsRunning ? Boolean(data.isrunning) : false;
+    const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
 
     if (isRunning && !isProcessing) {
         setLoadingState(true);
@@ -255,6 +305,11 @@ const updateInterfaceFromData = (data) => {
 
     if (processingIndicator) {
         processingIndicator.textContent = indicatorText;
+    }
+
+    if (!isRunning && !hasShownCompletion && data.updated_at) {
+        addStatusMessage('Verarbeitung abgeschlossen.', 'success');
+        hasShownCompletion = true;
     }
 
     if (typeof data.status_message === 'string') {
@@ -283,6 +338,10 @@ const updateInterfaceFromData = (data) => {
             element.src = PLACEHOLDER_SRC;
         }
     });
+
+    if (!isRunning) {
+        stopPolling();
+    }
 };
 
 const fetchLatestData = async () => {
@@ -300,15 +359,6 @@ const fetchLatestData = async () => {
     } catch (error) {
         console.error('Polling-Fehler:', error);
     }
-};
-
-const startPolling = () => {
-    if (pollingTimer !== null) {
-        clearInterval(pollingTimer);
-    }
-
-    fetchLatestData();
-    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
 };
 
 selectFileButton.addEventListener('click', () => fileInput.click());
@@ -368,5 +418,28 @@ galleryItems.forEach((item) => {
     item.tabIndex = 0;
 });
 
-setLoadingState(false);
-startPolling();
+const loadInitialState = async () => {
+    setLoadingState(false);
+
+    try {
+        const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+        updateInterfaceFromData(data);
+
+        if (Object.prototype.hasOwnProperty.call(data, 'isrunning') && toBoolean(data.isrunning)) {
+            hasShownCompletion = false;
+            startPolling();
+        }
+    } catch (error) {
+        console.error('Initialisierung fehlgeschlagen:', error);
+    }
+};
+
+loadInitialState();

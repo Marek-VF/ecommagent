@@ -298,14 +298,15 @@ body {
 
 .gallery {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 20px;
+    justify-items: center;
 }
 
 .gallery__item {
-    width: 100%;
-    aspect-ratio: 3 / 2;
-    border-radius: 18px;
+    width: 350px;
+    height: 350px;
+    border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
     object-fit: cover;
