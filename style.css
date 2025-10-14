@@ -285,6 +285,25 @@ body {
     line-height: 1.5;
 }
 
+.status__indicator {
+    margin: 0;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: color var(--transition);
+}
+
+.status__indicator--running {
+    color: var(--accent);
+}
+
+.status__indicator--success {
+    color: #4fd1a1;
+}
+
+.status__indicator--error {
+    color: #ff7b7b;
+}
+
 @keyframes status-pop {
     from {
         opacity: 0;
@@ -310,8 +329,10 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
     object-fit: cover;
+    object-position: center;
     cursor: pointer;
     transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    display: block;
 }
 
 .gallery__item:hover {
@@ -419,6 +440,10 @@ textarea {
     .panel--upload,
     .panel--details {
         grid-column: span 12;
+    }
+
+    .gallery {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

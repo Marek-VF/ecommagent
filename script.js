@@ -15,7 +15,9 @@ const MAX_STATUS_ITEMS = 10;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'data.json';
 const PLACEHOLDER_SRC = '/assets/placeholder.jpg';
-const LOADING_SRC = '/assets/loading.gif';
+const loadingImage = 'https://vielfalter.digital/api-monday/ecommagent/assets/loading.gif';
+const LOADING_SRC = loadingImage;
+const INDICATOR_STATE_CLASSES = ['status__indicator--running', 'status__indicator--success', 'status__indicator--error'];
 
 const galleryImages = [
     { key: 'image_1', element: document.getElementById('img1') },
@@ -102,8 +104,27 @@ const setImageSource = (element, src) => {
     element.src = sanitized;
 };
 
-const setLoadingState = (loading) => {
+const updateProcessingIndicator = (text, state = 'idle') => {
+    if (!processingIndicator) {
+        return;
+    }
+
+    processingIndicator.textContent = text;
+    INDICATOR_STATE_CLASSES.forEach((className) => processingIndicator.classList.remove(className));
+
+    if (state && state !== 'idle') {
+        processingIndicator.classList.add(`status__indicator--${state}`);
+    }
+};
+
+const setLoadingState = (loading, options = {}) => {
     isProcessing = loading;
+
+    if (loading) {
+        hasObservedActiveRun = true;
+    } else if (!options || options.indicatorState !== 'success') {
+        hasObservedActiveRun = false;
+    }
 
     galleryImages.forEach(({ element }) => {
         if (!element) {
@@ -249,12 +270,12 @@ const uploadFiles = async (files) => {
                 }
             } else {
                 addStatusMessage(result.message || `Upload fehlgeschlagen: ${file.name}`, 'error');
-                setLoadingState(false);
+                setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
             }
         } catch (error) {
             console.error(error);
             addStatusMessage(error.message || `Beim Upload ist ein Fehler aufgetreten (${file.name}).`, 'error');
-            setLoadingState(false);
+            setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
         }
     });
 
@@ -292,19 +313,21 @@ const updateInterfaceFromData = (data) => {
     const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
 
     if (isRunning && !isProcessing) {
-        setLoadingState(true);
+        setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
     } else if (!isRunning && isProcessing) {
-        setLoadingState(false);
+        setLoadingState(false, { indicatorText: 'Workflow abgeschlossen', indicatorState: 'success' });
+    } else if (!isRunning && !isProcessing) {
+        updateProcessingIndicator('Bereit.', 'idle');
     }
 
-    const indicatorText = isRunning
-        ? 'Verarbeitung läuft…'
-        : data.updated_at
-            ? 'Verarbeitung abgeschlossen'
-            : 'Bereit.';
-
-    if (processingIndicator) {
-        processingIndicator.textContent = indicatorText;
+    if (!isRunning && hasObservedActiveRun && !hasShownCompletion) {
+        addStatusMessage('Workflow abgeschlossen.', 'success');
+        hasShownCompletion = true;
+        updateProcessingIndicator('Workflow abgeschlossen', 'success');
+        hasObservedActiveRun = false;
+    } else if (isRunning) {
+        hasShownCompletion = false;
+        updateProcessingIndicator('Verarbeitung läuft…', 'running');
     }
 
     if (!isRunning && !hasShownCompletion && data.updated_at) {
