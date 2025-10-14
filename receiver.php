@@ -106,6 +106,8 @@ try {
         return $value;
     };
 
+    $allowedImageFields = ['image_1', 'image_2', 'image_3'];
+
     if (str_contains($contentType, 'application/json')) {
         $raw = file_get_contents('php://input');
         if ($raw === false || $raw === '') {
@@ -121,7 +123,16 @@ try {
             $newData[$key] = $normalizeValue((string) $key, $value);
         }
     } else {
+        $targetField = $_POST['field'] ?? 'image_1';
+        if (!in_array($targetField, $allowedImageFields, true)) {
+            $targetField = 'image_1';
+        }
+
         foreach ($_POST as $key => $value) {
+            if ($key === 'field') {
+                continue;
+            }
+
             $newData[$key] = $normalizeValue((string) $key, $value);
         }
 
@@ -147,12 +158,10 @@ try {
             return $normalized;
         };
 
-        foreach ($normalizeFiles($_FILES) as $field => $fileData) {
-            if (!is_array($fileData)) {
-                continue;
-            }
+        $files = $normalizeFiles($_FILES);
 
-            $storedName = $storeFile($fileData, $uploadDir);
+        if (isset($files['file']) && is_array($files['file'])) {
+            $storedName = $storeFile($files['file'], $uploadDir);
             $origin = $baseUrl;
             if ($origin === '') {
                 $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
@@ -170,7 +179,7 @@ try {
             }
 
             $fileUrl = rtrim($origin, '/') . '/uploads/' . $storedName;
-            $newData[$field] = $fileUrl;
+            $newData[$targetField] = $fileUrl;
         }
     }
 
