@@ -1,3 +1,34 @@
+<?php
+$config = require __DIR__ . '/config.php';
+
+$baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
+$assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/assets' : '');
+$assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string)$assetBaseUrl, '/') : '/assets';
+
+$placeholderSrc = $assetBaseUrl . '/placeholder.png';
+$loadingSrc = $assetBaseUrl . '/loading.gif';
+
+$placeholderDimensions = null;
+$placeholderFile = __DIR__ . '/assets/placeholder.png';
+if (is_file($placeholderFile)) {
+    $size = @getimagesize($placeholderFile);
+    if ($size !== false) {
+        $placeholderDimensions = [
+            'width'  => $size[0],
+            'height' => $size[1],
+        ];
+    }
+}
+
+$appConfig = [
+    'assets' => [
+        'base'        => $assetBaseUrl,
+        'placeholder' => $placeholderSrc,
+        'loading'     => $loadingSrc,
+    ],
+    'placeholderDimensions' => $placeholderDimensions,
+];
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -5,6 +36,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artikelverwaltung</title>
     <link rel="stylesheet" href="style.css">
+<?php if ($placeholderDimensions !== null): ?>
+    <style>
+        :root {
+            --gallery-item-aspect-ratio: <?php echo htmlspecialchars($placeholderDimensions['width'] . ' / ' . $placeholderDimensions['height'], ENT_QUOTES); ?>;
+        }
+    </style>
+<?php endif; ?>
 </head>
 <body>
     <div class="app">
@@ -28,9 +66,9 @@
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">
-                    <img id="img1" src="/assets/placeholder.jpg" alt="Platzhalter 1" class="gallery__item" data-preview>
-                    <img id="img2" src="/assets/placeholder.jpg" alt="Platzhalter 2" class="gallery__item" data-preview>
-                    <img id="img3" src="/assets/placeholder.jpg" alt="Platzhalter 3" class="gallery__item" data-preview>
+                    <img id="img1" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 1" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
+                    <img id="img2" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 2" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
+                    <img id="img3" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 3" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
                 </div>
                 <div class="form-group">
                     <label for="article-name">Artikelname</label>
@@ -52,6 +90,9 @@
         <img src="" alt="Großansicht" class="lightbox__image">
     </div>
 
+    <script>
+        window.APP_CONFIG = <?php echo json_encode($appConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
