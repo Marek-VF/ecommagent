@@ -37,6 +37,12 @@ $appConfig = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artikelverwaltung</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+    >
     <link rel="stylesheet" href="style.css">
 <?php if ($placeholderDimensions !== null): ?>
     <style>
@@ -60,15 +66,6 @@ $appConfig = [
                     <input id="file-input" type="file" name="image" accept="image/*" hidden>
                 </div>
                 <div id="upload-previews" class="preview-list" aria-live="polite"></div>
-                <div class="status" aria-live="polite">
-                    <h3>Status</h3>
-                    <ul id="status-messages" class="status__messages"></ul>
-                    <p id="processing-indicator" class="status__indicator">Bereit.</p>
-                </div>
-                <div class="status-log" aria-live="polite">
-                    <h3>Status</h3>
-                    <div id="status-log" class="status-log__list" role="log" aria-live="polite" aria-atomic="false"></div>
-                </div>
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">
@@ -94,6 +91,20 @@ $appConfig = [
                     <button type="button" class="btn btn--primary">Speichern</button>
                 </div>
             </section>
+            <aside class="status-panel" aria-live="polite">
+                <div class="status-panel__header">
+                    <h3 class="status-panel__title">Status</h3>
+                    <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
+                </div>
+                <div
+                    id="status-log"
+                    class="status-panel__log"
+                    role="log"
+                    aria-live="polite"
+                    aria-atomic="false"
+                    aria-label="Statusprotokoll"
+                ></div>
+            </aside>
         </main>
     </div>
 

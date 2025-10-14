@@ -14,6 +14,9 @@
     --transition: 0.2s ease;
     --gallery-item-aspect-ratio: 1 / 1;
     font-size: 16px;
+    --status-success: #4ade80;
+    --status-error: #f87171;
+    --status-neutral: #9ca3af;
 }
 
 * {
@@ -22,7 +25,7 @@
 
 body {
     margin: 0;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: radial-gradient(circle at top left, rgba(79, 140, 255, 0.12), transparent 55%),
                 radial-gradient(circle at bottom right, rgba(114, 93, 255, 0.12), transparent 50%),
                 var(--bg);
@@ -176,206 +179,185 @@ body {
     box-shadow: 0 18px 30px rgba(0, 0, 0, 0.25);
 }
 
-.status {
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(12, 14, 19, 0.65);
-    padding: 20px 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 140px;
-}
-
-.status h3 {
-    margin: 0;
-    font-size: 1rem;
-    letter-spacing: 0.02em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
-.status__messages {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 220px;
-    overflow-y: auto;
-}
-
-.status__messages:empty::before {
-    content: 'Noch keine Meldungen.';
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-
-.status__message {
-    padding: 12px 14px;
+.status-panel {
+    grid-column: span 4;
+    background: linear-gradient(145deg, rgba(13, 17, 23, 0.92), rgba(26, 31, 39, 0.88));
     border-radius: 12px;
-    border: 1px solid transparent;
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text);
-    font-size: 0.9rem;
-    line-height: 1.4;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    align-items: start;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
-    transform-origin: left;
-    animation: status-pop 0.25s ease;
-}
-
-.status__message::before {
-    content: '';
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-top: 4px;
-    background: var(--text-muted);
-    box-shadow: 0 0 12px currentColor;
-}
-
-.status__message--success {
-    border-color: rgba(79, 255, 189, 0.35);
-    background: rgba(28, 64, 54, 0.6);
-}
-
-.status__message--success::before {
-    background: #48ffb1;
-}
-
-.status__message--error {
-    border-color: rgba(255, 99, 132, 0.4);
-    background: rgba(56, 24, 32, 0.65);
-}
-
-.status__message--error::before {
-    background: #ff6b8d;
-}
-
-.status__message--info {
-    border-color: rgba(79, 140, 255, 0.35);
-    background: rgba(27, 37, 62, 0.6);
-}
-
-.status__message--info::before {
-    background: var(--accent);
-}
-
-.status__message-content {
-    grid-column: 2;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-}
-
-.status__message-detail {
-    grid-column: 2;
-    margin: 4px 0 0;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(8, 10, 16, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
-    font-size: 0.78rem;
-    white-space: pre-wrap;
-    word-break: break-word;
-    line-height: 1.5;
-}
-
-.status-log {
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(0, 0, 0, 0.18);
-    padding: 18px 20px;
+    border: 1px solid rgba(126, 144, 255, 0.16);
+    box-shadow: 0 22px 48px rgba(0, 0, 0, 0.32);
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
-    font-size: 0.875rem;
-    color: var(--text);
+    gap: 18px;
+    backdrop-filter: blur(16px);
+    position: relative;
+    overflow: hidden;
 }
 
-.status-log h3 {
+.status-panel::before {
+    content: '';
+    position: absolute;
+    inset: -40% 40% 60% -40%;
+    background: radial-gradient(circle at top left, rgba(126, 144, 255, 0.16), transparent 55%);
+    pointer-events: none;
+}
+
+.status-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.status-panel__title {
     margin: 0;
-    font-size: 0.95rem;
-    letter-spacing: 0.05em;
+    font-size: 1.08rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
 }
 
-.status-log__list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 200px;
-    overflow-y: auto;
-    padding-right: 4px;
-}
-
-.status-log__list:empty::before {
-    content: 'Noch keine Statusmeldungen.';
-    color: var(--text-muted);
-}
-
-.status-log__item {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    color: inherit;
-    line-height: 1.45;
-    word-break: break-word;
-}
-
-.status-log__timestamp {
-    color: rgba(233, 237, 245, 0.7);
-    min-width: 165px;
-}
-
-.status-log__message {
-    flex: 1;
-}
-
-.status-log__item--error {
-    background: rgba(255, 99, 132, 0.12);
-    border: 1px solid rgba(255, 99, 132, 0.3);
-    color: #ff9bab;
-    font-weight: 600;
-}
-
-.status__indicator {
+.status-panel__indicator {
     margin: 0;
+    font-size: 0.92rem;
     font-weight: 600;
     color: var(--text-muted);
     transition: color var(--transition);
+    white-space: nowrap;
 }
 
-.status__indicator--running {
+.status-panel__indicator--running {
     color: var(--accent);
 }
 
-.status__indicator--success {
-    color: #4fd1a1;
+.status-panel__indicator--success {
+    color: var(--status-success);
 }
 
-.status__indicator--error {
-    color: #ff7b7b;
+.status-panel__indicator--error {
+    color: var(--status-error);
 }
 
-@keyframes status-pop {
-    from {
+.status-panel__log {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 6px;
+    font-family: 'Roboto Mono', 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+}
+
+.status-panel__log::-webkit-scrollbar {
+    width: 6px;
+}
+
+.status-panel__log::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+}
+
+.status-panel__log::-webkit-scrollbar-thumb {
+    background: rgba(126, 144, 255, 0.35);
+    border-radius: 999px;
+}
+
+.status-panel__log:empty::before {
+    content: 'Noch keine Statusmeldungen.';
+    color: var(--status-neutral);
+    opacity: 0.8;
+}
+
+.status-panel__entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(126, 144, 255, 0.14);
+    background: rgba(20, 24, 31, 0.75);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    animation: status-entry-fade 0.45s ease forwards;
+}
+
+.status-panel__entry::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 1px rgba(126, 144, 255, 0.08) inset;
+    pointer-events: none;
+}
+
+.status-panel__entry[data-type='success'] {
+    border-color: rgba(74, 222, 128, 0.35);
+    background: linear-gradient(145deg, rgba(24, 46, 35, 0.8), rgba(20, 32, 29, 0.72));
+}
+
+.status-panel__entry[data-type='success']::after {
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.25) inset;
+}
+
+.status-panel__entry[data-type='error'] {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: linear-gradient(145deg, rgba(50, 24, 30, 0.85), rgba(36, 18, 24, 0.7));
+}
+
+.status-panel__entry[data-type='error']::after {
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35) inset;
+}
+
+.status-panel__entry[data-type='neutral'] {
+    border-color: rgba(156, 163, 175, 0.25);
+    background: linear-gradient(145deg, rgba(19, 22, 28, 0.82), rgba(16, 19, 24, 0.75));
+}
+
+.status-panel__timestamp {
+    color: rgba(233, 237, 245, 0.72);
+    min-width: 11.5ch;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.status-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.status-panel__text {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: inherit;
+}
+
+.status-panel__detail {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(8, 10, 16, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+}
+
+@keyframes status-entry-fade {
+    0% {
         opacity: 0;
-        transform: scale(0.95);
+        transform: translateY(6px);
     }
-    to {
+    100% {
         opacity: 1;
-        transform: scale(1);
+        transform: translateY(0);
     }
 }
 
@@ -565,6 +547,11 @@ textarea {
         grid-column: span 12;
     }
 
+    .status-panel {
+        grid-column: span 12;
+        order: 3;
+    }
+
     .gallery {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -581,6 +568,10 @@ textarea {
 
     .grid {
         padding: 20px;
+    }
+
+    .status-panel__log {
+        max-height: 240px;
     }
 
     .gallery {
