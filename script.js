@@ -30,7 +30,6 @@ let pollingTimer = null;
 let isPollingActive = false;
 let lastStatusText = '';
 let hasShownCompletion = false;
-let hasObservedActiveRun = false;
 
 const toBoolean = (value) => {
     if (typeof value === 'boolean') {
@@ -152,10 +151,6 @@ const setLoadingState = (loading, options = {}) => {
     if (loading) {
         hasShownCompletion = false;
     }
-
-    if (options && options.indicatorText) {
-        updateProcessingIndicator(options.indicatorText, options.indicatorState);
-    }
 };
 
 const getDataField = (data, key) => {
@@ -259,7 +254,10 @@ const uploadFiles = async (files) => {
                     addPreviews([{ url: result.file, name: result.name || file.name }]);
                 }
                 addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
-                setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+                setLoadingState(true);
+                if (processingIndicator) {
+                    processingIndicator.textContent = 'Verarbeitung läuft…';
+                }
                 hasShownCompletion = false;
                 startPolling();
 
@@ -330,6 +328,11 @@ const updateInterfaceFromData = (data) => {
     } else if (isRunning) {
         hasShownCompletion = false;
         updateProcessingIndicator('Verarbeitung läuft…', 'running');
+    }
+
+    if (!isRunning && !hasShownCompletion && data.updated_at) {
+        addStatusMessage('Verarbeitung abgeschlossen.', 'success');
+        hasShownCompletion = true;
     }
 
     if (typeof data.status_message === 'string') {
@@ -440,7 +443,6 @@ galleryItems.forEach((item) => {
 
 const loadInitialState = async () => {
     setLoadingState(false);
-    updateProcessingIndicator('Bereit.', 'idle');
 
     try {
         const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
