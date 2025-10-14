@@ -42,6 +42,7 @@ const OVERLAY_SRC =
 const INDICATOR_STATE_CLASSES = [
     'status-panel__indicator--running',
     'status-panel__indicator--success',
+    'status-panel__indicator--warning',
     'status-panel__indicator--error',
 ];
 
@@ -231,15 +232,19 @@ const toBoolean = (value) => {
 const normalizeLogType = (value) => {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
 
-    if (normalized === 'success') {
+    if (['success', 'ok', 'positive', 'completed'].includes(normalized)) {
         return 'success';
     }
 
-    if (normalized === 'error') {
+    if (['error', 'danger', 'failed', 'fail'].includes(normalized)) {
         return 'error';
     }
 
-    return 'neutral';
+    if (['warning', 'warn', 'caution'].includes(normalized)) {
+        return 'warning';
+    }
+
+    return 'info';
 };
 
 const trimStatusLog = () => {
@@ -248,69 +253,9 @@ const trimStatusLog = () => {
     }
 
     while (statusLogContainer.children.length > STATUS_LOG_LIMIT) {
-        statusLogContainer.removeChild(statusLogContainer.firstElementChild);
+        statusLogContainer.removeChild(statusLogContainer.lastElementChild);
     }
 };
-
-const createStatusLogEntryElement = ({ message, type, timestamp, detail }) => {
-    const entry = document.createElement('article');
-    const normalizedType = normalizeLogType(type);
-
-    entry.className = 'status-panel__entry';
-    entry.dataset.type = normalizedType;
-
-    const timestampElement = document.createElement('span');
-    timestampElement.className = 'status-panel__timestamp';
-    timestampElement.textContent = formatLogTimestamp(timestamp);
-
-    const body = document.createElement('div');
-    body.className = 'status-panel__body';
-
-    const textElement = document.createElement('p');
-    textElement.className = 'status-panel__text';
-    textElement.textContent = message;
-    body.appendChild(textElement);
-
-    if (typeof detail === 'string' && detail.trim() !== '') {
-        const detailElement = document.createElement('pre');
-        detailElement.className = 'status-panel__detail';
-        detailElement.textContent = detail.trim();
-        body.appendChild(detailElement);
-    }
-
-    entry.append(timestampElement, body);
-
-    return entry;
-};
-
-const appendStatusLogEntry = (entryElement) => {
-    if (!statusLogContainer || !entryElement) {
-        return;
-    }
-
-    statusLogContainer.appendChild(entryElement);
-    trimStatusLog();
-    statusLogContainer.scrollTop = statusLogContainer.scrollHeight;
-};
-
-const addStatusMessage = (text, type = 'neutral', detail) => {
-    const message = typeof text === 'string' ? text.trim() : '';
-
-    if (!message) {
-        return;
-    }
-
-    const entry = createStatusLogEntryElement({
-        message,
-        type,
-        detail,
-        timestamp: new Date(),
-    });
-
-    appendStatusLogEntry(entry);
-};
-
-const padTwo = (value) => String(value).padStart(2, '0');
 
 const formatLogTimestamp = (value) => {
     let date = null;
@@ -332,6 +277,7 @@ const formatLogTimestamp = (value) => {
         date = new Date();
     }
 
+    const padTwo = (valueToPad) => String(valueToPad).padStart(2, '0');
     const day = padTwo(date.getDate());
     const month = padTwo(date.getMonth() + 1);
     const year = date.getFullYear();
@@ -342,13 +288,78 @@ const formatLogTimestamp = (value) => {
     return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 };
 
+const createStatusLogEntryElement = ({ message, type, timestamp, detail }) => {
+    const entry = document.createElement('article');
+    const normalizedType = normalizeLogType(type);
+
+    entry.className = 'status-panel__entry';
+    entry.dataset.type = normalizedType;
+
+    if (timestamp) {
+        const formattedTimestamp = formatLogTimestamp(timestamp);
+        entry.dataset.timestamp = formattedTimestamp;
+    }
+
+    const textElement = document.createElement('p');
+    textElement.className = 'status-panel__text';
+    textElement.textContent = message;
+    entry.appendChild(textElement);
+
+    if (typeof detail === 'string' && detail.trim() !== '') {
+        const detailElement = document.createElement('pre');
+        detailElement.className = 'status-panel__detail';
+        detailElement.textContent = detail.trim();
+        entry.appendChild(detailElement);
+    }
+
+    return entry;
+};
+
+const scrollStatusLogToTop = () => {
+    if (!statusLogContainer) {
+        return;
+    }
+
+    if (typeof statusLogContainer.scrollTo === 'function') {
+        statusLogContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        statusLogContainer.scrollTop = 0;
+    }
+};
+
+const insertStatusLogEntry = (entryElement) => {
+    if (!statusLogContainer || !entryElement) {
+        return;
+    }
+
+    statusLogContainer.prepend(entryElement);
+    trimStatusLog();
+    scrollStatusLogToTop();
+};
+
+const addStatusMessage = (text, type = 'info', detail) => {
+    const message = typeof text === 'string' ? text.trim() : '';
+
+    if (!message) {
+        return;
+    }
+
+    const entry = createStatusLogEntryElement({
+        message,
+        type,
+        detail,
+        timestamp: new Date(),
+    });
+
+    insertStatusLogEntry(entry);
+};
+
 const updateStatusLog = (entries) => {
     if (!statusLogContainer || !Array.isArray(entries)) {
         return;
     }
 
-    const fragment = document.createDocumentFragment();
-    let hasNewEntries = false;
+    const itemsToInsert = [];
 
     entries.forEach((rawEntry) => {
         if (!rawEntry || typeof rawEntry !== 'object') {
@@ -376,14 +387,15 @@ const updateStatusLog = (entries) => {
             timestamp,
         });
 
-        fragment.appendChild(item);
-        hasNewEntries = true;
+        itemsToInsert.push(item);
     });
 
-    if (hasNewEntries) {
-        statusLogContainer.appendChild(fragment);
+    if (itemsToInsert.length > 0) {
+        itemsToInsert.forEach((item) => {
+            statusLogContainer.prepend(item);
+        });
         trimStatusLog();
-        statusLogContainer.scrollTop = statusLogContainer.scrollHeight;
+        scrollStatusLogToTop();
     }
 };
 
@@ -611,7 +623,7 @@ const updateInterfaceFromData = (data) => {
     if (typeof data.status_message === 'string') {
         const trimmed = data.status_message.trim();
         if (trimmed && trimmed !== lastStatusText) {
-            addStatusMessage(trimmed, isRunning ? 'info' : 'success');
+            addStatusMessage(trimmed, 'info');
             lastStatusText = trimmed;
         }
     }
