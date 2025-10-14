@@ -6,11 +6,32 @@ const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const statusMessages = document.getElementById('status-messages');
+const processingIndicator = document.getElementById('processing-indicator');
+const articleNameInput = document.getElementById('article-name');
+const articleDescriptionInput = document.getElementById('article-description');
 
 const uploadEndpoint = 'upload.php';
 const MAX_STATUS_ITEMS = 10;
+const POLLING_INTERVAL = 2000;
+const DATA_ENDPOINT = 'data.json';
+const PLACEHOLDER_SRC = '/assets/placeholder.jpg';
+const LOADING_SRC = '/assets/loading.gif';
+
+const galleryImages = [
+    { key: 'image_1', element: document.getElementById('img1') },
+    { key: 'image_2', element: document.getElementById('img2') },
+    { key: 'image_3', element: document.getElementById('img3') },
+];
+
+let isProcessing = false;
+let pollingTimer = null;
+let lastStatusText = '';
 
 const addStatusMessage = (text, type = 'info', detail) => {
+    if (!statusMessages) {
+        return;
+    }
+
     const item = document.createElement('li');
     item.className = `status__message status__message--${type}`;
 
@@ -33,6 +54,79 @@ const addStatusMessage = (text, type = 'info', detail) => {
     }
 
     statusMessages.scrollTop = 0;
+};
+
+const setImageSource = (element, src) => {
+    if (!element || !src) {
+        return;
+    }
+
+    const sanitized = String(src).trim();
+    if (sanitized === '') {
+        return;
+    }
+
+    if (element.dataset.currentSrc === sanitized) {
+        element.dataset.hasContent = 'true';
+        element.dataset.isLoading = 'false';
+        return;
+    }
+
+    element.dataset.hasContent = 'true';
+    element.dataset.currentSrc = sanitized;
+    element.dataset.isLoading = 'false';
+    element.src = sanitized;
+};
+
+const setLoadingState = (loading) => {
+    isProcessing = loading;
+
+    galleryImages.forEach(({ element }) => {
+        if (!element) {
+            return;
+        }
+
+        if (loading) {
+            element.dataset.isLoading = 'true';
+            element.src = LOADING_SRC;
+        } else {
+            element.dataset.isLoading = 'false';
+            if (element.dataset.hasContent === 'true' && element.dataset.currentSrc) {
+                element.src = element.dataset.currentSrc;
+            } else {
+                element.dataset.hasContent = 'false';
+                element.dataset.currentSrc = '';
+                element.src = PLACEHOLDER_SRC;
+            }
+        }
+    });
+};
+
+const getDataField = (data, key) => {
+    if (!data || typeof data !== 'object') {
+        return undefined;
+    }
+
+    const candidates = new Set([key]);
+
+    if (key.includes('_')) {
+        candidates.add(key.replace(/_/g, ''));
+        candidates.add(key.replace('_', '-'));
+    }
+
+    if (key.startsWith('image_')) {
+        const suffix = key.substring(6);
+        candidates.add(`image${suffix}`);
+        candidates.add(`image-${suffix}`);
+    }
+
+    for (const candidate of candidates) {
+        if (Object.prototype.hasOwnProperty.call(data, candidate) && data[candidate] !== null && data[candidate] !== undefined) {
+            return data[candidate];
+        }
+    }
+
+    return undefined;
 };
 
 const createPreviewItem = (url, name) => {
@@ -67,6 +161,10 @@ const uploadFiles = async (files) => {
         formData.append('image', file);
 
         addStatusMessage(`Starte Upload: ${file.name}`, 'info');
+        setLoadingState(true);
+        if (processingIndicator) {
+            processingIndicator.textContent = 'Verarbeitung läuft…';
+        }
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -87,22 +185,26 @@ const uploadFiles = async (files) => {
             }
 
             if (result.success) {
-                addPreviews([{ url: result.url, name: result.name || file.name }]);
+                if (result.file) {
+                    addPreviews([{ url: result.file, name: result.name || file.name }]);
+                }
                 addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
 
-                if (typeof result.forward_response !== 'undefined' && result.forward_response !== null && result.forward_response !== '') {
-                    const formatted = typeof result.forward_response === 'object'
-                        ? JSON.stringify(result.forward_response, null, 2)
-                        : String(result.forward_response);
-                    const statusLabel = result.forward_status ? `Zielserver (${result.forward_status})` : 'Zielserver';
+                if (typeof result.webhook_response !== 'undefined' && result.webhook_response !== null && result.webhook_response !== '') {
+                    const formatted = typeof result.webhook_response === 'object'
+                        ? JSON.stringify(result.webhook_response, null, 2)
+                        : String(result.webhook_response);
+                    const statusLabel = result.webhook_status ? `Webhook (${result.webhook_status})` : 'Webhook';
                     addStatusMessage(`${statusLabel} Antwort`, 'info', formatted);
                 }
             } else {
-                addStatusMessage(result.error || `Upload fehlgeschlagen: ${file.name}`, 'error');
+                addStatusMessage(result.message || `Upload fehlgeschlagen: ${file.name}`, 'error');
+                setLoadingState(false);
             }
         } catch (error) {
             console.error(error);
             addStatusMessage(error.message || `Beim Upload ist ein Fehler aufgetreten (${file.name}).`, 'error');
+            setLoadingState(false);
         }
     });
 
@@ -129,6 +231,84 @@ const closeLightbox = () => {
     setTimeout(() => {
         lightboxImage.src = '';
     }, 250);
+};
+
+const updateInterfaceFromData = (data) => {
+    if (!data || typeof data !== 'object') {
+        return;
+    }
+
+    const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
+    const isRunning = hasIsRunning ? Boolean(data.isrunning) : false;
+
+    if (isRunning && !isProcessing) {
+        setLoadingState(true);
+    } else if (!isRunning && isProcessing) {
+        setLoadingState(false);
+    }
+
+    const indicatorText = isRunning
+        ? 'Verarbeitung läuft…'
+        : data.updated_at
+            ? 'Verarbeitung abgeschlossen'
+            : 'Bereit.';
+
+    if (processingIndicator) {
+        processingIndicator.textContent = indicatorText;
+    }
+
+    if (typeof data.status_message === 'string') {
+        const trimmed = data.status_message.trim();
+        if (trimmed && trimmed !== lastStatusText) {
+            addStatusMessage(trimmed, isRunning ? 'info' : 'success');
+            lastStatusText = trimmed;
+        }
+    }
+
+    const nameValue = data.produktname ?? data.product_name ?? data.title;
+    if (typeof nameValue === 'string' && nameValue.trim() !== '') {
+        articleNameInput.value = nameValue;
+    }
+
+    const descriptionValue = data.produktbeschreibung ?? data.product_description ?? data.description;
+    if (typeof descriptionValue === 'string' && descriptionValue.trim() !== '') {
+        articleDescriptionInput.value = descriptionValue;
+    }
+
+    galleryImages.forEach(({ key, element }) => {
+        const value = getDataField(data, key);
+        if (value) {
+            setImageSource(element, value);
+        } else if (!isProcessing && element && element.dataset.hasContent !== 'true') {
+            element.src = PLACEHOLDER_SRC;
+        }
+    });
+};
+
+const fetchLatestData = async () => {
+    try {
+        const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Serverantwort ${response.status}`);
+        }
+
+        const data = await response.json();
+        updateInterfaceFromData(data);
+    } catch (error) {
+        console.error('Polling-Fehler:', error);
+    }
+};
+
+const startPolling = () => {
+    if (pollingTimer !== null) {
+        clearInterval(pollingTimer);
+    }
+
+    fetchLatestData();
+    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
 };
 
 selectFileButton.addEventListener('click', () => fileInput.click());
@@ -175,7 +355,6 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// Enable gallery items in lightbox
 const galleryItems = document.querySelectorAll('[data-preview]');
 galleryItems.forEach((item) => {
     const open = () => openLightbox(item.src, item.alt);
@@ -188,3 +367,6 @@ galleryItems.forEach((item) => {
     });
     item.tabIndex = 0;
 });
+
+setLoadingState(false);
+startPolling();
