@@ -35,6 +35,7 @@ try {
 
     $uploadDir = rtrim($config['upload_dir'] ?? (__DIR__ . '/uploads/'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
     $dataFile  = $config['data_file'] ?? (__DIR__ . '/data.json');
+    $baseUrl   = rtrim((string) ($config['base_url'] ?? ''), '/');
 
     if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
         throw new RuntimeException('Upload-Verzeichnis konnte nicht erstellt werden.');
@@ -84,7 +85,7 @@ try {
             throw new RuntimeException('Datei konnte nicht gespeichert werden.');
         }
 
-        return 'uploads/' . $storedName;
+        return $storedName;
     };
 
     $normalizeValue = static function (string $key, mixed $value): mixed {
@@ -151,15 +152,32 @@ try {
                 continue;
             }
 
-            $relativePath = $storeFile($fileData, $uploadDir);
-            $newData[$field] = $relativePath;
+            $storedName = $storeFile($fileData, $uploadDir);
+            $origin = $baseUrl;
+            if ($origin === '') {
+                $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+                    || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443);
+                $scheme = $isHttps ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST']
+                    ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+                $origin = $scheme . '://' . $host;
+
+                $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+                $scriptDir = ($scriptDir === '.' ? '' : $scriptDir);
+                if ($scriptDir !== '') {
+                    $origin .= ($scriptDir[0] === '/' ? '' : '/') . trim($scriptDir, '/');
+                }
+            }
+
+            $fileUrl = rtrim($origin, '/') . '/uploads/' . $storedName;
+            $newData[$field] = $fileUrl;
         }
     }
 
     $merged = array_merge($existingData, $newData);
     $merged['updated_at'] = $timestamp();
 
-    file_put_contents($dataFile, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    file_put_contents($dataFile, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
     $respond([
         'success'   => true,
