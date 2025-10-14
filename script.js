@@ -15,7 +15,9 @@ const MAX_STATUS_ITEMS = 10;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'data.json';
 const PLACEHOLDER_SRC = '/assets/placeholder.jpg';
-const LOADING_SRC = '/assets/loading.gif';
+const loadingImage = 'https://vielfalter.digital/api-monday/ecommagent/assets/loading.gif';
+const LOADING_SRC = loadingImage;
+const INDICATOR_STATE_CLASSES = ['status__indicator--running', 'status__indicator--success', 'status__indicator--error'];
 
 const galleryImages = [
     { key: 'image_1', element: document.getElementById('img1') },
@@ -25,7 +27,32 @@ const galleryImages = [
 
 let isProcessing = false;
 let pollingTimer = null;
+let isPollingActive = false;
 let lastStatusText = '';
+let hasShownCompletion = false;
+let hasObservedActiveRun = false;
+
+const toBoolean = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'ja'].includes(normalized)) {
+            return true;
+        }
+        if (['false', '0', 'no', 'nein'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return false;
+};
 
 const addStatusMessage = (text, type = 'info', detail) => {
     if (!statusMessages) {
@@ -78,8 +105,27 @@ const setImageSource = (element, src) => {
     element.src = sanitized;
 };
 
-const setLoadingState = (loading) => {
+const updateProcessingIndicator = (text, state = 'idle') => {
+    if (!processingIndicator) {
+        return;
+    }
+
+    processingIndicator.textContent = text;
+    INDICATOR_STATE_CLASSES.forEach((className) => processingIndicator.classList.remove(className));
+
+    if (state && state !== 'idle') {
+        processingIndicator.classList.add(`status__indicator--${state}`);
+    }
+};
+
+const setLoadingState = (loading, options = {}) => {
     isProcessing = loading;
+
+    if (loading) {
+        hasObservedActiveRun = true;
+    } else if (!options || options.indicatorState !== 'success') {
+        hasObservedActiveRun = false;
+    }
 
     galleryImages.forEach(({ element }) => {
         if (!element) {
@@ -88,6 +134,8 @@ const setLoadingState = (loading) => {
 
         if (loading) {
             element.dataset.isLoading = 'true';
+            element.dataset.hasContent = 'false';
+            element.dataset.currentSrc = '';
             element.src = LOADING_SRC;
         } else {
             element.dataset.isLoading = 'false';
@@ -100,6 +148,14 @@ const setLoadingState = (loading) => {
             }
         }
     });
+
+    if (loading) {
+        hasShownCompletion = false;
+    }
+
+    if (options && options.indicatorText) {
+        updateProcessingIndicator(options.indicatorText, options.indicatorState);
+    }
 };
 
 const getDataField = (data, key) => {
@@ -155,16 +211,30 @@ const addPreviews = (files) => {
     });
 };
 
+const stopPolling = () => {
+    if (pollingTimer !== null) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
+    isPollingActive = false;
+};
+
+const startPolling = () => {
+    if (isPollingActive) {
+        return;
+    }
+
+    isPollingActive = true;
+    fetchLatestData();
+    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
+};
+
 const uploadFiles = async (files) => {
     const uploads = Array.from(files).map(async (file) => {
         const formData = new FormData();
         formData.append('image', file);
 
         addStatusMessage(`Starte Upload: ${file.name}`, 'info');
-        setLoadingState(true);
-        if (processingIndicator) {
-            processingIndicator.textContent = 'Verarbeitung läuft…';
-        }
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -189,6 +259,9 @@ const uploadFiles = async (files) => {
                     addPreviews([{ url: result.file, name: result.name || file.name }]);
                 }
                 addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
+                setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+                hasShownCompletion = false;
+                startPolling();
 
                 if (typeof result.webhook_response !== 'undefined' && result.webhook_response !== null && result.webhook_response !== '') {
                     const formatted = typeof result.webhook_response === 'object'
@@ -199,12 +272,12 @@ const uploadFiles = async (files) => {
                 }
             } else {
                 addStatusMessage(result.message || `Upload fehlgeschlagen: ${file.name}`, 'error');
-                setLoadingState(false);
+                setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
             }
         } catch (error) {
             console.error(error);
             addStatusMessage(error.message || `Beim Upload ist ein Fehler aufgetreten (${file.name}).`, 'error');
-            setLoadingState(false);
+            setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
         }
     });
 
@@ -239,22 +312,24 @@ const updateInterfaceFromData = (data) => {
     }
 
     const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
-    const isRunning = hasIsRunning ? Boolean(data.isrunning) : false;
+    const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
 
     if (isRunning && !isProcessing) {
-        setLoadingState(true);
+        setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
     } else if (!isRunning && isProcessing) {
-        setLoadingState(false);
+        setLoadingState(false, { indicatorText: 'Workflow abgeschlossen', indicatorState: 'success' });
+    } else if (!isRunning && !isProcessing) {
+        updateProcessingIndicator('Bereit.', 'idle');
     }
 
-    const indicatorText = isRunning
-        ? 'Verarbeitung läuft…'
-        : data.updated_at
-            ? 'Verarbeitung abgeschlossen'
-            : 'Bereit.';
-
-    if (processingIndicator) {
-        processingIndicator.textContent = indicatorText;
+    if (!isRunning && hasObservedActiveRun && !hasShownCompletion) {
+        addStatusMessage('Workflow abgeschlossen.', 'success');
+        hasShownCompletion = true;
+        updateProcessingIndicator('Workflow abgeschlossen', 'success');
+        hasObservedActiveRun = false;
+    } else if (isRunning) {
+        hasShownCompletion = false;
+        updateProcessingIndicator('Verarbeitung läuft…', 'running');
     }
 
     if (typeof data.status_message === 'string') {
@@ -283,6 +358,10 @@ const updateInterfaceFromData = (data) => {
             element.src = PLACEHOLDER_SRC;
         }
     });
+
+    if (!isRunning) {
+        stopPolling();
+    }
 };
 
 const fetchLatestData = async () => {
@@ -300,15 +379,6 @@ const fetchLatestData = async () => {
     } catch (error) {
         console.error('Polling-Fehler:', error);
     }
-};
-
-const startPolling = () => {
-    if (pollingTimer !== null) {
-        clearInterval(pollingTimer);
-    }
-
-    fetchLatestData();
-    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
 };
 
 selectFileButton.addEventListener('click', () => fileInput.click());
@@ -368,5 +438,29 @@ galleryItems.forEach((item) => {
     item.tabIndex = 0;
 });
 
-setLoadingState(false);
-startPolling();
+const loadInitialState = async () => {
+    setLoadingState(false);
+    updateProcessingIndicator('Bereit.', 'idle');
+
+    try {
+        const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+        updateInterfaceFromData(data);
+
+        if (Object.prototype.hasOwnProperty.call(data, 'isrunning') && toBoolean(data.isrunning)) {
+            hasShownCompletion = false;
+            startPolling();
+        }
+    } catch (error) {
+        console.error('Initialisierung fehlgeschlagen:', error);
+    }
+};
+
+loadInitialState();

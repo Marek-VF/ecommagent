@@ -90,13 +90,13 @@ try {
     $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
 
     $initialData = [
-        'isrunning'        => true,
-        'status_message'   => 'Workflow gestartet',
-        'source_image'     => $publicPath,
-        'updated_at'       => $timestamp(),
+        'isrunning' => true,
     ];
 
-    file_put_contents($dataFile, json_encode($initialData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    $encodedData = json_encode($initialData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($encodedData === false || file_put_contents($dataFile, $encodedData) === false) {
+        throw new RuntimeException('Statusdatei konnte nicht aktualisiert werden.');
+    }
 
     if ($webhook === null || $webhook === '') {
         throw new RuntimeException('Workflow-Webhook ist nicht konfiguriert.');
