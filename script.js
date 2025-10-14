@@ -7,6 +7,7 @@ const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const statusMessages = document.getElementById('status-messages');
 const processingIndicator = document.getElementById('processing-indicator');
+const statusLogContainer = document.getElementById('status-log');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 
@@ -198,6 +199,9 @@ let pollingTimer = null;
 let isPollingActive = false;
 let lastStatusText = '';
 let hasShownCompletion = false;
+const statusLogState = {
+    seen: new Set(),
+};
 
 const toBoolean = (value) => {
     if (typeof value === 'boolean') {
@@ -248,6 +252,88 @@ const addStatusMessage = (text, type = 'info', detail) => {
     }
 
     statusMessages.scrollTop = 0;
+};
+
+const padTwo = (value) => String(value).padStart(2, '0');
+
+const formatLogTimestamp = (value) => {
+    if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+            const day = padTwo(parsed.getDate());
+            const month = padTwo(parsed.getMonth() + 1);
+            const year = parsed.getFullYear();
+            const hours = padTwo(parsed.getHours());
+            const minutes = padTwo(parsed.getMinutes());
+            const seconds = padTwo(parsed.getSeconds());
+            return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+        }
+
+        return value.trim();
+    }
+
+    const now = new Date();
+    const day = padTwo(now.getDate());
+    const month = padTwo(now.getMonth() + 1);
+    const year = now.getFullYear();
+    const hours = padTwo(now.getHours());
+    const minutes = padTwo(now.getMinutes());
+    const seconds = padTwo(now.getSeconds());
+
+    return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+};
+
+const updateStatusLog = (entries) => {
+    if (!statusLogContainer || !Array.isArray(entries)) {
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    let hasNewEntries = false;
+
+    entries.forEach((rawEntry) => {
+        if (!rawEntry || typeof rawEntry !== 'object') {
+            return;
+        }
+
+        const message = typeof rawEntry.message === 'string' ? rawEntry.message.trim() : '';
+        if (message === '') {
+            return;
+        }
+
+        const timestamp = typeof rawEntry.timestamp === 'string' ? rawEntry.timestamp : '';
+        const normalizedType = typeof rawEntry.type === 'string'
+            ? rawEntry.type.trim().toLowerCase()
+            : '';
+        const type = normalizedType === 'error' ? 'error' : 'info';
+        const entryKey = `${timestamp}::${message}::${type}`;
+
+        if (statusLogState.seen.has(entryKey)) {
+            return;
+        }
+
+        statusLogState.seen.add(entryKey);
+
+        const item = document.createElement('div');
+        item.className = `status-log__item${type === 'error' ? ' status-log__item--error' : ''}`;
+
+        const timeElement = document.createElement('span');
+        timeElement.className = 'status-log__timestamp';
+        timeElement.textContent = formatLogTimestamp(timestamp);
+
+        const messageElement = document.createElement('span');
+        messageElement.className = 'status-log__message';
+        messageElement.textContent = message;
+
+        item.append(timeElement, messageElement);
+        fragment.appendChild(item);
+        hasNewEntries = true;
+    });
+
+    if (hasNewEntries) {
+        statusLogContainer.appendChild(fragment);
+        statusLogContainer.scrollTop = statusLogContainer.scrollHeight;
+    }
 };
 
 const updateProcessingIndicator = (text, state = 'idle') => {
@@ -477,6 +563,10 @@ const updateInterfaceFromData = (data) => {
             addStatusMessage(trimmed, isRunning ? 'info' : 'success');
             lastStatusText = trimmed;
         }
+    }
+
+    if (Array.isArray(data.statuslog)) {
+        updateStatusLog(data.statuslog);
     }
 
     const nameValue = data.produktname ?? data.product_name ?? data.title;

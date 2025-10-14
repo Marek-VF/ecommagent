@@ -65,6 +65,10 @@ $appConfig = [
                     <ul id="status-messages" class="status__messages"></ul>
                     <p id="processing-indicator" class="status__indicator">Bereit.</p>
                 </div>
+                <div class="status-log" aria-live="polite">
+                    <h3>Status</h3>
+                    <div id="status-log" class="status-log__list" role="log" aria-live="polite" aria-atomic="false"></div>
+                </div>
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">

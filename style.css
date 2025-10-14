@@ -286,6 +286,69 @@ body {
     line-height: 1.5;
 }
 
+.status-log {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.18);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
+    font-size: 0.875rem;
+    color: var(--text);
+}
+
+.status-log h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.status-log__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.status-log__list:empty::before {
+    content: 'Noch keine Statusmeldungen.';
+    color: var(--text-muted);
+}
+
+.status-log__item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: inherit;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.status-log__timestamp {
+    color: rgba(233, 237, 245, 0.7);
+    min-width: 165px;
+}
+
+.status-log__message {
+    flex: 1;
+}
+
+.status-log__item--error {
+    background: rgba(255, 99, 132, 0.12);
+    border: 1px solid rgba(255, 99, 132, 0.3);
+    color: #ff9bab;
+    font-weight: 600;
+}
+
 .status__indicator {
     margin: 0;
     font-weight: 600;
