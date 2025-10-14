@@ -11,6 +11,7 @@ const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 
 const uploadEndpoint = 'upload.php';
+const initializationEndpoint = 'init.php';
 const MAX_STATUS_ITEMS = 10;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'data.json';
@@ -441,10 +442,26 @@ galleryItems.forEach((item) => {
     item.tabIndex = 0;
 });
 
+const initializeBackendState = async () => {
+    try {
+        const response = await fetch(`${initializationEndpoint}?${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Serverantwort ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Backend-Initialisierung fehlgeschlagen:', error);
+    }
+};
+
 const loadInitialState = async () => {
     setLoadingState(false);
 
     try {
+        await initializeBackendState();
+
         const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
             cache: 'no-store',
         });
