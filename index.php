@@ -6,7 +6,7 @@ $assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/ass
 $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string)$assetBaseUrl, '/') : '/assets';
 
 $placeholderSrc = $assetBaseUrl . '/placeholder.png';
-$loadingSrc = $assetBaseUrl . '/loading.gif';
+$pulseOverlaySrc = $assetBaseUrl . '/pulse.svg';
 
 $placeholderDimensions = null;
 $placeholderFile = __DIR__ . '/assets/placeholder.png';
@@ -24,7 +24,9 @@ $appConfig = [
     'assets' => [
         'base'        => $assetBaseUrl,
         'placeholder' => $placeholderSrc,
-        'loading'     => $loadingSrc,
+        'overlay'     => $pulseOverlaySrc,
+        'loading'     => $pulseOverlaySrc,
+        'pulse'       => $pulseOverlaySrc,
     ],
     'placeholderDimensions' => $placeholderDimensions,
 ];
@@ -66,9 +68,15 @@ $appConfig = [
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">
-                    <img id="img1" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 1" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
-                    <img id="img2" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 2" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
-                    <img id="img3" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter 3" class="gallery__item" data-preview data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>">
+<?php for ($i = 1; $i <= 3; $i++):
+    $slotKey = 'image_' . $i;
+?>
+                    <div id="img<?php echo $i; ?>" class="gallery__item" data-preview data-slot="<?php echo htmlspecialchars($slotKey, ENT_QUOTES); ?>" data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" data-has-content="false" data-is-loading="false" role="button" aria-label="Bildvorschau <?php echo $i; ?>" tabindex="0">
+                        <img class="gallery__image gallery__image--placeholder" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter <?php echo $i; ?>" data-role="placeholder">
+                        <img class="gallery__image gallery__image--content" alt="Produktbild <?php echo $i; ?>" data-role="content">
+                        <img class="gallery__overlay" src="<?php echo htmlspecialchars($pulseOverlaySrc, ENT_QUOTES); ?>" alt="" data-role="overlay" aria-hidden="true">
+                    </div>
+<?php endfor; ?>
                 </div>
                 <div class="form-group">
                     <label for="article-name">Artikelname</label>

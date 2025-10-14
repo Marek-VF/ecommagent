@@ -32,14 +32,59 @@ const resolveAssetBase = () => {
 
 const assetBase = resolveAssetBase();
 const PLACEHOLDER_SRC = assetConfig.placeholder || `${assetBase}/placeholder.png`;
-const LOADING_SRC = assetConfig.loading || `${assetBase}/loading.gif`;
+const OVERLAY_SRC =
+    assetConfig.loading_overlay ||
+    assetConfig.loadingOverlay ||
+    assetConfig.overlay ||
+    assetConfig.pulse ||
+    assetConfig.loading ||
+    `${assetBase}/pulse.svg`;
 const INDICATOR_STATE_CLASSES = ['status__indicator--running', 'status__indicator--success', 'status__indicator--error'];
 
-const galleryImages = [
-    { key: 'image_1', element: document.getElementById('img1') },
-    { key: 'image_2', element: document.getElementById('img2') },
-    { key: 'image_3', element: document.getElementById('img3') },
-];
+const gallerySlotKeys = ['image_1', 'image_2', 'image_3'];
+
+const gallerySlots = gallerySlotKeys
+    .map((key, index) => {
+        const container = document.querySelector(`[data-slot="${key}"]`);
+        if (!container) {
+            return null;
+        }
+
+        const placeholder = container.querySelector('[data-role="placeholder"]');
+        const content = container.querySelector('[data-role="content"]');
+        const overlay = container.querySelector('[data-role="overlay"]');
+
+        const placeholderSrc = (container.dataset.placeholder || '').trim() || PLACEHOLDER_SRC;
+        container.dataset.placeholder = placeholderSrc;
+        container.dataset.currentSrc = '';
+        container.dataset.hasContent = 'false';
+        container.dataset.isLoading = 'false';
+
+        if (placeholder) {
+            placeholder.src = placeholderSrc;
+        }
+
+        if (content) {
+            content.removeAttribute('src');
+            content.alt = content.alt || `Produktbild ${index + 1}`;
+        }
+
+        if (overlay) {
+            overlay.src = OVERLAY_SRC;
+        }
+
+        container.setAttribute('tabindex', '0');
+
+        return {
+            key,
+            index,
+            container,
+            placeholder,
+            content,
+            overlay,
+        };
+    })
+    .filter(Boolean);
 
 const placeholderDimensions = appConfig.placeholderDimensions || null;
 
@@ -50,12 +95,12 @@ if (placeholderDimensions && placeholderDimensions.width && placeholderDimension
     );
 }
 
-const getPlaceholderForElement = (element) => {
-    if (!element) {
+const getPlaceholderForSlot = (slot) => {
+    if (!slot || !slot.container) {
         return PLACEHOLDER_SRC;
     }
 
-    const placeholder = element.dataset?.placeholder;
+    const placeholder = slot.container.dataset?.placeholder;
     if (typeof placeholder === 'string' && placeholder.trim() !== '') {
         return placeholder.trim();
     }
@@ -63,19 +108,89 @@ const getPlaceholderForElement = (element) => {
     return PLACEHOLDER_SRC;
 };
 
-galleryImages.forEach(({ element }) => {
-    if (!element) {
+const ensurePlaceholderForSlot = (slot) => {
+    if (!slot || !slot.placeholder) {
         return;
     }
 
-    element.dataset.placeholder = getPlaceholderForElement(element);
-    element.dataset.currentSrc = element.dataset.currentSrc || '';
-    element.dataset.hasContent = element.dataset.hasContent === 'true' ? 'true' : 'false';
-    element.dataset.isLoading = element.dataset.isLoading === 'true' ? 'true' : 'false';
-
-    if (!element.getAttribute('src')) {
-        element.src = getPlaceholderForElement(element);
+    const placeholderSrc = getPlaceholderForSlot(slot);
+    if (slot.placeholder.src !== placeholderSrc) {
+        slot.placeholder.src = placeholderSrc;
     }
+};
+
+const clearSlotContent = (slot) => {
+    if (!slot || !slot.container) {
+        return;
+    }
+
+    slot.container.dataset.hasContent = 'false';
+    slot.container.dataset.currentSrc = '';
+
+    if (slot.content) {
+        slot.content.removeAttribute('src');
+    }
+
+    ensurePlaceholderForSlot(slot);
+};
+
+const setSlotLoadingState = (slot, loading) => {
+    if (!slot || !slot.container) {
+        return;
+    }
+
+    slot.container.dataset.isLoading = loading ? 'true' : 'false';
+
+    if (slot.overlay && slot.overlay.src !== OVERLAY_SRC) {
+        slot.overlay.src = OVERLAY_SRC;
+    }
+
+    if (loading) {
+        ensurePlaceholderForSlot(slot);
+    }
+};
+
+const setSlotImageSource = (slot, src) => {
+    if (!slot || !slot.container || !src) {
+        return;
+    }
+
+    const sanitized = String(src).trim();
+    if (sanitized === '') {
+        return;
+    }
+
+    if (slot.container.dataset.currentSrc === sanitized && slot.container.dataset.hasContent === 'true') {
+        slot.container.dataset.isLoading = 'false';
+        return;
+    }
+
+    slot.container.dataset.currentSrc = sanitized;
+    slot.container.dataset.hasContent = 'true';
+    slot.container.dataset.isLoading = 'false';
+
+    if (slot.content) {
+        slot.content.src = sanitized;
+    }
+};
+
+const getSlotPreviewData = (slot) => {
+    if (!slot || !slot.container) {
+        return { src: PLACEHOLDER_SRC, alt: 'Bildvorschau' };
+    }
+
+    const hasContent = slot.container.dataset.hasContent === 'true' && slot.content && slot.content.src;
+    const src = hasContent && slot.content ? slot.content.src : getPlaceholderForSlot(slot);
+    const alt = hasContent && slot.content
+        ? slot.content.alt || `Produktbild ${slot.index + 1}`
+        : (slot.placeholder?.alt || `Platzhalter ${slot.index + 1}`);
+
+    return { src, alt };
+};
+
+gallerySlots.forEach((slot) => {
+    clearSlotContent(slot);
+    setSlotLoadingState(slot, false);
 });
 
 let isProcessing = false;
@@ -135,28 +250,6 @@ const addStatusMessage = (text, type = 'info', detail) => {
     statusMessages.scrollTop = 0;
 };
 
-const setImageSource = (element, src) => {
-    if (!element || !src) {
-        return;
-    }
-
-    const sanitized = String(src).trim();
-    if (sanitized === '') {
-        return;
-    }
-
-    if (element.dataset.currentSrc === sanitized) {
-        element.dataset.hasContent = 'true';
-        element.dataset.isLoading = 'false';
-        return;
-    }
-
-    element.dataset.hasContent = 'true';
-    element.dataset.currentSrc = sanitized;
-    element.dataset.isLoading = 'false';
-    element.src = sanitized;
-};
-
 const updateProcessingIndicator = (text, state = 'idle') => {
     if (!processingIndicator) {
         return;
@@ -179,24 +272,14 @@ const setLoadingState = (loading, options = {}) => {
         hasObservedActiveRun = false;
     }
 
-    galleryImages.forEach(({ element }) => {
-        if (!element) {
-            return;
-        }
-
+    gallerySlots.forEach((slot) => {
         if (loading) {
-            element.dataset.isLoading = 'true';
-            element.dataset.hasContent = 'false';
-            element.dataset.currentSrc = '';
-            element.src = LOADING_SRC;
+            clearSlotContent(slot);
+            setSlotLoadingState(slot, true);
         } else {
-            element.dataset.isLoading = 'false';
-            if (element.dataset.hasContent === 'true' && element.dataset.currentSrc) {
-                element.src = element.dataset.currentSrc;
-            } else {
-                element.dataset.hasContent = 'false';
-                element.dataset.currentSrc = '';
-                element.src = getPlaceholderForElement(element);
+            setSlotLoadingState(slot, false);
+            if (!slot.container || slot.container.dataset.hasContent !== 'true') {
+                clearSlotContent(slot);
             }
         }
     });
@@ -406,12 +489,13 @@ const updateInterfaceFromData = (data) => {
         articleDescriptionInput.value = descriptionValue;
     }
 
-    galleryImages.forEach(({ key, element }) => {
-        const value = getDataField(data, key);
+    gallerySlots.forEach((slot) => {
+        const value = getDataField(data, slot.key);
         if (value) {
-            setImageSource(element, value);
-        } else if (!isProcessing && element && element.dataset.hasContent !== 'true') {
-            element.src = getPlaceholderForElement(element);
+            setSlotImageSource(slot, value);
+        } else if (!isProcessing && slot.container && slot.container.dataset.hasContent !== 'true') {
+            clearSlotContent(slot);
+            setSlotLoadingState(slot, false);
         }
     });
 
@@ -481,17 +565,23 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-const galleryItems = document.querySelectorAll('[data-preview]');
-galleryItems.forEach((item) => {
-    const open = () => openLightbox(item.src, item.alt);
-    item.addEventListener('click', open);
-    item.addEventListener('keydown', (event) => {
+gallerySlots.forEach((slot) => {
+    if (!slot.container) {
+        return;
+    }
+
+    const open = () => {
+        const { src, alt } = getSlotPreviewData(slot);
+        openLightbox(src, alt);
+    };
+
+    slot.container.addEventListener('click', open);
+    slot.container.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             open();
         }
     });
-    item.tabIndex = 0;
 });
 
 const initializeBackendState = async () => {
