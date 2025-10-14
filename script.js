@@ -15,9 +15,24 @@ const initializationEndpoint = 'init.php';
 const MAX_STATUS_ITEMS = 10;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'data.json';
-const PLACEHOLDER_SRC = '/assets/placeholder.jpg';
-const loadingImage = 'https://vielfalter.digital/api-monday/ecommagent/assets/loading.gif';
-const LOADING_SRC = loadingImage;
+
+const appConfig = window.APP_CONFIG || {};
+const assetConfig = appConfig.assets || {};
+const DEFAULT_ASSET_BASE = '/assets';
+
+const resolveAssetBase = () => {
+    const candidate = assetConfig.base || appConfig.assetBase;
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+        const normalized = candidate.replace(/\/+$/, '');
+        return normalized !== '' ? normalized : DEFAULT_ASSET_BASE;
+    }
+
+    return DEFAULT_ASSET_BASE;
+};
+
+const assetBase = resolveAssetBase();
+const PLACEHOLDER_SRC = assetConfig.placeholder || `${assetBase}/placeholder.png`;
+const LOADING_SRC = assetConfig.loading || `${assetBase}/loading.gif`;
 const INDICATOR_STATE_CLASSES = ['status__indicator--running', 'status__indicator--success', 'status__indicator--error'];
 
 const galleryImages = [
@@ -25,6 +40,43 @@ const galleryImages = [
     { key: 'image_2', element: document.getElementById('img2') },
     { key: 'image_3', element: document.getElementById('img3') },
 ];
+
+const placeholderDimensions = appConfig.placeholderDimensions || null;
+
+if (placeholderDimensions && placeholderDimensions.width && placeholderDimensions.height) {
+    document.documentElement.style.setProperty(
+        '--gallery-item-aspect-ratio',
+        `${placeholderDimensions.width} / ${placeholderDimensions.height}`,
+    );
+}
+
+const getPlaceholderForElement = (element) => {
+    if (!element) {
+        return PLACEHOLDER_SRC;
+    }
+
+    const placeholder = element.dataset?.placeholder;
+    if (typeof placeholder === 'string' && placeholder.trim() !== '') {
+        return placeholder.trim();
+    }
+
+    return PLACEHOLDER_SRC;
+};
+
+galleryImages.forEach(({ element }) => {
+    if (!element) {
+        return;
+    }
+
+    element.dataset.placeholder = getPlaceholderForElement(element);
+    element.dataset.currentSrc = element.dataset.currentSrc || '';
+    element.dataset.hasContent = element.dataset.hasContent === 'true' ? 'true' : 'false';
+    element.dataset.isLoading = element.dataset.isLoading === 'true' ? 'true' : 'false';
+
+    if (!element.getAttribute('src')) {
+        element.src = getPlaceholderForElement(element);
+    }
+});
 
 let isProcessing = false;
 let pollingTimer = null;
@@ -144,7 +196,7 @@ const setLoadingState = (loading, options = {}) => {
             } else {
                 element.dataset.hasContent = 'false';
                 element.dataset.currentSrc = '';
-                element.src = PLACEHOLDER_SRC;
+                element.src = getPlaceholderForElement(element);
             }
         }
     });
@@ -359,7 +411,7 @@ const updateInterfaceFromData = (data) => {
         if (value) {
             setImageSource(element, value);
         } else if (!isProcessing && element && element.dataset.hasContent !== 'true') {
-            element.src = PLACEHOLDER_SRC;
+            element.src = getPlaceholderForElement(element);
         }
     });
 
