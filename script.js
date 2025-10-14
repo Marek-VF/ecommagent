@@ -5,7 +5,6 @@ const previewList = document.getElementById('upload-previews');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
-const statusMessages = document.getElementById('status-messages');
 const processingIndicator = document.getElementById('processing-indicator');
 const statusLogContainer = document.getElementById('status-log');
 const articleNameInput = document.getElementById('article-name');
@@ -13,7 +12,7 @@ const articleDescriptionInput = document.getElementById('article-description');
 
 const uploadEndpoint = 'upload.php';
 const initializationEndpoint = 'init.php';
-const MAX_STATUS_ITEMS = 10;
+const STATUS_LOG_LIMIT = 60;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'data.json';
 
@@ -40,7 +39,11 @@ const OVERLAY_SRC =
     assetConfig.pulse ||
     assetConfig.loading ||
     `${assetBase}/pulse.svg`;
-const INDICATOR_STATE_CLASSES = ['status__indicator--running', 'status__indicator--success', 'status__indicator--error'];
+const INDICATOR_STATE_CLASSES = [
+    'status-panel__indicator--running',
+    'status-panel__indicator--success',
+    'status-panel__indicator--error',
+];
 
 const gallerySlotKeys = ['image_1', 'image_2', 'image_3'];
 
@@ -225,60 +228,116 @@ const toBoolean = (value) => {
     return false;
 };
 
-const addStatusMessage = (text, type = 'info', detail) => {
-    if (!statusMessages) {
+const normalizeLogType = (value) => {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+    if (normalized === 'success') {
+        return 'success';
+    }
+
+    if (normalized === 'error') {
+        return 'error';
+    }
+
+    return 'neutral';
+};
+
+const trimStatusLog = () => {
+    if (!statusLogContainer) {
         return;
     }
 
-    const item = document.createElement('li');
-    item.className = `status__message status__message--${type}`;
+    while (statusLogContainer.children.length > STATUS_LOG_LIMIT) {
+        statusLogContainer.removeChild(statusLogContainer.firstElementChild);
+    }
+};
 
-    const content = document.createElement('div');
-    content.className = 'status__message-content';
-    content.textContent = text;
-    item.appendChild(content);
+const createStatusLogEntryElement = ({ message, type, timestamp, detail }) => {
+    const entry = document.createElement('article');
+    const normalizedType = normalizeLogType(type);
 
-    if (detail !== undefined) {
+    entry.className = 'status-panel__entry';
+    entry.dataset.type = normalizedType;
+
+    const timestampElement = document.createElement('span');
+    timestampElement.className = 'status-panel__timestamp';
+    timestampElement.textContent = formatLogTimestamp(timestamp);
+
+    const body = document.createElement('div');
+    body.className = 'status-panel__body';
+
+    const textElement = document.createElement('p');
+    textElement.className = 'status-panel__text';
+    textElement.textContent = message;
+    body.appendChild(textElement);
+
+    if (typeof detail === 'string' && detail.trim() !== '') {
         const detailElement = document.createElement('pre');
-        detailElement.className = 'status__message-detail';
-        detailElement.textContent = detail;
-        item.appendChild(detailElement);
+        detailElement.className = 'status-panel__detail';
+        detailElement.textContent = detail.trim();
+        body.appendChild(detailElement);
     }
 
-    statusMessages.prepend(item);
+    entry.append(timestampElement, body);
 
-    while (statusMessages.children.length > MAX_STATUS_ITEMS) {
-        statusMessages.removeChild(statusMessages.lastElementChild);
+    return entry;
+};
+
+const appendStatusLogEntry = (entryElement) => {
+    if (!statusLogContainer || !entryElement) {
+        return;
     }
 
-    statusMessages.scrollTop = 0;
+    statusLogContainer.appendChild(entryElement);
+    trimStatusLog();
+    statusLogContainer.scrollTop = statusLogContainer.scrollHeight;
+};
+
+const addStatusMessage = (text, type = 'neutral', detail) => {
+    const message = typeof text === 'string' ? text.trim() : '';
+
+    if (!message) {
+        return;
+    }
+
+    const entry = createStatusLogEntryElement({
+        message,
+        type,
+        detail,
+        timestamp: new Date(),
+    });
+
+    appendStatusLogEntry(entry);
 };
 
 const padTwo = (value) => String(value).padStart(2, '0');
 
 const formatLogTimestamp = (value) => {
-    if (typeof value === 'string' && value.trim() !== '') {
+    let date = null;
+
+    if (value instanceof Date) {
+        date = value;
+    } else if (typeof value === 'number') {
+        date = new Date(value);
+    } else if (typeof value === 'string' && value.trim() !== '') {
         const parsed = new Date(value);
         if (!Number.isNaN(parsed.getTime())) {
-            const day = padTwo(parsed.getDate());
-            const month = padTwo(parsed.getMonth() + 1);
-            const year = parsed.getFullYear();
-            const hours = padTwo(parsed.getHours());
-            const minutes = padTwo(parsed.getMinutes());
-            const seconds = padTwo(parsed.getSeconds());
-            return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+            date = parsed;
+        } else {
+            return value.trim();
         }
-
-        return value.trim();
     }
 
-    const now = new Date();
-    const day = padTwo(now.getDate());
-    const month = padTwo(now.getMonth() + 1);
-    const year = now.getFullYear();
-    const hours = padTwo(now.getHours());
-    const minutes = padTwo(now.getMinutes());
-    const seconds = padTwo(now.getSeconds());
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        date = new Date();
+    }
+
+    const day = padTwo(date.getDate());
+    const month = padTwo(date.getMonth() + 1);
+    const year = date.getFullYear();
+    const hours = padTwo(date.getHours());
+    const minutes = padTwo(date.getMinutes());
+    const seconds = padTwo(date.getSeconds());
 
     return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 };
@@ -301,11 +360,8 @@ const updateStatusLog = (entries) => {
             return;
         }
 
-        const timestamp = typeof rawEntry.timestamp === 'string' ? rawEntry.timestamp : '';
-        const normalizedType = typeof rawEntry.type === 'string'
-            ? rawEntry.type.trim().toLowerCase()
-            : '';
-        const type = normalizedType === 'error' ? 'error' : 'info';
+        const timestamp = rawEntry.timestamp ?? '';
+        const type = normalizeLogType(rawEntry.type);
         const entryKey = `${timestamp}::${message}::${type}`;
 
         if (statusLogState.seen.has(entryKey)) {
@@ -314,24 +370,19 @@ const updateStatusLog = (entries) => {
 
         statusLogState.seen.add(entryKey);
 
-        const item = document.createElement('div');
-        item.className = `status-log__item${type === 'error' ? ' status-log__item--error' : ''}`;
+        const item = createStatusLogEntryElement({
+            message,
+            type,
+            timestamp,
+        });
 
-        const timeElement = document.createElement('span');
-        timeElement.className = 'status-log__timestamp';
-        timeElement.textContent = formatLogTimestamp(timestamp);
-
-        const messageElement = document.createElement('span');
-        messageElement.className = 'status-log__message';
-        messageElement.textContent = message;
-
-        item.append(timeElement, messageElement);
         fragment.appendChild(item);
         hasNewEntries = true;
     });
 
     if (hasNewEntries) {
         statusLogContainer.appendChild(fragment);
+        trimStatusLog();
         statusLogContainer.scrollTop = statusLogContainer.scrollHeight;
     }
 };
@@ -345,7 +396,7 @@ const updateProcessingIndicator = (text, state = 'idle') => {
     INDICATOR_STATE_CLASSES.forEach((className) => processingIndicator.classList.remove(className));
 
     if (state && state !== 'idle') {
-        processingIndicator.classList.add(`status__indicator--${state}`);
+        processingIndicator.classList.add(`status-panel__indicator--${state}`);
     }
 };
 
