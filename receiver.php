@@ -56,7 +56,126 @@ try {
     $newData = [];
     $logEntries = [];
 
-    $appendLogEntry = static function (string $message, ?string $type = null) use (&$logEntries, $timestamp): void {
+    $normalizeLogType = static function (?string $type): ?string {
+        if (!is_string($type)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($type));
+
+        return match ($normalized) {
+            'success', 'ok', 'positive', 'completed' => 'success',
+            'warning', 'warn', 'caution'            => 'warning',
+            'error', 'fail', 'failed', 'danger'     => 'error',
+            'info', 'neutral', 'note', 'message'    => 'info',
+            default                                 => null,
+        };
+    };
+
+    $determineTypeFromStatusCode = static function (?int $statusCode): string {
+        if ($statusCode !== null) {
+            if ($statusCode >= 200 && $statusCode < 300) {
+                return 'success';
+            }
+
+            if ($statusCode >= 400 && $statusCode < 500) {
+                return 'warning';
+            }
+
+            if ($statusCode >= 500 && $statusCode < 600) {
+                return 'error';
+            }
+        }
+
+        return 'info';
+    };
+
+    $isListArray = static function (array $array): bool {
+        if (function_exists('array_is_list')) {
+            return array_is_list($array);
+        }
+
+        $expectedKey = 0;
+        foreach ($array as $key => $_) {
+            if ($key !== $expectedKey) {
+                return false;
+            }
+
+            $expectedKey++;
+        }
+
+        return true;
+    };
+
+    $extractStatusPayload = static function (mixed $value) use ($normalizeLogType, $determineTypeFromStatusCode): ?array {
+        if (is_array($value)) {
+            $message = null;
+            if (array_key_exists('message', $value)) {
+                $message = $value['message'];
+            } elseif (array_key_exists('msg', $value)) {
+                $message = $value['msg'];
+            }
+
+            if ($message !== null) {
+                $trimmedMessage = trim((string) $message);
+                if ($trimmedMessage === '') {
+                    return null;
+                }
+
+                $statusCode = null;
+                foreach (['statuscode', 'status_code', 'code'] as $codeKey) {
+                    if (isset($value[$codeKey]) && is_numeric($value[$codeKey])) {
+                        $statusCode = (int) $value[$codeKey];
+                        break;
+                    }
+                }
+
+                $type = $determineTypeFromStatusCode($statusCode);
+                if (isset($value['type'])) {
+                    $providedType = $normalizeLogType(is_string($value['type']) ? $value['type'] : null);
+                    if ($providedType !== null) {
+                        $type = $providedType;
+                    }
+                }
+
+                return [
+                    'message' => $trimmedMessage,
+                    'type'    => $type,
+                ];
+            }
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return null;
+            }
+
+            return [
+                'message' => $trimmed,
+                'type'    => 'info',
+            ];
+        }
+
+        return null;
+    };
+
+    $collectStatusPayloads = static function (mixed $value) use (&$collectStatusPayloads, $extractStatusPayload, $isListArray): array {
+        if (is_array($value) && $isListArray($value)) {
+            $collected = [];
+            foreach ($value as $item) {
+                $collected = array_merge($collected, $collectStatusPayloads($item));
+            }
+
+            return $collected;
+        }
+
+        $single = $extractStatusPayload($value);
+
+        return $single !== null ? [$single] : [];
+    };
+
+    $appendLogEntry = static function (string $message, ?string $type = null) use (&$logEntries, $timestamp, $normalizeLogType): void {
         $trimmedMessage = trim($message);
         if ($trimmedMessage === '') {
             return;
@@ -67,8 +186,9 @@ try {
             'message'   => $trimmedMessage,
         ];
 
-        if ($type !== null && $type !== '') {
-            $entry['type'] = $type;
+        $normalizedType = $normalizeLogType($type);
+        if ($normalizedType !== null) {
+            $entry['type'] = $normalizedType;
         }
 
         $logEntries[] = $entry;
@@ -142,8 +262,16 @@ try {
             $normalizedKey = (string) $key;
             $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
 
-            if ($normalizedKey === 'statusmessage' && is_string($value)) {
-                $appendLogEntry($value, null);
+            if (in_array($normalizedKey, ['statusmessage', 'status_message'], true)) {
+                $statusPayloads = $collectStatusPayloads($value);
+                if ($statusPayloads !== []) {
+                    $lastPayload = end($statusPayloads);
+                    $newData[$normalizedKey] = $lastPayload['message'];
+                    foreach ($statusPayloads as $payload) {
+                        $appendLogEntry($payload['message'], $payload['type']);
+                    }
+                    continue;
+                }
             }
 
             if ($normalizedKey === 'error' && is_string($value)) {
@@ -164,8 +292,16 @@ try {
             $normalizedKey = (string) $key;
             $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
 
-            if ($normalizedKey === 'statusmessage' && is_string($value)) {
-                $appendLogEntry($value, null);
+            if (in_array($normalizedKey, ['statusmessage', 'status_message'], true)) {
+                $statusPayloads = $collectStatusPayloads($value);
+                if ($statusPayloads !== []) {
+                    $lastPayload = end($statusPayloads);
+                    $newData[$normalizedKey] = $lastPayload['message'];
+                    foreach ($statusPayloads as $payload) {
+                        $appendLogEntry($payload['message'], $payload['type']);
+                    }
+                    continue;
+                }
             }
 
             if ($normalizedKey === 'error' && is_string($value)) {

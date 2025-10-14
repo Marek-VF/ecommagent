@@ -59,13 +59,31 @@ $appConfig = [
         </header>
         <main class="grid">
             <section class="panel panel--upload">
-                <h2>Bild hochladen</h2>
-                <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen oder klicken, um eine Datei auszuwählen">
-                    <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
-                    <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
-                    <input id="file-input" type="file" name="image" accept="image/*" hidden>
+                <div class="panel__section panel__section--upload">
+                    <h2>Bild hochladen</h2>
+                    <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen oder klicken, um eine Datei auszuwählen">
+                        <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
+                        <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
+                        <input id="file-input" type="file" name="image" accept="image/*" hidden>
+                    </div>
+                    <div id="upload-previews" class="preview-list" aria-live="polite"></div>
                 </div>
-                <div id="upload-previews" class="preview-list" aria-live="polite"></div>
+                <div class="panel__section panel__section--status">
+                    <div class="status-panel" aria-live="polite">
+                        <div class="status-panel__header">
+                            <h3 class="status-panel__title">Status</h3>
+                            <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
+                        </div>
+                        <div
+                            id="status-log"
+                            class="status-panel__log"
+                            role="log"
+                            aria-live="polite"
+                            aria-atomic="false"
+                            aria-label="Statusprotokoll"
+                        ></div>
+                    </div>
+                </div>
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">
@@ -91,20 +109,6 @@ $appConfig = [
                     <button type="button" class="btn btn--primary">Speichern</button>
                 </div>
             </section>
-            <aside class="status-panel" aria-live="polite">
-                <div class="status-panel__header">
-                    <h3 class="status-panel__title">Status</h3>
-                    <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
-                </div>
-                <div
-                    id="status-log"
-                    class="status-panel__log"
-                    role="log"
-                    aria-live="polite"
-                    aria-atomic="false"
-                    aria-label="Statusprotokoll"
-                ></div>
-            </aside>
         </main>
     </div>
 
