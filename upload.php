@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/auth/bootstrap.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -20,6 +22,15 @@ $respond = static function (array $payload, int $statusCode = 200): never {
 };
 
 $timestamp = static fn (): string => gmdate('c');
+
+if (!auth_is_logged_in()) {
+    $respond([
+        'success'   => false,
+        'status'    => 'unauthorized',
+        'message'   => 'Anmeldung erforderlich.',
+        'timestamp' => $timestamp(),
+    ], 401);
+}
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
