@@ -1,5 +1,11 @@
 <?php
-$config = require __DIR__ . '/config.php';
+require_once __DIR__ . '/auth/bootstrap.php';
+
+auth_require_login();
+
+$config = auth_config();
+$flashes = auth_get_flashes();
+$currentUser = auth_user();
 
 $baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
 $assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/assets' : '');
@@ -56,7 +62,24 @@ $appConfig = [
     <div class="app">
         <header class="app__header">
             <h1>Artikelverwaltung</h1>
+            <?php if ($currentUser !== null): ?>
+            <div class="app__user">
+                <span class="app__user-name">Angemeldet als <?php echo htmlspecialchars((string) ($currentUser['name'] ?? $currentUser['email']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                <a class="app__logout" href="auth/logout.php">Abmelden</a>
+            </div>
+            <?php endif; ?>
         </header>
+        <?php if ($flashes !== []): ?>
+        <div class="app__messages" aria-live="polite">
+            <?php foreach ($flashes as $message): ?>
+            <?php
+                $type = htmlspecialchars((string) ($message['type'] ?? 'info'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $text = htmlspecialchars((string) ($message['message'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            ?>
+            <div class="app__message app__message--<?php echo $type; ?>"><?php echo $text; ?></div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
         <main class="grid">
             <section class="panel panel--upload">
                 <div class="panel__section panel__section--upload">

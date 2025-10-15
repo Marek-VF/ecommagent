@@ -57,12 +57,76 @@ body {
 .app__header {
     padding: 32px 40px 24px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
 }
 
 .app__header h1 {
     margin: 0;
     font-size: clamp(1.5rem, 2vw + 1rem, 2.4rem);
     letter-spacing: 0.02em;
+}
+
+.app__user {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
+
+.app__user-name {
+    white-space: nowrap;
+}
+
+.app__logout {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color var(--transition);
+}
+
+.app__logout:hover,
+.app__logout:focus-visible {
+    color: var(--accent-hover);
+}
+
+.app__messages {
+    padding: 0 40px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.app__message {
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(24, 27, 34, 0.75);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.app__message--success {
+    border-color: rgba(var(--status-success-rgb), 0.4);
+    background: rgba(var(--status-success-rgb), 0.12);
+}
+
+.app__message--warning {
+    border-color: rgba(var(--status-warning-rgb), 0.4);
+    background: rgba(var(--status-warning-rgb), 0.12);
+}
+
+.app__message--error {
+    border-color: rgba(var(--status-error-rgb), 0.4);
+    background: rgba(var(--status-error-rgb), 0.12);
+}
+
+.app__message--info {
+    border-color: rgba(var(--status-info-rgb), 0.4);
+    background: rgba(var(--status-info-rgb), 0.12);
 }
 
 .grid {
@@ -478,6 +542,8 @@ label {
 }
 
 input[type="text"],
+input[type="email"],
+input[type="password"],
 textarea {
     background: rgba(15, 17, 22, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -489,6 +555,8 @@ textarea {
 }
 
 input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
 textarea:focus {
     border-color: var(--accent);
     outline: none;
@@ -503,6 +571,113 @@ textarea {
 .form-actions {
     display: flex;
     justify-content: flex-end;
+}
+
+.form-actions--stacked {
+    justify-content: stretch;
+}
+
+.form-actions--stacked .btn {
+    width: 100%;
+}
+
+.input-help {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.auth-card {
+    width: min(420px, 100%);
+    margin: auto;
+    background: rgba(15, 17, 22, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.auth-card__header h1 {
+    margin: 0 0 8px;
+    font-size: 1.8rem;
+}
+
+.auth-card__header p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.auth-card__footer {
+    margin: 0;
+    text-align: center;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.auth-card__footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-card__footer a:hover,
+.auth-card__footer a:focus-visible {
+    color: var(--accent-hover);
+}
+
+.auth-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.auth-message {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(24, 27, 34, 0.85);
+}
+
+.auth-message--success {
+    border-color: rgba(var(--status-success-rgb), 0.45);
+    background: rgba(var(--status-success-rgb), 0.15);
+}
+
+.auth-message--warning {
+    border-color: rgba(var(--status-warning-rgb), 0.45);
+    background: rgba(var(--status-warning-rgb), 0.15);
+}
+
+.auth-message--error {
+    border-color: rgba(var(--status-error-rgb), 0.45);
+    background: rgba(var(--status-error-rgb), 0.15);
+}
+
+.auth-message--info {
+    border-color: rgba(var(--status-info-rgb), 0.45);
+    background: rgba(var(--status-info-rgb), 0.15);
+}
+
+@media (max-width: 640px) {
+    body {
+        padding: 24px;
+    }
+
+    .auth-card {
+        padding: 28px 24px;
+    }
 }
 
 .lightbox {
