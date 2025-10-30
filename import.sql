@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS webhook_tokens (
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_wt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_wt_user (user_id),
-  UNIQUE INDEX ux_wt_token_hash (token_hash)
+  UNIQUE INDEX idx_webhook_tokens_token_hash (token_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Ensure webhook_tokens.token_hash uses binary storage and a unique index
@@ -130,73 +130,38 @@ CREATE TABLE IF NOT EXISTS uploads (
   INDEX idx_up_field (field_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Zustand je User (ersetzt data.json)
 CREATE TABLE IF NOT EXISTS user_state (
-  user_id               INT UNSIGNED PRIMARY KEY,
-  last_status           ENUM('ok','warn','error') NOT NULL DEFAULT 'ok',
-  last_message          VARCHAR(500) NULL,
-  last_image_url        VARCHAR(500) NULL,
-  last_payload_summary  VARCHAR(800) NULL,
-  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_us_state_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  user_id INT UNSIGNED NOT NULL,
+  last_status ENUM('ok','warn','error') NULL,
+  last_message VARCHAR(255) NULL,
+  last_image_url TEXT NULL,
+  last_payload_summary TEXT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_user_state_user FOREIGN KEY (user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Align legacy user_state tables with the new column layout
+ALTER TABLE user_state
+  ADD COLUMN IF NOT EXISTS last_status ENUM('ok','warn','error') NULL AFTER user_id,
+  ADD COLUMN IF NOT EXISTS last_message VARCHAR(255) NULL AFTER last_status,
+  ADD COLUMN IF NOT EXISTS last_image_url TEXT NULL AFTER last_message,
+  ADD COLUMN IF NOT EXISTS last_payload_summary TEXT NULL AFTER last_image_url,
+  ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_payload_summary;
+
+ALTER TABLE user_state
+  ADD UNIQUE KEY IF NOT EXISTS idx_user_state_user (user_id);
+
+ALTER TABLE webhook_tokens
+  MODIFY COLUMN token_hash BINARY(32) NOT NULL,
+  ADD UNIQUE KEY IF NOT EXISTS idx_webhook_tokens_token_hash (token_hash);
+
 SET @table_exists := (
   SELECT COUNT(1)
   FROM INFORMATION_SCHEMA.TABLES
   WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state'
 );
-
-SET @sql := IF(@table_exists = 0, 'SELECT 1',
-  'ALTER TABLE user_state MODIFY last_status ENUM(''ok'',''warn'',''error'') NOT NULL DEFAULT ''ok''');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @col_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_message'
-);
-SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
-  'ALTER TABLE user_state ADD COLUMN last_message VARCHAR(500) NULL AFTER last_status');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @col_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_image_url'
-);
-SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
-  'ALTER TABLE user_state ADD COLUMN last_image_url VARCHAR(500) NULL AFTER last_message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @col_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_payload_summary'
-);
-SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
-  'ALTER TABLE user_state ADD COLUMN last_payload_summary VARCHAR(800) NULL AFTER last_image_url');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @col_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'updated_at'
-);
-SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
-  'ALTER TABLE user_state ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
 
 SET @col_exists := (
   SELECT COUNT(1)
