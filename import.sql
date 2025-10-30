@@ -143,29 +143,106 @@ CREATE TABLE IF NOT EXISTS user_state (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS last_status ENUM('ok','warn','error') NULL AFTER user_id;
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_status'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD COLUMN last_status ENUM(''ok'',''warn'',''error'') NULL AFTER user_id'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS last_message VARCHAR(255) NULL AFTER last_status;
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_message'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD COLUMN last_message VARCHAR(255) NULL AFTER last_status'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS last_image_url TEXT NULL AFTER last_message;
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_image_url'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD COLUMN last_image_url TEXT NULL AFTER last_message'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS last_payload_summary TEXT NULL AFTER last_image_url;
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_payload_summary'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD COLUMN last_payload_summary TEXT NULL AFTER last_image_url'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_payload_summary;
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'updated_at'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_payload_summary'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-ALTER TABLE user_state
-  ADD UNIQUE KEY IF NOT EXISTS idx_user_state_user (user_id);
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND INDEX_NAME = 'idx_user_state_user'
+    ),
+    'SELECT 1',
+    'ALTER TABLE user_state ADD UNIQUE KEY idx_user_state_user (user_id)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 ALTER TABLE webhook_tokens
   MODIFY COLUMN token_hash BINARY(32) NOT NULL;
 
-ALTER TABLE webhook_tokens
-  ADD UNIQUE KEY IF NOT EXISTS idx_webhook_tokens_token_hash (token_hash);
+SET @sql := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND INDEX_NAME = 'idx_webhook_tokens_token_hash'
+    ),
+    'SELECT 1',
+    'ALTER TABLE webhook_tokens ADD UNIQUE KEY idx_webhook_tokens_token_hash (token_hash)'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @table_exists := (
   SELECT COUNT(1)
