@@ -249,6 +249,7 @@ function getIncomingToken(): ?string
         if (!isset($normalized[$headerName])) {
             continue;
         }
+    }
 
         $candidate = trim((string) $normalized[$headerName]);
         if ($candidate !== '') {
@@ -261,17 +262,45 @@ function getIncomingToken(): ?string
 
 function resolveUserIdByToken(PDO $pdo, string $token): ?int
 {
-    $queries = [
-        'SELECT user_id FROM webhook_tokens WHERE is_active = 1 AND token_hash = UNHEX(SHA2(:token, 256)) LIMIT 1',
-        'SELECT user_id FROM webhook_tokens WHERE is_active = 1 AND token_hash = SHA2(:token, 256) LIMIT 1',
-    ];
+    $statement = $pdo->prepare('SELECT user_id, token_hash FROM webhook_tokens WHERE is_active = 1');
+    $statement->execute();
 
-    foreach ($queries as $sql) {
-        $statement = $pdo->prepare($sql);
-        $statement->execute(['token' => $token]);
-        $result = $statement->fetchColumn();
-        if ($result !== false) {
-            return (int) $result;
+    $binaryDigest = hash('sha256', $token, true);
+    $hexDigest = hash('sha256', $token);
+
+    while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+        if (!is_array($row)) {
+            continue;
+        }
+    }
+
+        $userId = isset($row['user_id']) ? (int) $row['user_id'] : null;
+        $storedHash = isset($row['token_hash']) ? (string) $row['token_hash'] : null;
+
+        if ($userId === null || $storedHash === null) {
+            continue;
+        }
+
+        if (hash_equals($binaryDigest, $storedHash)) {
+            return $userId;
+        }
+
+        $normalized = $storedHash;
+        // If the stored value contains printable characters, treat it as hexadecimal text.
+        if ($normalized !== '' && preg_match('/^[0-9a-fA-F]+$/', $normalized) === 1) {
+            $normalizedLower = strtolower($normalized);
+            if (strlen($normalizedLower) === 64 && hash_equals($hexDigest, $normalizedLower)) {
+                return $userId;
+            }
+            if (strlen($normalizedLower) === 32 && hash_equals(substr($hexDigest, 0, 32), $normalizedLower)) {
+                return $userId;
+            }
+        }
+    }
+
+        $hexFromBinary = strtolower(bin2hex($storedHash));
+        if (hash_equals($hexDigest, $hexFromBinary)) {
+            return $userId;
         }
     }
 
@@ -468,6 +497,7 @@ function extractImageUrl(array $payload): ?string
         if (!isset($payload[$key])) {
             continue;
         }
+    }
 
         $value = $payload[$key];
         if (is_array($value)) {
