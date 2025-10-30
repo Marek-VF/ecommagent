@@ -14,14 +14,43 @@ CREATE TABLE IF NOT EXISTS `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Indexe zur Performance-Optimierung
-CREATE INDEX idx_email ON users(email);
-CREATE INDEX idx_verification_token ON users(verification_token);
-CREATE INDEX idx_reset_token ON users(reset_token);
+SET @schema_name := DATABASE();
 
--- Benutzer
+-- Index idx_email nur anlegen, falls noch nicht vorhanden
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_email'
+);
+SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_email ON users(email);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Index idx_verification_token nur anlegen, falls noch nicht vorhanden
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_verification_token'
+);
+SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_verification_token ON users(verification_token);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Index idx_reset_token nur anlegen, falls noch nicht vorhanden
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_reset_token'
+);
+SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_reset_token ON users(reset_token);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS users (
-  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name           VARCHAR(120) NOT NULL,
   email          VARCHAR(190) NOT NULL UNIQUE,
   password_hash  VARCHAR(255) NOT NULL,
@@ -34,7 +63,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Webhook-/API-Tokens (nur Hash speichern!)
 CREATE TABLE IF NOT EXISTS webhook_tokens (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id      BIGINT NOT NULL,
+  user_id      INT UNSIGNED NOT NULL,
   token_hash   CHAR(64) NOT NULL,                -- SHA-256 des Tokens
   label        VARCHAR(120) NULL,
   is_active    TINYINT(1) NOT NULL DEFAULT 1,
@@ -47,7 +76,7 @@ CREATE TABLE IF NOT EXISTS webhook_tokens (
 
 -- User-Einstellungen (z. B. individuelle Workflow-URL)
 CREATE TABLE IF NOT EXISTS user_settings (
-  user_id          BIGINT PRIMARY KEY,
+  user_id          INT UNSIGNED PRIMARY KEY,
   workflow_webhook VARCHAR(500) NULL,
   preferences_json JSON NULL,
   CONSTRAINT fk_us_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -56,7 +85,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 -- Uploads je User (physische Dateien unter /uploads/{user_id}/)
 CREATE TABLE IF NOT EXISTS uploads (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id      BIGINT NOT NULL,
+  user_id      INT UNSIGNED NOT NULL,
   stored_name  VARCHAR(255) NOT NULL,
   url          VARCHAR(500) NOT NULL,
   field_key    ENUM('image_1','image_2','image_3') NOT NULL,
@@ -70,7 +99,7 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 -- Zustand je User (ersetzt data.json)
 CREATE TABLE IF NOT EXISTS user_state (
-  user_id    BIGINT PRIMARY KEY,
+  user_id    INT UNSIGNED PRIMARY KEY,
   state_json JSON NOT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_us_state_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -79,7 +108,7 @@ CREATE TABLE IF NOT EXISTS user_state (
 -- Status-Log (ersetzt statuslog aus data.json)
 CREATE TABLE IF NOT EXISTS status_logs (
   id        BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id   BIGINT NOT NULL,
+  user_id   INT UNSIGNED NOT NULL,
   type      ENUM('success','warning','error','info') NOT NULL,
   message   TEXT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
