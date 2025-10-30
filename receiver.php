@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth/bootstrap.php';
+require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -15,491 +15,554 @@ set_error_handler(static function (int $severity, string $message, string $file,
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
-$respond = static function (array $payload, int $statusCode = 200): never {
-    http_response_code($statusCode);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+set_exception_handler(static function (Throwable $throwable): void {
+    http_response_code(500);
+    echo json_encode([
+        'ok'          => false,
+        'status_code' => 500,
+        'message'     => 'Internal server error',
+        'user_id'     => null,
+        'saved'       => [
+            'status_logs_id'     => null,
+            'user_state_updated' => false,
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
-};
-
-$timestamp = static fn (): string => (new DateTimeImmutable('now'))->format(DATE_ATOM);
-
-$config = auth_config();
-
-$apiToken = $config['receiver_api_token'] ?? '';
-if (!is_string($apiToken) || $apiToken === '') {
-    $respond([
-        'success'   => false,
-        'status'    => 'error',
-        'message'   => 'API-Token ist nicht konfiguriert.',
-        'timestamp' => $timestamp(),
-    ], 500);
-}
-
-$allowedIps = $config['receiver_api_allowed_ips'] ?? [];
-if (!is_array($allowedIps)) {
-    $allowedIps = [];
-}
-
-$extractAuthorizationHeader = static function (): ?string {
-    $candidates = [
-        $_SERVER['HTTP_AUTHORIZATION'] ?? null,
-        $_SERVER['Authorization'] ?? null,
-        $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null,
-    ];
-    foreach ($candidates as $c) {
-        if (is_string($c) && $c !== '') {
-            return trim($c);
-        }
-    }
-    if (function_exists('getallheaders')) {
-        $headers = getallheaders();
-        foreach ($headers as $k => $v) {
-            if (strcasecmp((string) $k, 'Authorization') === 0 && is_string($v) && $v !== '') {
-                return trim($v);
-            }
-        }
-    }
-    return null;
-};
-
-$parseBearerToken = static function (?string $header): ?string {
-    if (!is_string($header)) {
-        return null;
-    }
-
-    if (stripos($header, 'Bearer ') !== 0) {
-        return null;
-    }
-
-    $token = trim(substr($header, 7));
-
-    return $token !== '' ? $token : null;
-};
-
-$authorizationHeader = $extractAuthorizationHeader();
-$providedToken = $parseBearerToken($authorizationHeader);
-
-if ($providedToken === null) {
-    $fallbackToken = null;
-    if (function_exists('getallheaders')) {
-        $headers = getallheaders();
-        if (is_array($headers)) {
-            foreach ($headers as $key => $value) {
-                if (!is_string($key)) {
-                    continue;
-                }
-
-                if (strcasecmp($key, 'X-Api-Token') === 0 || strcasecmp($key, 'X-Authorization') === 0) {
-                    if (is_string($value)) {
-                        $candidate = trim($value);
-                        if ($candidate !== '') {
-                            $fallbackToken = $candidate;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if ($fallbackToken !== null) {
-        $httpsEnabled = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' && strtolower((string) $_SERVER['HTTPS']) !== 'off';
-        if (!$httpsEnabled) {
-            $respond([
-                'success'   => false,
-                'status'    => 'error',
-                'message'   => 'Alternative Authentifizierung erfordert HTTPS.',
-                'timestamp' => $timestamp(),
-            ], 400);
-        }
-
-        $providedToken = $fallbackToken;
-    }
-}
-
-if ($providedToken === null || !hash_equals($apiToken, $providedToken)) {
-    header('WWW-Authenticate: Bearer');
-    $respond([
-        'success'   => false,
-        'status'    => 'unauthorized',
-        'message'   => 'Ungültiger oder fehlender Bearer-Token.',
-        'timestamp' => $timestamp(),
-    ], 401);
-}
-
-if ($allowedIps !== []) {
-    $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
-    if (!is_string($remoteIp) || $remoteIp === '' || !in_array($remoteIp, array_map('strval', $allowedIps), true)) {
-        $respond([
-            'success'   => false,
-            'status'    => 'forbidden',
-            'message'   => 'Zugriff für diese IP-Adresse nicht erlaubt.',
-            'timestamp' => $timestamp(),
-        ], 403);
-    }
-}
+});
 
 try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        $respond([
-            'success'   => false,
-            'status'    => 'error',
-            'message'   => 'Methode nicht erlaubt.',
-            'timestamp' => $timestamp(),
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        respondAndExit([
+            'ok'          => false,
+            'status_code' => 405,
+            'message'     => 'Method not allowed',
+            'user_id'     => null,
+            'saved'       => [
+                'status_logs_id'     => null,
+                'user_state_updated' => false,
+            ],
         ], 405);
     }
 
-    $uploadDir = rtrim($config['upload_dir'] ?? (__DIR__ . '/uploads/'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    $dataFile  = $config['data_file'] ?? (__DIR__ . '/data.json');
-    $baseUrl   = rtrim((string) ($config['base_url'] ?? ''), '/');
-
-    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
-        throw new RuntimeException('Upload-Verzeichnis konnte nicht erstellt werden.');
+    $token = getIncomingToken();
+    if ($token === null) {
+        http_response_code(401);
+        header('WWW-Authenticate: Bearer');
+        respondAndExit([
+            'ok'          => false,
+            'status_code' => 401,
+            'message'     => 'Missing or invalid API token',
+            'user_id'     => null,
+            'saved'       => [
+                'status_logs_id'     => null,
+                'user_state_updated' => false,
+            ],
+        ], 401);
     }
 
-    $existingData = [];
-    if (is_file($dataFile)) {
-        $contents = file_get_contents($dataFile);
-        if ($contents !== false && $contents !== '') {
-            $decoded = json_decode($contents, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $existingData = $decoded;
-            }
-        }
+    $pdo = getPDO();
+
+    $userId = resolveUserIdByToken($pdo, $token);
+    if ($userId === null) {
+        http_response_code(403);
+        respondAndExit([
+            'ok'          => false,
+            'status_code' => 403,
+            'message'     => 'Token not accepted',
+            'user_id'     => null,
+            'saved'       => [
+                'status_logs_id'     => null,
+                'user_state_updated' => false,
+            ],
+        ], 403);
     }
 
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-    $newData = [];
-    $logEntries = [];
+    enforceRateLimit($pdo, $userId);
 
-    $normalizeLogType = static function (?string $type): ?string {
-        if (!is_string($type)) {
-            return null;
+    $contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? '');
+    $semicolonPos = strpos($contentType, ';');
+    if ($semicolonPos !== false) {
+        $contentType = substr($contentType, 0, $semicolonPos);
+    }
+    $contentType = strtolower(trim($contentType));
+
+    $statusCode = 200;
+    $level = 'info';
+    $message = 'Received';
+    $imageUrl = null;
+    $payload = null;
+    $payloadSummary = null;
+    $statusLogId = null;
+    $userStateUpdated = false;
+
+    if ($contentType === 'application/json' || $contentType === '') {
+        $rawBody = file_get_contents('php://input');
+        if ($rawBody === false) {
+            $rawBody = '';
         }
 
-        $normalized = strtolower(trim($type));
-
-        return match ($normalized) {
-            'success', 'ok', 'positive', 'completed' => 'success',
-            'warning', 'warn', 'caution'            => 'warning',
-            'error', 'fail', 'failed', 'danger'     => 'error',
-            'info', 'neutral', 'note', 'message'    => 'info',
-            default                                 => null,
-        };
-    };
-
-    $determineTypeFromStatusCode = static function (?int $statusCode): string {
-        if ($statusCode !== null) {
-            if ($statusCode >= 200 && $statusCode < 300) {
-                return 'success';
+        if ($rawBody === '') {
+            $payloadData = [];
+        } else {
+            $decoded = json_decode($rawBody, true);
+            if (!is_array($decoded)) {
+                $statusCode = 422;
+                $level = 'error';
+                $message = 'Invalid JSON payload';
+                $payload = ['raw_excerpt' => mb_substr($rawBody, 0, 200)];
+                $statusLogId = logStatus($pdo, $userId, $level, $statusCode, $message, $payload);
+                updateUserState($pdo, $userId, [
+                    'last_status'          => mapLevelToState($level),
+                    'last_message'         => $message,
+                    'last_image_url'       => null,
+                    'last_payload_summary' => createPayloadSummary($payload),
+                ]);
+                respondAndExit([
+                    'ok'          => false,
+                    'status_code' => $statusCode,
+                    'message'     => $message,
+                    'user_id'     => $userId,
+                    'saved'       => [
+                        'status_logs_id'     => $statusLogId,
+                        'user_state_updated' => true,
+                    ],
+                ], $statusCode);
             }
-
-            if ($statusCode >= 400 && $statusCode < 500) {
-                return 'warning';
-            }
-
-            if ($statusCode >= 500 && $statusCode < 600) {
-                return 'error';
-            }
+            $payloadData = $decoded;
         }
 
-        return 'info';
-    };
-
-    $isListArray = static function (array $array): bool {
-        if (function_exists('array_is_list')) {
-            return array_is_list($array);
-        }
-
-        $expectedKey = 0;
-        foreach ($array as $key => $_) {
-            if ($key !== $expectedKey) {
-                return false;
-            }
-
-            $expectedKey++;
-        }
-
-        return true;
-    };
-
-    $extractStatusPayload = static function (mixed $value) use ($normalizeLogType, $determineTypeFromStatusCode): ?array {
-        if (is_array($value)) {
-            $message = null;
-            if (array_key_exists('message', $value)) {
-                $message = $value['message'];
-            } elseif (array_key_exists('msg', $value)) {
-                $message = $value['msg'];
-            }
-
-            if ($message !== null) {
-                $trimmedMessage = trim((string) $message);
-                if ($trimmedMessage === '') {
-                    return null;
-                }
-
-                $statusCode = null;
-                foreach (['statuscode', 'status_code', 'code'] as $codeKey) {
-                    if (isset($value[$codeKey]) && is_numeric($value[$codeKey])) {
-                        $statusCode = (int) $value[$codeKey];
-                        break;
-                    }
-                }
-
-                $type = $determineTypeFromStatusCode($statusCode);
-                if (isset($value['type'])) {
-                    $providedType = $normalizeLogType(is_string($value['type']) ? $value['type'] : null);
-                    if ($providedType !== null) {
-                        $type = $providedType;
-                    }
-                }
-
-                return [
-                    'message' => $trimmedMessage,
-                    'type'    => $type,
-                ];
-            }
-        }
-
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed === '') {
-                return null;
-            }
-
-            return [
-                'message' => $trimmed,
-                'type'    => 'info',
-            ];
-        }
-
-        return null;
-    };
-
-    $collectStatusPayloads = static function (mixed $value) use (&$collectStatusPayloads, $extractStatusPayload, $isListArray): array {
-        if (is_array($value) && $isListArray($value)) {
-            $collected = [];
-            foreach ($value as $item) {
-                $collected = array_merge($collected, $collectStatusPayloads($item));
-            }
-
-            return $collected;
-        }
-
-        $single = $extractStatusPayload($value);
-
-        return $single !== null ? [$single] : [];
-    };
-
-    $appendLogEntry = static function (string $message, ?string $type = null) use (&$logEntries, $timestamp, $normalizeLogType): void {
-        $trimmedMessage = trim($message);
-        if ($trimmedMessage === '') {
-            return;
-        }
-
-        $entry = [
-            'timestamp' => $timestamp(),
-            'message'   => $trimmedMessage,
+        $payload = $payloadData;
+        $level = determineLevel($payloadData);
+        $statusCode = determineStatusCode($payloadData, $level);
+        $message = determineMessage($payloadData) ?? 'Received';
+        $message = mb_substr($message, 0, 500);
+        $imageUrl = extractImageUrl($payloadData);
+        $payloadSummary = createPayloadSummary($payloadData);
+    } elseif ($contentType === 'application/octet-stream' || $contentType === 'multipart/form-data') {
+        $level = 'info';
+        $statusCode = 200;
+        $message = mb_substr('binary payload received', 0, 500);
+        $payload = [
+            'note'         => 'binary payload received',
+            'content_type' => $contentType,
         ];
-
-        $normalizedType = $normalizeLogType($type);
-        if ($normalizedType !== null) {
-            $entry['type'] = $normalizedType;
-        }
-
-        $logEntries[] = $entry;
-    };
-
-    $storeFile = static function (array $file, string $uploadDir): string {
-        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Upload fehlgeschlagen: ' . ($file['error'] ?? 'unbekannt'));
-        }
-
-        if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-            throw new RuntimeException('Ungültige Dateiübertragung.');
-        }
-
-        $originalName = $file['name'] ?? ('upload_' . date('Ymd_His'));
-        $sanitized = preg_replace('/[\\\\\/\x00-\x1F\x7F]+/u', '_', (string) $originalName);
-        $sanitized = trim($sanitized) === '' ? 'upload_' . date('Ymd_His') : trim($sanitized);
-        $storedName = basename($sanitized);
-
-        $destination = $uploadDir . $storedName;
-        $nameWithoutExtension = pathinfo($storedName, PATHINFO_FILENAME);
-        $extension = pathinfo($storedName, PATHINFO_EXTENSION);
-        $extensionWithDot = $extension !== '' ? '.' . $extension : '';
-
-        $counter = 1;
-        while (file_exists($destination)) {
-            $storedName = sprintf('%s_%d%s', $nameWithoutExtension, $counter, $extensionWithDot);
-            $destination = $uploadDir . $storedName;
-            $counter++;
-        }
-
-        if (!move_uploaded_file($file['tmp_name'], $destination)) {
-            throw new RuntimeException('Datei konnte nicht gespeichert werden.');
-        }
-
-        return $storedName;
-    };
-
-    $normalizeValue = static function (string $key, mixed $value): mixed {
-        if ($key === 'isrunning') {
-            if (is_bool($value)) {
-                return $value;
-            }
-
-            $normalized = strtolower(trim((string) $value));
-            if (in_array($normalized, ['true', '1', 'yes'], true)) {
-                return true;
-            }
-            if (in_array($normalized, ['false', '0', 'no'], true)) {
-                return false;
-            }
-        }
-
-        return $value;
-    };
-
-    $allowedImageFields = ['image_1', 'image_2', 'image_3'];
-
-    if (str_contains($contentType, 'application/json')) {
-        $raw = file_get_contents('php://input');
-        if ($raw === false || $raw === '') {
-            throw new RuntimeException('JSON-Daten fehlen.');
-        }
-
-        $decoded = json_decode($raw, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-            throw new RuntimeException('JSON konnte nicht verarbeitet werden.');
-        }
-
-        foreach ($decoded as $key => $value) {
-            $normalizedKey = (string) $key;
-            $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
-
-            if (in_array($normalizedKey, ['statusmessage', 'status_message'], true)) {
-                $statusPayloads = $collectStatusPayloads($value);
-                if ($statusPayloads !== []) {
-                    $lastPayload = end($statusPayloads);
-                    $newData[$normalizedKey] = $lastPayload['message'];
-                    foreach ($statusPayloads as $payload) {
-                        $appendLogEntry($payload['message'], $payload['type']);
-                    }
-                    continue;
-                }
-            }
-
-            if ($normalizedKey === 'error' && is_string($value)) {
-                $appendLogEntry($value, 'error');
-            }
-        }
+        $payloadSummary = $payload['note'];
     } else {
-        $targetField = $_POST['field'] ?? 'image_1';
-        if (!in_array($targetField, $allowedImageFields, true)) {
-            $targetField = 'image_1';
-        }
-
-        foreach ($_POST as $key => $value) {
-            if ($key === 'field') {
-                continue;
-            }
-
-            $normalizedKey = (string) $key;
-            $newData[$normalizedKey] = $normalizeValue($normalizedKey, $value);
-
-            if (in_array($normalizedKey, ['statusmessage', 'status_message'], true)) {
-                $statusPayloads = $collectStatusPayloads($value);
-                if ($statusPayloads !== []) {
-                    $lastPayload = end($statusPayloads);
-                    $newData[$normalizedKey] = $lastPayload['message'];
-                    foreach ($statusPayloads as $payload) {
-                        $appendLogEntry($payload['message'], $payload['type']);
-                    }
-                    continue;
-                }
-            }
-
-            if ($normalizedKey === 'error' && is_string($value)) {
-                $appendLogEntry($value, 'error');
-            }
-        }
-
-        $normalizeFiles = static function (array $files): array {
-            $normalized = [];
-            foreach ($files as $field => $data) {
-                if (is_array($data['name'])) {
-                    $fileCount = count($data['name']);
-                    for ($i = 0; $i < $fileCount; $i++) {
-                        $normalized[$field . ($fileCount > 1 ? '_' . ($i + 1) : '')] = [
-                            'name'     => $data['name'][$i],
-                            'type'     => $data['type'][$i] ?? null,
-                            'tmp_name' => $data['tmp_name'][$i] ?? null,
-                            'error'    => $data['error'][$i] ?? null,
-                            'size'     => $data['size'][$i] ?? null,
-                        ];
-                    }
-                } else {
-                    $normalized[$field] = $data;
-                }
-            }
-
-            return $normalized;
-        };
-
-        $files = $normalizeFiles($_FILES);
-
-        if (isset($files['file']) && is_array($files['file'])) {
-            $storedName = $storeFile($files['file'], $uploadDir);
-            $origin = $baseUrl;
-            if ($origin === '') {
-                $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
-                    || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443);
-                $scheme = $isHttps ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST']
-                    ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
-                $origin = $scheme . '://' . $host;
-
-                $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-                $scriptDir = ($scriptDir === '.' ? '' : $scriptDir);
-                if ($scriptDir !== '') {
-                    $origin .= ($scriptDir[0] === '/' ? '' : '/') . trim($scriptDir, '/');
-                }
-            }
-
-            $fileUrl = rtrim($origin, '/') . '/uploads/' . $storedName;
-            $newData[$targetField] = $fileUrl;
-        }
+        $statusCode = 415;
+        $level = 'error';
+        $message = 'Unsupported Content-Type';
+        $message = mb_substr($message, 0, 500);
+        $payload = [
+            'content_type' => $contentType,
+        ];
+        $statusLogId = logStatus($pdo, $userId, $level, $statusCode, $message, $payload);
+        updateUserState($pdo, $userId, [
+            'last_status'          => mapLevelToState($level),
+            'last_message'         => $message,
+            'last_image_url'       => null,
+            'last_payload_summary' => createPayloadSummary($payload),
+        ]);
+        respondAndExit([
+            'ok'          => false,
+            'status_code' => $statusCode,
+            'message'     => $message,
+            'user_id'     => $userId,
+            'saved'       => [
+                'status_logs_id'     => $statusLogId,
+                'user_state_updated' => true,
+            ],
+        ], $statusCode);
     }
 
-    $merged = array_merge($existingData, $newData);
-
-    if (!empty($logEntries)) {
-        $existingLog = [];
-        if (isset($merged['statuslog']) && is_array($merged['statuslog'])) {
-            $existingLog = $merged['statuslog'];
-        }
-
-        $merged['statuslog'] = array_merge($existingLog, $logEntries);
-    }
-    $merged['updated_at'] = $timestamp();
-
-    file_put_contents($dataFile, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-
-    $respond([
-        'success'   => true,
-        'status'    => 'ok',
-        'message'   => 'Daten aktualisiert.',
-        'timestamp' => $timestamp(),
-        'data'      => $merged,
+    $statusLogId = logStatus($pdo, $userId, $level, $statusCode, $message, $payload);
+    updateUserState($pdo, $userId, [
+        'last_status'          => mapLevelToState($level),
+        'last_message'         => $message,
+        'last_image_url'       => $imageUrl,
+        'last_payload_summary' => $payloadSummary ?? createPayloadSummary($payload),
     ]);
-} catch (Throwable $exception) {
-    $respond([
-        'success'   => false,
-        'status'    => 'error',
-        'message'   => $exception->getMessage(),
-        'timestamp' => $timestamp(),
-    ], $exception instanceof RuntimeException ? 400 : 500);
+    $userStateUpdated = true;
+
+    respondAndExit([
+        'ok'          => $level !== 'error',
+        'status_code' => $statusCode,
+        'message'     => $message,
+        'user_id'     => $userId,
+        'saved'       => [
+            'status_logs_id'     => $statusLogId,
+            'user_state_updated' => $userStateUpdated,
+        ],
+    ], $statusCode);
 } finally {
     restore_error_handler();
+    restore_exception_handler();
+}
+
+function respondAndExit(array $payload, int $statusCode = 200): never
+{
+    http_response_code($statusCode);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function getIncomingToken(): ?string
+{
+    $headers = [];
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+    }
+
+    if (!is_array($headers)) {
+        $headers = [];
+    }
+
+    foreach ($_SERVER as $key => $value) {
+        if (strpos($key, 'HTTP_') === 0) {
+            $headerName = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
+            if (!array_key_exists($headerName, $headers)) {
+                $headers[$headerName] = $value;
+            }
+        }
+    }
+
+    $normalized = [];
+    foreach ($headers as $name => $value) {
+        if (!is_string($name)) {
+            continue;
+        }
+        $normalized[strtolower($name)] = is_array($value) ? implode(',', $value) : (string) $value;
+    }
+
+    $authHeader = $normalized['authorization'] ?? null;
+    if (is_string($authHeader)) {
+        $authHeader = trim($authHeader);
+        if (stripos($authHeader, 'bearer ') === 0) {
+            $token = trim(substr($authHeader, 7));
+            if ($token !== '') {
+                return $token;
+            }
+        }
+    }
+
+    $tokenHeaderNames = ['x-api-token', 'x-authorization', 'x-auth-token'];
+    foreach ($tokenHeaderNames as $headerName) {
+        if (!isset($normalized[$headerName])) {
+            continue;
+        }
+
+        $candidate = trim((string) $normalized[$headerName]);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function resolveUserIdByToken(PDO $pdo, string $token): ?int
+{
+    $statement = $pdo->prepare('SELECT user_id, token_hash FROM webhook_tokens WHERE is_active = 1');
+    $statement->execute();
+
+    $binaryDigest = hash('sha256', $token, true);
+    $hexDigest = hash('sha256', $token);
+
+    while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $userId = isset($row['user_id']) ? (int) $row['user_id'] : null;
+        $storedHash = isset($row['token_hash']) ? (string) $row['token_hash'] : null;
+
+        if ($userId === null || $storedHash === null) {
+            continue;
+        }
+
+        if (hash_equals($binaryDigest, $storedHash)) {
+            return $userId;
+        }
+
+        $normalized = $storedHash;
+        // If the stored value contains printable characters, treat it as hexadecimal text.
+        if ($normalized !== '' && preg_match('/^[0-9a-fA-F]+$/', $normalized) === 1) {
+            $normalizedLower = strtolower($normalized);
+            if (strlen($normalizedLower) === 64 && hash_equals($hexDigest, $normalizedLower)) {
+                return $userId;
+            }
+            if (strlen($normalizedLower) === 32 && hash_equals(substr($hexDigest, 0, 32), $normalizedLower)) {
+                return $userId;
+            }
+        }
+
+        $hexFromBinary = strtolower(bin2hex($storedHash));
+        if (hash_equals($hexDigest, $hexFromBinary)) {
+            return $userId;
+        }
+    }
+
+    return null;
+}
+
+function logStatus(PDO $pdo, int $userId, string $level, int $statusCode, string $message, ?array $payload = null, string $source = 'receiver'): int
+{
+    $message = mb_substr($message, 0, 500);
+    $payloadExcerpt = null;
+    if ($payload !== null) {
+        $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($encoded !== false) {
+            if (mb_strlen($encoded) > 800) {
+                $encoded = mb_substr($encoded, 0, 800);
+            }
+            $payloadExcerpt = $encoded;
+        }
+    }
+
+    $statement = $pdo->prepare(
+        'INSERT INTO status_logs (user_id, level, status_code, message, payload_excerpt, source) VALUES (:user_id, :level, :status_code, :message, :payload_excerpt, :source)'
+    );
+    $statement->execute([
+        'user_id'         => $userId,
+        'level'           => $level,
+        'status_code'     => $statusCode,
+        'message'         => $message,
+        'payload_excerpt' => $payloadExcerpt,
+        'source'          => $source,
+    ]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+function updateUserState(PDO $pdo, int $userId, array $patch): void
+{
+    $lastStatus = $patch['last_status'] ?? 'ok';
+    $lastMessage = $patch['last_message'] ?? null;
+    $lastImageUrl = $patch['last_image_url'] ?? null;
+    $lastPayloadSummary = $patch['last_payload_summary'] ?? null;
+
+    if ($lastMessage !== null) {
+        $lastMessage = mb_substr($lastMessage, 0, 500);
+    }
+
+    if ($lastImageUrl !== null) {
+        $lastImageUrl = mb_substr($lastImageUrl, 0, 500);
+    }
+
+    if ($lastPayloadSummary !== null) {
+        $lastPayloadSummary = mb_substr($lastPayloadSummary, 0, 800);
+    }
+
+    $statement = $pdo->prepare(
+        'INSERT INTO user_state (user_id, last_status, last_message, last_image_url, last_payload_summary, updated_at)
+         VALUES (:user_id, :last_status, :last_message, :last_image_url, :last_payload_summary, NOW())
+         ON DUPLICATE KEY UPDATE
+            last_status = VALUES(last_status),
+            last_message = VALUES(last_message),
+            last_image_url = VALUES(last_image_url),
+            last_payload_summary = VALUES(last_payload_summary),
+            updated_at = NOW()'
+    );
+
+    $statement->execute([
+        'user_id'              => $userId,
+        'last_status'          => $lastStatus,
+        'last_message'         => $lastMessage,
+        'last_image_url'       => $lastImageUrl,
+        'last_payload_summary' => $lastPayloadSummary,
+    ]);
+}
+
+function enforceRateLimit(PDO $pdo, int $userId): void
+{
+    if (!statusLogsHasCreatedAtColumn($pdo)) {
+        return;
+    }
+
+    $statement = $pdo->prepare(
+        'SELECT COUNT(*) FROM status_logs WHERE user_id = :user_id AND created_at >= (NOW() - INTERVAL 60 SECOND)'
+    );
+    $statement->execute(['user_id' => $userId]);
+    $count = (int) $statement->fetchColumn();
+
+    if ($count >= 20) {
+        $message = 'Rate limit exceeded';
+        $statusCode = 429;
+        $logId = logStatus($pdo, $userId, 'warn', $statusCode, $message, [
+            'rate_limit' => '20 requests per 60 seconds',
+            'count'      => $count,
+        ]);
+
+        updateUserState($pdo, $userId, [
+            'last_status'          => mapLevelToState('warn'),
+            'last_message'         => $message,
+            'last_image_url'       => null,
+            'last_payload_summary' => 'rate limited',
+        ]);
+
+        respondAndExit([
+            'ok'          => false,
+            'status_code' => $statusCode,
+            'message'     => $message,
+            'user_id'     => $userId,
+            'saved'       => [
+                'status_logs_id'     => $logId,
+                'user_state_updated' => true,
+            ],
+        ], $statusCode);
+    }
+}
+
+function statusLogsHasCreatedAtColumn(PDO $pdo): bool
+{
+    static $hasColumn = null;
+
+    if ($hasColumn !== null) {
+        return $hasColumn;
+    }
+
+    try {
+        $statement = $pdo->query("SHOW COLUMNS FROM status_logs LIKE 'created_at'");
+        if ($statement === false) {
+            $hasColumn = false;
+            return $hasColumn;
+        }
+
+        $hasColumn = $statement->fetchColumn() !== false;
+    } catch (PDOException) {
+        $hasColumn = false;
+    }
+
+    return $hasColumn;
+}
+
+function determineLevel(array $payload): string
+{
+    $candidate = null;
+
+    $possibleKeys = ['level', 'severity', 'status_level'];
+    foreach ($possibleKeys as $key) {
+        if (isset($payload[$key]) && is_string($payload[$key])) {
+            $candidate = strtolower(trim($payload[$key]));
+            break;
+        }
+    }
+
+    if ($candidate !== null) {
+        if (in_array($candidate, ['error', 'err', 'fatal', 'fail'], true)) {
+            return 'error';
+        }
+        if (in_array($candidate, ['warn', 'warning', 'caution'], true)) {
+            return 'warn';
+        }
+    }
+
+    if (!empty($payload['errors'])) {
+        return 'error';
+    }
+
+    if (!empty($payload['error'])) {
+        return 'error';
+    }
+
+    if (isset($payload['status']) && is_string($payload['status'])) {
+        $status = strtolower($payload['status']);
+        if (str_contains($status, 'error') || str_contains($status, 'fail')) {
+            return 'error';
+        }
+        if (str_contains($status, 'warn')) {
+            return 'warn';
+        }
+    }
+
+    if (!empty($payload['warnings']) || !empty($payload['warning'])) {
+        return 'warn';
+    }
+
+    return 'info';
+}
+
+function determineStatusCode(array $payload, string $level): int
+{
+    if (isset($payload['status_code']) && is_numeric($payload['status_code'])) {
+        $code = (int) $payload['status_code'];
+        if ($code >= 100 && $code < 600) {
+            return $code;
+        }
+    }
+
+    if ($level === 'error') {
+        return 422;
+    }
+
+    return 200;
+}
+
+function determineMessage(array $payload): ?string
+{
+    $candidates = ['message', 'status', 'text', 'detail'];
+
+    foreach ($candidates as $key) {
+        if (isset($payload[$key]) && is_string($payload[$key])) {
+            $value = trim($payload[$key]);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+    }
+
+    return null;
+}
+
+function extractImageUrl(array $payload): ?string
+{
+    $candidates = ['image_url', 'imageUrl', 'image', 'imageLink', 'thumbnail'];
+
+    foreach ($candidates as $key) {
+        if (!isset($payload[$key])) {
+            continue;
+        }
+
+        $value = $payload[$key];
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (is_string($item) && filter_var($item, FILTER_VALIDATE_URL)) {
+                    return $item;
+                }
+            }
+            continue;
+        }
+
+        if (is_string($value) && filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+    }
+
+    return null;
+}
+
+function createPayloadSummary(?array $payload): ?string
+{
+    if ($payload === null) {
+        return null;
+    }
+
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || $encoded === '') {
+        return null;
+    }
+
+    if (mb_strlen($encoded) > 200) {
+        return mb_substr($encoded, 0, 200) . '…';
+    }
+
+    return $encoded;
+}
+
+function mapLevelToState(string $level): string
+{
+    return match ($level) {
+        'error' => 'error',
+        'warn'  => 'warn',
+        default => 'ok',
+    };
 }
