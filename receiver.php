@@ -46,20 +46,19 @@ $extractAuthorizationHeader = static function (): ?string {
         $_SERVER['Authorization'] ?? null,
         $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null,
     ];
-
-    foreach ($candidates as $candidate) {
-        if (is_string($candidate) && $candidate !== '') {
-            return trim($candidate);
+    foreach ($candidates as $c) {
+        if (is_string($c) && $c !== '') {
+            return trim($c);
         }
     }
-
     if (function_exists('getallheaders')) {
         $headers = getallheaders();
-        if (isset($headers['Authorization']) && is_string($headers['Authorization'])) {
-            return trim($headers['Authorization']);
+        foreach ($headers as $k => $v) {
+            if (strcasecmp((string) $k, 'Authorization') === 0 && is_string($v) && $v !== '') {
+                return trim($v);
+            }
         }
     }
-
     return null;
 };
 
