@@ -23,13 +23,83 @@ $respond = static function (array $payload, int $statusCode = 200): never {
 
 $timestamp = static fn (): string => (new DateTimeImmutable('now'))->format(DATE_ATOM);
 
-if (!auth_is_logged_in()) {
+$config = auth_config();
+
+$apiToken = $config['receiver_api_token'] ?? '';
+if (!is_string($apiToken) || $apiToken === '') {
+    $respond([
+        'success'   => false,
+        'status'    => 'error',
+        'message'   => 'API-Token ist nicht konfiguriert.',
+        'timestamp' => $timestamp(),
+    ], 500);
+}
+
+$allowedIps = $config['receiver_api_allowed_ips'] ?? [];
+if (!is_array($allowedIps)) {
+    $allowedIps = [];
+}
+
+$extractAuthorizationHeader = static function (): ?string {
+    $candidates = [
+        $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+        $_SERVER['Authorization'] ?? null,
+        $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && $candidate !== '') {
+            return trim($candidate);
+        }
+    }
+
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (isset($headers['Authorization']) && is_string($headers['Authorization'])) {
+            return trim($headers['Authorization']);
+        }
+    }
+
+    return null;
+};
+
+$parseBearerToken = static function (?string $header): ?string {
+    if (!is_string($header)) {
+        return null;
+    }
+
+    if (stripos($header, 'Bearer ') !== 0) {
+        return null;
+    }
+
+    $token = trim(substr($header, 7));
+
+    return $token !== '' ? $token : null;
+};
+
+$authorizationHeader = $extractAuthorizationHeader();
+$providedToken = $parseBearerToken($authorizationHeader);
+
+if ($providedToken === null || !hash_equals($apiToken, $providedToken)) {
+    header('WWW-Authenticate: Bearer');
     $respond([
         'success'   => false,
         'status'    => 'unauthorized',
-        'message'   => 'Anmeldung erforderlich.',
+        'message'   => 'Ungültiger oder fehlender Bearer-Token.',
         'timestamp' => $timestamp(),
     ], 401);
+}
+
+if ($allowedIps !== []) {
+    $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (!is_string($remoteIp) || $remoteIp === '' || !in_array($remoteIp, array_map('strval', $allowedIps), true)) {
+        $respond([
+            'success'   => false,
+            'status'    => 'forbidden',
+            'message'   => 'Zugriff für diese IP-Adresse nicht erlaubt.',
+            'timestamp' => $timestamp(),
+        ], 403);
+    }
 }
 
 try {
@@ -41,8 +111,6 @@ try {
             'timestamp' => $timestamp(),
         ], 405);
     }
-
-    $config = require __DIR__ . '/config.php';
 
     $uploadDir = rtrim($config['upload_dir'] ?? (__DIR__ . '/uploads/'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
     $dataFile  = $config['data_file'] ?? (__DIR__ . '/data.json');
