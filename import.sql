@@ -14,40 +14,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET @schema_name := DATABASE();
-
--- Index idx_email nur anlegen, falls noch nicht vorhanden
-SET @idx_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.STATISTICS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_email'
-);
-SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_email ON users(email);', 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Index idx_verification_token nur anlegen, falls noch nicht vorhanden
-SET @idx_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.STATISTICS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_verification_token'
-);
-SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_verification_token ON users(verification_token);', 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Index idx_reset_token nur anlegen, falls noch nicht vorhanden
-SET @idx_exists := (
-  SELECT COUNT(1)
-  FROM INFORMATION_SCHEMA.STATISTICS
-  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_reset_token'
-);
-SET @sql := IF(@idx_exists = 0, 'CREATE INDEX idx_reset_token ON users(reset_token);', 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+-- Indexe zur Performance-Optimierung
+CREATE INDEX idx_email ON users(email);
+CREATE INDEX idx_verification_token ON users(verification_token);
+CREATE INDEX idx_reset_token ON users(reset_token);
 
 -- Benutzer
 CREATE TABLE IF NOT EXISTS users (
