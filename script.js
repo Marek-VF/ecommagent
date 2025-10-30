@@ -203,9 +203,57 @@ let pollingTimer = null;
 let isPollingActive = false;
 let lastStatusText = '';
 let hasShownCompletion = false;
+let hasObservedActiveRun = false;
 const statusLogState = {
     seen: new Set(),
 };
+
+const LOG_TYPE_CLASSES = {
+    ok: 'log-ok',
+    error: 'log-err',
+    info: 'log-info',
+};
+
+const TYPE_KEYWORDS = {
+    ok: ['success', 'ok', 'positive', 'completed'],
+    error: ['error', 'fail', 'failed', 'danger'],
+    info: ['info', 'warning', 'warn', 'caution'],
+};
+
+const UNAUTHORIZED_PATTERNS = [
+    /unauthorized/i,
+    /anmeldung erforderlich/i,
+    /ungültiger oder fehlender bearer-token/i,
+];
+
+const MESSAGE_PATHS = [
+    ['message'],
+    ['msg'],
+    ['statusmessage'],
+    ['status_message'],
+    ['error'],
+    ['errors', 0, 'message'],
+    ['status', 'text'],
+];
+
+const CODE_PATHS = [
+    ['statuscode'],
+    ['status_code'],
+    ['code'],
+    ['status', 'code'],
+    ['status', 'status_code'],
+    ['httpstatus'],
+    ['http_status'],
+    ['httpcode'],
+    ['http_code'],
+];
+
+const TYPE_PATHS = [
+    ['type'],
+    ['status', 'type'],
+    ['status', 'status'],
+    ['status', 'state'],
+];
 
 const toBoolean = (value) => {
     if (typeof value === 'boolean') {
@@ -229,19 +277,239 @@ const toBoolean = (value) => {
     return false;
 };
 
-const normalizeLogType = (value) => {
-    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
-
-    if (['success', 'ok', 'positive', 'completed'].includes(normalized)) {
-        return 'success';
+const sanitizeLogMessage = (value) => {
+    if (value === null || value === undefined) {
+        return '';
     }
 
-    if (['error', 'danger', 'failed', 'fail'].includes(normalized)) {
+    return String(value).replace(/\s+/g, ' ').trim();
+};
+
+const mapTypeHint = (value) => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+        return null;
+    }
+
+    if (TYPE_KEYWORDS.ok.includes(normalized)) {
+        return 'ok';
+    }
+
+    if (TYPE_KEYWORDS.error.includes(normalized)) {
         return 'error';
     }
 
-    if (['warning', 'warn', 'caution'].includes(normalized)) {
-        return 'warning';
+    if (TYPE_KEYWORDS.info.includes(normalized)) {
+        return 'info';
+    }
+
+    return null;
+};
+
+const getCaseInsensitive = (object, key) => {
+    if (!object || typeof object !== 'object') {
+        return undefined;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(object, key)) {
+        return object[key];
+    }
+
+    const lowerKey = key.toLowerCase();
+    const matchingKey = Object.keys(object).find((candidate) => candidate.toLowerCase() === lowerKey);
+
+    if (matchingKey) {
+        return object[matchingKey];
+    }
+
+    return undefined;
+};
+
+const getValueByPath = (object, path) => {
+    if (!object || typeof object !== 'object') {
+        return undefined;
+    }
+
+    let current = object;
+
+    for (const segment of path) {
+        if (current === null || current === undefined) {
+            return undefined;
+        }
+
+        if (typeof segment === 'number') {
+            if (!Array.isArray(current) || current.length <= segment) {
+                return undefined;
+            }
+
+            current = current[segment];
+            continue;
+        }
+
+        current = getCaseInsensitive(current, segment);
+    }
+
+    return current;
+};
+
+const extractMessageAndCode = (input) => {
+    if (input === null || input === undefined) {
+        return { message: null, code: null, type: null };
+    }
+
+    if (['string', 'number', 'boolean'].includes(typeof input)) {
+        const message = sanitizeLogMessage(input);
+        return {
+            message: message || null,
+            code: null,
+            type: null,
+        };
+    }
+
+    const result = {
+        message: null,
+        code: null,
+        type: null,
+    };
+
+    const visited = new Set();
+
+    const traverse = (value) => {
+        if (!value || typeof value !== 'object' || visited.has(value)) {
+            return;
+        }
+
+        visited.add(value);
+
+        if (result.message === null) {
+            for (const path of MESSAGE_PATHS) {
+                const candidate = getValueByPath(value, path);
+
+                if (candidate === undefined || candidate === null) {
+                    continue;
+                }
+
+                if (['string', 'number', 'boolean'].includes(typeof candidate)) {
+                    const sanitized = sanitizeLogMessage(candidate);
+                    if (sanitized) {
+                        result.message = sanitized;
+                        break;
+                    }
+                } else if (typeof candidate === 'object') {
+                    traverse(candidate);
+                    if (result.message !== null) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (result.code === null) {
+            for (const path of CODE_PATHS) {
+                const candidate = getValueByPath(value, path);
+
+                if (candidate === undefined || candidate === null || candidate === '') {
+                    continue;
+                }
+
+                if (typeof candidate === 'string' || typeof candidate === 'number') {
+                    const sanitized = String(candidate).trim();
+                    if (sanitized) {
+                        result.code = sanitized;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (result.type === null) {
+            for (const path of TYPE_PATHS) {
+                const candidate = getValueByPath(value, path);
+
+                if (typeof candidate === 'string' && candidate.trim() !== '') {
+                    const mapped = mapTypeHint(candidate);
+                    if (mapped) {
+                        result.type = mapped;
+                        break;
+                    }
+                }
+            }
+        }
+
+        Object.keys(value).forEach((key) => {
+            if (result.message !== null && result.code !== null && result.type !== null) {
+                return;
+            }
+
+            const child = value[key];
+
+            if (Array.isArray(child)) {
+                child.forEach((item) => traverse(item));
+            } else if (child && typeof child === 'object') {
+                traverse(child);
+            } else if (result.message === null && (typeof child === 'string' || typeof child === 'number')) {
+                const sanitized = sanitizeLogMessage(child);
+                if (sanitized) {
+                    result.message = sanitized;
+                }
+            }
+        });
+    };
+
+    traverse(input);
+
+    return result;
+};
+
+const isUnauthorized = (status, message) => {
+    if (status === 401) {
+        return true;
+    }
+
+    if (typeof message !== 'string') {
+        return false;
+    }
+
+    return UNAUTHORIZED_PATTERNS.some((pattern) => pattern.test(message));
+};
+
+const buildUnauthorizedMessage = (message) => {
+    const sanitized = sanitizeLogMessage(message) || 'Zugriff verweigert.';
+
+    if (/^nicht autorisiert/i.test(sanitized)) {
+        return sanitized;
+    }
+
+    return `Nicht autorisiert: ${sanitized}`;
+};
+
+const resolveLogType = ({ httpStatus, typeHint, fallback }) => {
+    const mappedHint = mapTypeHint(typeHint);
+    if (mappedHint) {
+        return mappedHint;
+    }
+
+    const mappedFallback = mapTypeHint(fallback);
+    if (mappedFallback) {
+        return mappedFallback;
+    }
+
+    if (typeof httpStatus === 'number') {
+        if (httpStatus >= 200 && httpStatus < 300) {
+            return 'ok';
+        }
+
+        if (httpStatus >= 400 && httpStatus < 600) {
+            return 'error';
+        }
+    }
+
+    if (typeof fallback === 'string' && ['ok', 'error', 'info'].includes(fallback)) {
+        return fallback;
     }
 
     return 'info';
@@ -257,64 +525,6 @@ const trimStatusLog = () => {
     }
 };
 
-const formatLogTimestamp = (value) => {
-    let date = null;
-
-    if (value instanceof Date) {
-        date = value;
-    } else if (typeof value === 'number') {
-        date = new Date(value);
-    } else if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime())) {
-            date = parsed;
-        } else {
-            return value.trim();
-        }
-    }
-
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-        date = new Date();
-    }
-
-    const padTwo = (valueToPad) => String(valueToPad).padStart(2, '0');
-    const day = padTwo(date.getDate());
-    const month = padTwo(date.getMonth() + 1);
-    const year = date.getFullYear();
-    const hours = padTwo(date.getHours());
-    const minutes = padTwo(date.getMinutes());
-    const seconds = padTwo(date.getSeconds());
-
-    return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-};
-
-const createStatusLogEntryElement = ({ message, type, timestamp, detail }) => {
-    const entry = document.createElement('article');
-    const normalizedType = normalizeLogType(type);
-
-    entry.className = 'status-panel__entry';
-    entry.dataset.type = normalizedType;
-
-    if (timestamp) {
-        const formattedTimestamp = formatLogTimestamp(timestamp);
-        entry.dataset.timestamp = formattedTimestamp;
-    }
-
-    const textElement = document.createElement('p');
-    textElement.className = 'status-panel__text';
-    textElement.textContent = message;
-    entry.appendChild(textElement);
-
-    if (typeof detail === 'string' && detail.trim() !== '') {
-        const detailElement = document.createElement('pre');
-        detailElement.className = 'status-panel__detail';
-        detailElement.textContent = detail.trim();
-        entry.appendChild(detailElement);
-    }
-
-    return entry;
-};
-
 const scrollStatusLogToTop = () => {
     if (!statusLogContainer) {
         return;
@@ -327,31 +537,50 @@ const scrollStatusLogToTop = () => {
     }
 };
 
-const insertStatusLogEntry = (entryElement) => {
-    if (!statusLogContainer || !entryElement) {
+const renderLog = (type, message, code) => {
+    if (!statusLogContainer) {
         return;
     }
 
-    statusLogContainer.prepend(entryElement);
+    const normalizedMessage = sanitizeLogMessage(message);
+    if (!normalizedMessage) {
+        return;
+    }
+
+    const normalizedType = mapTypeHint(type) || (['ok', 'error', 'info'].includes(type) ? type : 'info');
+    const className = LOG_TYPE_CLASSES[normalizedType] || LOG_TYPE_CLASSES.info;
+
+    const entry = document.createElement('p');
+    entry.className = `log-entry ${className}`;
+
+    const codeText = code !== undefined && code !== null ? String(code).trim() : '';
+    entry.textContent = codeText ? `${normalizedMessage} (${codeText})` : normalizedMessage;
+
+    statusLogContainer.prepend(entry);
     trimStatusLog();
     scrollStatusLogToTop();
 };
 
-const addStatusMessage = (text, type = 'info', detail) => {
-    const message = typeof text === 'string' ? text.trim() : '';
+const logMessage = (message, type = 'info', code) => {
+    renderLog(type, message, code);
+};
 
-    if (!message) {
-        return;
+const logResponse = ({ httpStatus, payload, fallbackMessage, fallbackType }) => {
+    const { message, code, type } = extractMessageAndCode(payload);
+
+    let finalMessage = sanitizeLogMessage(message) || sanitizeLogMessage(fallbackMessage);
+    let finalCode = code || (typeof httpStatus === 'number' ? String(httpStatus) : null);
+    let finalType = resolveLogType({ httpStatus, typeHint: type, fallback: fallbackType });
+
+    if (isUnauthorized(httpStatus, finalMessage)) {
+        finalType = 'error';
+        finalMessage = buildUnauthorizedMessage(message || fallbackMessage);
+        if (!finalCode) {
+            finalCode = httpStatus || 401;
+        }
     }
 
-    const entry = createStatusLogEntryElement({
-        message,
-        type,
-        detail,
-        timestamp: new Date(),
-    });
-
-    insertStatusLogEntry(entry);
+    renderLog(finalType, finalMessage, finalCode);
 };
 
 const updateStatusLog = (entries) => {
@@ -359,21 +588,22 @@ const updateStatusLog = (entries) => {
         return;
     }
 
-    const itemsToInsert = [];
-
     entries.forEach((rawEntry) => {
         if (!rawEntry || typeof rawEntry !== 'object') {
             return;
         }
 
-        const message = typeof rawEntry.message === 'string' ? rawEntry.message.trim() : '';
-        if (message === '') {
+        const { message, code, type } = extractMessageAndCode(rawEntry);
+        const fallbackMessage = typeof rawEntry.message === 'string' ? rawEntry.message : '';
+        const finalMessage = sanitizeLogMessage(message || fallbackMessage);
+
+        if (!finalMessage) {
             return;
         }
 
-        const timestamp = rawEntry.timestamp ?? '';
-        const type = normalizeLogType(rawEntry.type);
-        const entryKey = `${timestamp}::${message}::${type}`;
+        const timestamp = rawEntry.timestamp ?? rawEntry.time ?? '';
+        const keyType = type || rawEntry.type || rawEntry.level || '';
+        const entryKey = `${timestamp}::${finalMessage}::${keyType}`;
 
         if (statusLogState.seen.has(entryKey)) {
             return;
@@ -381,22 +611,19 @@ const updateStatusLog = (entries) => {
 
         statusLogState.seen.add(entryKey);
 
-        const item = createStatusLogEntryElement({
-            message,
-            type,
-            timestamp,
+        const httpStatus = typeof rawEntry.status === 'number' ? rawEntry.status : Number(rawEntry.status);
+        const resolvedType = resolveLogType({
+            httpStatus: Number.isFinite(httpStatus) ? httpStatus : null,
+            typeHint: type || rawEntry.type || rawEntry.level,
+            fallback: 'info',
         });
 
-        itemsToInsert.push(item);
+        const resolvedCode = code
+            || (rawEntry.code !== undefined && rawEntry.code !== null ? String(rawEntry.code).trim() : '')
+            || (rawEntry.status !== undefined && rawEntry.status !== null ? String(rawEntry.status).trim() : '');
+
+        renderLog(resolvedType, finalMessage, resolvedCode || null);
     });
-
-    if (itemsToInsert.length > 0) {
-        itemsToInsert.forEach((item) => {
-            statusLogContainer.prepend(item);
-        });
-        trimStatusLog();
-        scrollStatusLogToTop();
-    }
 };
 
 const updateProcessingIndicator = (text, state = 'idle') => {
@@ -514,7 +741,7 @@ const uploadFiles = async (files) => {
         const formData = new FormData();
         formData.append('image', file);
 
-        addStatusMessage(`Starte Upload: ${file.name}`, 'info');
+        logMessage(`Starte Upload: ${file.name}`, 'info');
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -523,43 +750,82 @@ const uploadFiles = async (files) => {
             });
 
             const rawText = await response.text();
+            let payload = {};
+
+            if (rawText) {
+                try {
+                    payload = JSON.parse(rawText);
+                } catch (parseError) {
+                    payload = rawText;
+                }
+            }
+
             if (!response.ok) {
-                throw new Error(`Upload fehlgeschlagen (${response.status}). ${rawText}`);
-            }
-
-            let result;
-            try {
-                result = rawText ? JSON.parse(rawText) : {};
-            } catch (parseError) {
-                throw new Error(`Antwort konnte nicht gelesen werden: ${rawText}`);
-            }
-
-            if (result.success) {
-                if (result.file) {
-                    addPreviews([{ url: result.file, name: result.name || file.name }]);
-                }
-                addStatusMessage(result.message || `Upload abgeschlossen: ${result.name || file.name}`, 'success');
-                setLoadingState(true);
-                if (processingIndicator) {
-                    processingIndicator.textContent = 'Verarbeitung läuft…';
-                }
-                hasShownCompletion = false;
-                startPolling();
-
-                if (typeof result.webhook_response !== 'undefined' && result.webhook_response !== null && result.webhook_response !== '') {
-                    const formatted = typeof result.webhook_response === 'object'
-                        ? JSON.stringify(result.webhook_response, null, 2)
-                        : String(result.webhook_response);
-                    const statusLabel = result.webhook_status ? `Webhook (${result.webhook_status})` : 'Webhook';
-                    addStatusMessage(`${statusLabel} Antwort`, 'info', formatted);
-                }
-            } else {
-                addStatusMessage(result.message || `Upload fehlgeschlagen: ${file.name}`, 'error');
+                logResponse({
+                    httpStatus: response.status,
+                    payload,
+                    fallbackMessage: `Upload fehlgeschlagen: ${file.name}`,
+                    fallbackType: 'error',
+                });
                 setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+                return;
+            }
+
+            const result = typeof payload === 'object' && payload !== null ? payload : {};
+
+            if (result.file) {
+                addPreviews([{ url: result.file, name: result.name || file.name }]);
+            }
+
+            const isSuccessful = result.success !== false;
+            const fallbackMessage = isSuccessful
+                ? `Upload abgeschlossen: ${result.name || file.name}`
+                : `Upload fehlgeschlagen: ${file.name}`;
+
+            logResponse({
+                httpStatus: response.status,
+                payload,
+                fallbackMessage,
+                fallbackType: isSuccessful ? 'ok' : 'error',
+            });
+
+            if (!isSuccessful) {
+                setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+                return;
+            }
+
+            setLoadingState(true);
+            if (processingIndicator) {
+                processingIndicator.textContent = 'Verarbeitung läuft…';
+            }
+            hasShownCompletion = false;
+            startPolling();
+
+            if (result.webhook_response !== undefined && result.webhook_response !== null && result.webhook_response !== '') {
+                const webhookPayload = result.webhook_response;
+                const webhookStatus = result.webhook_status;
+                const { message: webhookMessage, code: webhookCode, type: webhookType } = extractMessageAndCode(webhookPayload);
+                const fallbackWebhookMessage = webhookStatus
+                    ? `Webhook ${String(webhookStatus).trim()}`
+                    : 'Webhook-Antwort';
+                const resolvedWebhookType = resolveLogType({
+                    httpStatus: Number(webhookStatus),
+                    typeHint: webhookType,
+                    fallback: 'info',
+                });
+                const resolvedWebhookCode = webhookCode
+                    || (webhookStatus !== undefined && webhookStatus !== null ? String(webhookStatus).trim() : null);
+                const sanitizedWebhookMessage = sanitizeLogMessage(webhookMessage) || sanitizeLogMessage(fallbackWebhookMessage);
+
+                if (sanitizedWebhookMessage) {
+                    renderLog(resolvedWebhookType, sanitizedWebhookMessage, resolvedWebhookCode);
+                }
             }
         } catch (error) {
             console.error(error);
-            addStatusMessage(error.message || `Beim Upload ist ein Fehler aufgetreten (${file.name}).`, 'error');
+            const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
+            const message = sanitizeLogMessage(error?.message) || fallback;
+            renderLog('error', message, null);
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
         }
     });
@@ -606,7 +872,7 @@ const updateInterfaceFromData = (data) => {
     }
 
     if (!isRunning && hasObservedActiveRun && !hasShownCompletion) {
-        addStatusMessage('Workflow abgeschlossen.', 'success');
+        logMessage('Workflow abgeschlossen.', 'ok');
         hasShownCompletion = true;
         updateProcessingIndicator('Workflow abgeschlossen', 'success');
         hasObservedActiveRun = false;
@@ -616,14 +882,14 @@ const updateInterfaceFromData = (data) => {
     }
 
     if (!isRunning && !hasShownCompletion && data.updated_at) {
-        addStatusMessage('Verarbeitung abgeschlossen.', 'success');
+        logMessage('Verarbeitung abgeschlossen.', 'ok');
         hasShownCompletion = true;
     }
 
     if (typeof data.status_message === 'string') {
         const trimmed = data.status_message.trim();
         if (trimmed && trimmed !== lastStatusText) {
-            addStatusMessage(trimmed, 'info');
+            logMessage(trimmed, 'info');
             lastStatusText = trimmed;
         }
     }
