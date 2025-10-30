@@ -74,6 +74,39 @@ CREATE TABLE IF NOT EXISTS webhook_tokens (
   UNIQUE INDEX idx_webhook_tokens_token_hash (token_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Ensure webhook_tokens.token_hash uses binary storage and a unique index
+SET @col_signature := (
+  SELECT CONCAT(LOWER(DATA_TYPE), COALESCE(CHARACTER_MAXIMUM_LENGTH, 0))
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND COLUMN_NAME = 'token_hash'
+  LIMIT 1
+);
+SET @sql := IF(@col_signature = 'binary32', 'SELECT 1',
+  'ALTER TABLE webhook_tokens MODIFY token_hash BINARY(32) NOT NULL COMMENT ''SHA-256 hash of the token (binary storage)''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND INDEX_NAME = 'ux_wt_token_hash'
+);
+SET @sql := IF(@idx_exists = 0, 'ALTER TABLE webhook_tokens ADD UNIQUE INDEX ux_wt_token_hash (token_hash);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND INDEX_NAME = 'idx_wt_token_hash'
+);
+SET @sql := IF(@old_idx_exists = 0, 'SELECT 1', 'ALTER TABLE webhook_tokens DROP INDEX idx_wt_token_hash;');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- User-Einstellungen (z. B. individuelle Workflow-URL)
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id          INT UNSIGNED PRIMARY KEY,
