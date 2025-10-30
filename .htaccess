@@ -1,0 +1,4 @@
+RewriteEngine On
+# Stelle sicher, dass der Authorization-Header in PHP verfügbar ist
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
