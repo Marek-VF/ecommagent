@@ -144,17 +144,27 @@ CREATE TABLE IF NOT EXISTS user_state (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE user_state
-  ADD COLUMN IF NOT EXISTS last_status ENUM('ok','warn','error') NULL AFTER user_id,
-  ADD COLUMN IF NOT EXISTS last_message VARCHAR(255) NULL AFTER last_status,
-  ADD COLUMN IF NOT EXISTS last_image_url TEXT NULL AFTER last_message,
-  ADD COLUMN IF NOT EXISTS last_payload_summary TEXT NULL AFTER last_image_url,
+  ADD COLUMN IF NOT EXISTS last_status ENUM('ok','warn','error') NULL AFTER user_id;
+
+ALTER TABLE user_state
+  ADD COLUMN IF NOT EXISTS last_message VARCHAR(255) NULL AFTER last_status;
+
+ALTER TABLE user_state
+  ADD COLUMN IF NOT EXISTS last_image_url TEXT NULL AFTER last_message;
+
+ALTER TABLE user_state
+  ADD COLUMN IF NOT EXISTS last_payload_summary TEXT NULL AFTER last_image_url;
+
+ALTER TABLE user_state
   ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER last_payload_summary;
 
 ALTER TABLE user_state
   ADD UNIQUE KEY IF NOT EXISTS idx_user_state_user (user_id);
 
 ALTER TABLE webhook_tokens
-  MODIFY COLUMN token_hash BINARY(32) NOT NULL,
+  MODIFY COLUMN token_hash BINARY(32) NOT NULL;
+
+ALTER TABLE webhook_tokens
   ADD UNIQUE KEY IF NOT EXISTS idx_webhook_tokens_token_hash (token_hash);
 
 SET @table_exists := (
