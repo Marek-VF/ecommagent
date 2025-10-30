@@ -64,15 +64,48 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS webhook_tokens (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id      INT UNSIGNED NOT NULL,
-  token_hash   CHAR(64) NOT NULL,                -- SHA-256 des Tokens
+  token_hash   BINARY(32) NOT NULL COMMENT 'SHA-256 hash of the token (binary storage)',
   label        VARCHAR(120) NULL,
   is_active    TINYINT(1) NOT NULL DEFAULT 1,
   last_used_at DATETIME NULL,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_wt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_wt_user (user_id),
-  INDEX idx_wt_token_hash (token_hash)
+  UNIQUE INDEX ux_wt_token_hash (token_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ensure webhook_tokens.token_hash uses binary storage and a unique index
+SET @col_signature := (
+  SELECT CONCAT(LOWER(DATA_TYPE), COALESCE(CHARACTER_MAXIMUM_LENGTH, 0))
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND COLUMN_NAME = 'token_hash'
+  LIMIT 1
+);
+SET @sql := IF(@col_signature = 'binary32', 'SELECT 1',
+  'ALTER TABLE webhook_tokens MODIFY token_hash BINARY(32) NOT NULL COMMENT ''SHA-256 hash of the token (binary storage)''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND INDEX_NAME = 'ux_wt_token_hash'
+);
+SET @sql := IF(@idx_exists = 0, 'ALTER TABLE webhook_tokens ADD UNIQUE INDEX ux_wt_token_hash (token_hash);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'webhook_tokens' AND INDEX_NAME = 'idx_wt_token_hash'
+);
+SET @sql := IF(@old_idx_exists = 0, 'SELECT 1', 'ALTER TABLE webhook_tokens DROP INDEX idx_wt_token_hash;');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- User-Einstellungen (z. B. individuelle Workflow-URL)
 CREATE TABLE IF NOT EXISTS user_settings (
@@ -99,22 +132,206 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 -- Zustand je User (ersetzt data.json)
 CREATE TABLE IF NOT EXISTS user_state (
-  user_id    INT UNSIGNED PRIMARY KEY,
-  state_json JSON NOT NULL,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  user_id               INT UNSIGNED PRIMARY KEY,
+  last_status           ENUM('ok','warn','error') NOT NULL DEFAULT 'ok',
+  last_message          VARCHAR(500) NULL,
+  last_image_url        VARCHAR(500) NULL,
+  last_payload_summary  VARCHAR(800) NULL,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_us_state_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Align legacy user_state tables with the new column layout
+SET @table_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state'
+);
+
+SET @sql := IF(@table_exists = 0, 'SELECT 1',
+  'ALTER TABLE user_state MODIFY last_status ENUM(''ok'',''warn'',''error'') NOT NULL DEFAULT ''ok''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_message'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE user_state ADD COLUMN last_message VARCHAR(500) NULL AFTER last_status');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_image_url'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE user_state ADD COLUMN last_image_url VARCHAR(500) NULL AFTER last_message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'last_payload_summary'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE user_state ADD COLUMN last_payload_summary VARCHAR(800) NULL AFTER last_image_url');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'updated_at'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE user_state ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'user_state' AND COLUMN_NAME = 'state_json'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 0, 'SELECT 1', 'ALTER TABLE user_state DROP COLUMN state_json');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Status-Log (ersetzt statuslog aus data.json)
 CREATE TABLE IF NOT EXISTS status_logs (
-  id        BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id   INT UNSIGNED NOT NULL,
-  type      ENUM('success','warning','error','info') NOT NULL,
-  message   TEXT NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id         INT UNSIGNED NOT NULL,
+  level           ENUM('info','warn','error') NOT NULL,
+  status_code     INT NOT NULL,
+  message         VARCHAR(500) NOT NULL,
+  payload_excerpt VARCHAR(800) NULL,
+  source          VARCHAR(50) NOT NULL DEFAULT 'receiver',
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_sl_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_sl_user (user_id),
-  INDEX idx_sl_type (type),
-  INDEX idx_sl_created (created_at)
+  INDEX idx_sl_user_created (user_id, created_at),
+  INDEX idx_sl_level (level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Align legacy status_logs tables with the new structure
+SET @table_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs'
+);
+
+SET @has_level := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND COLUMN_NAME = 'level'
+);
+SET @has_type := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND COLUMN_NAME = 'type'
+);
+SET @sql := IF(@table_exists = 0 OR @has_level = 1, 'SELECT 1',
+  IF(@has_type = 1,
+     'ALTER TABLE status_logs CHANGE type level ENUM(''info'',''warn'',''error'') NOT NULL',
+     'ALTER TABLE status_logs ADD COLUMN level ENUM(''info'',''warn'',''error'') NOT NULL AFTER user_id'));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@table_exists = 0, 'SELECT 1',
+  'ALTER TABLE status_logs MODIFY level ENUM(''info'',''warn'',''error'') NOT NULL');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND COLUMN_NAME = 'status_code'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE status_logs ADD COLUMN status_code INT NOT NULL AFTER level');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@table_exists = 0, 'SELECT 1',
+  'ALTER TABLE status_logs MODIFY status_code INT NOT NULL');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@table_exists = 0, 'SELECT 1',
+  'ALTER TABLE status_logs MODIFY message VARCHAR(500) NOT NULL');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND COLUMN_NAME = 'payload_excerpt'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE status_logs ADD COLUMN payload_excerpt VARCHAR(800) NULL AFTER message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND COLUMN_NAME = 'source'
+);
+SET @sql := IF(@table_exists = 0 OR @col_exists = 1, 'SELECT 1',
+  'ALTER TABLE status_logs ADD COLUMN source VARCHAR(50) NOT NULL DEFAULT ''receiver'' AFTER payload_excerpt');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@table_exists = 0, 'SELECT 1',
+  'ALTER TABLE status_logs MODIFY source VARCHAR(50) NOT NULL DEFAULT ''receiver''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND INDEX_NAME = 'idx_sl_user_created'
+);
+SET @sql := IF(@idx_exists = 0, 'ALTER TABLE status_logs ADD INDEX idx_sl_user_created (user_id, created_at);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND INDEX_NAME = 'idx_sl_level'
+);
+SET @sql := IF(@idx_exists = 0, 'ALTER TABLE status_logs ADD INDEX idx_sl_level (level);', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_idx_exists := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'status_logs' AND INDEX_NAME = 'idx_sl_type'
+);
+SET @sql := IF(@old_idx_exists = 0, 'SELECT 1', 'ALTER TABLE status_logs DROP INDEX idx_sl_type');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
