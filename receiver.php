@@ -79,6 +79,44 @@ $parseBearerToken = static function (?string $header): ?string {
 $authorizationHeader = $extractAuthorizationHeader();
 $providedToken = $parseBearerToken($authorizationHeader);
 
+if ($providedToken === null) {
+    $fallbackToken = null;
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            foreach ($headers as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+
+                if (strcasecmp($key, 'X-Api-Token') === 0 || strcasecmp($key, 'X-Authorization') === 0) {
+                    if (is_string($value)) {
+                        $candidate = trim($value);
+                        if ($candidate !== '') {
+                            $fallbackToken = $candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if ($fallbackToken !== null) {
+        $httpsEnabled = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' && strtolower((string) $_SERVER['HTTPS']) !== 'off';
+        if (!$httpsEnabled) {
+            $respond([
+                'success'   => false,
+                'status'    => 'error',
+                'message'   => 'Alternative Authentifizierung erfordert HTTPS.',
+                'timestamp' => $timestamp(),
+            ], 400);
+        }
+
+        $providedToken = $fallbackToken;
+    }
+}
+
 if ($providedToken === null || !hash_equals($apiToken, $providedToken)) {
     header('WWW-Authenticate: Bearer');
     $respond([
