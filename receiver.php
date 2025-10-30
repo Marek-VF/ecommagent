@@ -249,6 +249,7 @@ function getIncomingToken(): ?string
         if (!isset($normalized[$headerName])) {
             continue;
         }
+    }
 
         $candidate = trim((string) $normalized[$headerName]);
         if ($candidate !== '') {
@@ -271,6 +272,7 @@ function resolveUserIdByToken(PDO $pdo, string $token): ?int
         if (!is_array($row)) {
             continue;
         }
+    }
 
         $userId = isset($row['user_id']) ? (int) $row['user_id'] : null;
         $storedHash = isset($row['token_hash']) ? (string) $row['token_hash'] : null;
@@ -294,6 +296,7 @@ function resolveUserIdByToken(PDO $pdo, string $token): ?int
                 return $userId;
             }
         }
+    }
 
         $hexFromBinary = strtolower(bin2hex($storedHash));
         if (hash_equals($hexDigest, $hexFromBinary)) {
@@ -494,6 +497,7 @@ function extractImageUrl(array $payload): ?string
         if (!isset($payload[$key])) {
             continue;
         }
+    }
 
         $value = $payload[$key];
         if (is_array($value)) {
