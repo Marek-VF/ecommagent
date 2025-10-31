@@ -27,6 +27,7 @@ if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)) {
 
 if (!auth_is_logged_in()) {
     $respond([
+        'ok'    => false,
         'error' => 'Anmeldung erforderlich.',
     ], 401);
 }
@@ -36,6 +37,7 @@ $userId = isset($user['id']) ? (int) $user['id'] : 0;
 
 if ($userId <= 0) {
     $respond([
+        'ok'    => false,
         'error' => 'Benutzer konnte nicht ermittelt werden.',
     ], 400);
 }
@@ -44,55 +46,69 @@ $limit = 50;
 if (isset($_GET['limit'])) {
     $limitCandidate = filter_var($_GET['limit'], FILTER_VALIDATE_INT, [
         'options' => [
-            'default' => $limit,
+            'default'   => $limit,
             'min_range' => 1,
+            'max_range' => 200,
         ],
     ]);
+
     if ($limitCandidate !== false) {
         $limit = (int) $limitCandidate;
     }
 }
 
-$limit = max(1, min($limit, 200));
+$sinceRaw = isset($_GET['since']) ? trim((string) $_GET['since']) : '';
+$sinceValue = null;
+
+if ($sinceRaw !== '') {
+    $parsedTime = strtotime($sinceRaw);
+    if ($parsedTime !== false) {
+        $sinceValue = date('Y-m-d H:i:s', $parsedTime);
+    }
+}
 
 try {
     $pdo = getPDO();
-    $statement = $pdo->prepare(
-        'SELECT created_at, level, status_code, message
-         FROM status_logs
-         WHERE user_id = :userId
-         ORDER BY created_at DESC
-         LIMIT :limit'
-    );
+
+    $sql = 'SELECT created_at, level, COALESCE(status_code, 200) AS status_code, message
+            FROM status_logs
+            WHERE user_id = :userId';
+
+    if ($sinceValue !== null) {
+        $sql .= ' AND created_at > :since';
+    }
+
+    $sql .= ' ORDER BY created_at DESC LIMIT :limit';
+
+    $statement = $pdo->prepare($sql);
     $statement->bindValue(':userId', $userId, PDO::PARAM_INT);
     $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+
+    if ($sinceValue !== null) {
+        $statement->bindValue(':since', $sinceValue);
+    }
+
     $statement->execute();
 
-    $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-    $logs = array_map(static function (array $row): array {
-        $statusCode = $row['status_code'];
-        if ($statusCode === null || $statusCode === '') {
-            $statusCode = null;
-        } else {
-            $statusCode = (int) $statusCode;
-        }
+    $rows = $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    $items = array_map(static function (array $row): array {
         return [
             'created_at'  => $row['created_at'] ?? null,
             'level'       => $row['level'] ?? null,
-            'status_code' => $statusCode,
+            'status_code' => isset($row['status_code']) ? (int) $row['status_code'] : 200,
             'message'     => $row['message'] ?? null,
         ];
-    }, $rows ?: []);
+    }, $rows);
 
     $respond([
-        'logs'  => $logs,
-        'count' => count($logs),
-        'limit' => $limit,
+        'ok'    => true,
+        'items' => $items,
     ]);
 } catch (Throwable $exception) {
     error_log('logs.php error: ' . $exception->getMessage());
     $respond([
+        'ok'    => false,
         'error' => 'Protokoll konnte nicht geladen werden.',
     ], 500);
 }

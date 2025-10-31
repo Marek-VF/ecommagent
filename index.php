@@ -3,39 +3,8 @@ require_once __DIR__ . '/auth/bootstrap.php';
 
 auth_require_login();
 
-$config = auth_config();
 $flashes = auth_get_flashes();
 $currentUser = auth_user();
-
-$baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
-$assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/assets' : '');
-$assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string)$assetBaseUrl, '/') : '/assets';
-
-$placeholderSrc = $assetBaseUrl . '/placeholder.png';
-$pulseOverlaySrc = $assetBaseUrl . '/pulse.svg';
-
-$placeholderDimensions = null;
-$placeholderFile = __DIR__ . '/assets/placeholder.png';
-if (is_file($placeholderFile)) {
-    $size = @getimagesize($placeholderFile);
-    if ($size !== false) {
-        $placeholderDimensions = [
-            'width'  => $size[0],
-            'height' => $size[1],
-        ];
-    }
-}
-
-$appConfig = [
-    'assets' => [
-        'base'        => $assetBaseUrl,
-        'placeholder' => $placeholderSrc,
-        'overlay'     => $pulseOverlaySrc,
-        'loading'     => $pulseOverlaySrc,
-        'pulse'       => $pulseOverlaySrc,
-    ],
-    'placeholderDimensions' => $placeholderDimensions,
-];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -50,13 +19,6 @@ $appConfig = [
         rel="stylesheet"
     >
     <link rel="stylesheet" href="style.css">
-<?php if ($placeholderDimensions !== null): ?>
-    <style>
-        :root {
-            --gallery-item-aspect-ratio: <?php echo htmlspecialchars($placeholderDimensions['width'] . ' / ' . $placeholderDimensions['height'], ENT_QUOTES); ?>;
-        }
-    </style>
-<?php endif; ?>
 </head>
 <body>
     <div class="app">
@@ -64,7 +26,9 @@ $appConfig = [
             <h1>Ecomm Agent</h1>
             <?php if ($currentUser !== null): ?>
             <div class="app__user">
-                <span class="app__user-name">Angemeldet als <?php echo htmlspecialchars((string) ($currentUser['name'] ?? $currentUser['email']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                <span class="app__user-name">
+                    Angemeldet als <?php echo htmlspecialchars((string) ($currentUser['name'] ?? $currentUser['email']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                </span>
                 <a class="app__logout" href="auth/logout.php">Abmelden</a>
             </div>
             <?php endif; ?>
@@ -81,74 +45,32 @@ $appConfig = [
         </div>
         <?php endif; ?>
         <main class="grid">
-            <section class="panel panel--upload">
-                <div class="panel__section panel__section--upload">
-                    <h2>Bild hochladen</h2>
-                    <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen oder klicken, um eine Datei auszuwählen">
-                        <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
-                        <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
-                        <input id="file-input" type="file" name="image" accept="image/*" hidden>
-                    </div>
-                    <div id="upload-previews" class="preview-list" aria-live="polite"></div>
+            <section class="panel panel--product">
+                <div class="panel__header">
+                    <h2>Produktdetails</h2>
+                    <div class="status-pill" id="statusBadge" aria-live="polite"></div>
                 </div>
-                <div class="panel__section panel__section--status">
-                        <div class="status-panel" aria-live="polite">
-                            <div class="status-panel__header">
-                                <h3 class="status-panel__title">Status</h3>
-                                <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
-                            </div>
-                            <div class="status-panel__body">
-                                <p id="status-message" class="status-panel__message">Noch keine Statusmeldung.</p>
-                                <figure id="status-preview" class="status-panel__preview" hidden>
-                                    <img id="status-preview-image" class="status-panel__image" alt="Letzte Vorschau">
-                                </figure>
-                            </div>
-                            <div
-                                id="status-log"
-                                class="status-panel__log"
-                                role="log"
-                                aria-live="polite"
-                            aria-atomic="false"
-                            aria-label="Statusprotokoll"
-                        ></div>
-                    </div>
+                <div class="product-content" aria-live="polite">
+                    <h3 id="productName" class="product-content__name"></h3>
+                    <p id="productDescription" class="product-content__description"></p>
                 </div>
+                <p id="statusText" class="status-text" aria-live="polite"></p>
             </section>
-            <section class="panel panel--details">
-                <div class="gallery" aria-label="Platzhalter-Bilder">
-<?php for ($i = 1; $i <= 3; $i++):
-    $slotKey = 'image_' . $i;
-?>
-                    <div id="img<?php echo $i; ?>" class="gallery__item" data-preview data-slot="<?php echo htmlspecialchars($slotKey, ENT_QUOTES); ?>" data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" data-has-content="false" data-is-loading="false" role="button" aria-label="Bildvorschau <?php echo $i; ?>" tabindex="0">
-                        <img class="gallery__image gallery__image--placeholder" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter <?php echo $i; ?>" data-role="placeholder">
-                        <img class="gallery__image gallery__image--content" alt="Produktbild <?php echo $i; ?>" data-role="content">
-                        <img class="gallery__overlay" src="<?php echo htmlspecialchars($pulseOverlaySrc, ENT_QUOTES); ?>" alt="" data-role="overlay" aria-hidden="true">
-                    </div>
-<?php endfor; ?>
+            <section class="panel panel--gallery">
+                <div class="panel__header">
+                    <h2>Bilder</h2>
+                    <span id="imageCount" class="image-count" aria-live="polite"></span>
                 </div>
-                <div class="form-group">
-                    <label for="article-name">Artikelname</label>
-                    <input type="text" id="article-name" name="article-name" placeholder="Name eingeben">
+                <div id="imageGallery" class="image-gallery" aria-live="polite"></div>
+            </section>
+            <section class="panel panel--logs">
+                <div class="panel__header">
+                    <h2>Logs</h2>
                 </div>
-                <div class="form-group">
-                    <label for="article-description">Artikelbeschreibung</label>
-                    <textarea id="article-description" name="article-description" rows="6" placeholder="Beschreibung eingeben"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn--primary">Speichern</button>
-                </div>
+                <ul id="logsList" class="logs-list" aria-live="polite" aria-label="Aktivitätsprotokoll"></ul>
             </section>
         </main>
     </div>
-
-    <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-hidden="true">
-        <button class="lightbox__close" aria-label="Schließen">&times;</button>
-        <img src="" alt="Großansicht" class="lightbox__image">
-    </div>
-
-    <script>
-        window.APP_CONFIG = <?php echo json_encode($appConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-    </script>
     <script src="script.js"></script>
 </body>
 </html>
