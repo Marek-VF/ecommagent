@@ -313,6 +313,30 @@ body {
     color: var(--status-error);
 }
 
+.status-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.status-panel__message {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text);
+}
+
+.status-panel__preview {
+    margin: 0;
+}
+
+.status-panel__image {
+    display: block;
+    max-width: 100%;
+    border-radius: 8px;
+}
+
 .status-panel__log {
     display: flex;
     flex-direction: column;
