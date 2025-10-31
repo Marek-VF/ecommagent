@@ -54,6 +54,38 @@ CREATE TABLE IF NOT EXISTS `status_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
+-- ITEM NOTES (Produktinformationen je Lauf)
+-- =========================================
+CREATE TABLE IF NOT EXISTS `item_notes` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED NOT NULL,
+  `product_name` VARCHAR(255) NULL,
+  `product_description` MEDIUMTEXT NULL,
+  `source` ENUM('n8n','user') NOT NULL DEFAULT 'n8n',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notes_user_created` (`user_id`,`created_at`),
+  CONSTRAINT `fk_item_notes_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================
+-- ITEM IMAGES (Bild-URLs zu einer Note)
+-- =========================================
+CREATE TABLE IF NOT EXISTS `item_images` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED NOT NULL,
+  `note_id` INT UNSIGNED NOT NULL,
+  `url` VARCHAR(1024) NOT NULL,
+  `position` TINYINT UNSIGNED NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_images_note_pos` (`note_id`,`position`),
+  KEY `idx_images_user_created` (`user_id`,`created_at`),
+  CONSTRAINT `fk_item_images_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_item_images_note` FOREIGN KEY (`note_id`) REFERENCES `item_notes`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================
 -- (Optional) Minimaler Smoke-Test – nur ausführen, wenn user_id=1 existiert
 -- =========================================
 INSERT INTO `user_state` (`user_id`,`last_status`,`last_message`)
