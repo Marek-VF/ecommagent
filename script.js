@@ -52,12 +52,16 @@ const applyLatestItemData = (payload) => {
 
     if (articleNameInput) {
         const value = sanitizeLatestItemString(data.product_name).trim();
-        articleNameInput.value = value;
+        if (value !== '') {
+            articleNameInput.value = value;
+        }
     }
 
     if (articleDescriptionInput) {
-        const value = sanitizeLatestItemString(data.product_description);
-        articleDescriptionInput.value = value;
+        const value = sanitizeLatestItemString(data.product_description).trim();
+        if (value !== '') {
+            articleDescriptionInput.value = value;
+        }
     }
 
     if (statusLogContainer && statusLogContainer.childElementCount === 0) {
@@ -1018,7 +1022,10 @@ const fetchLatestData = async () => {
         }
 
         if (raw.ok !== true) {
-            console.error('Fehler beim Abrufen der Artikeldaten', raw.error);
+            return;
+        }
+
+        if (raw.has_data === false) {
             return;
         }
 
