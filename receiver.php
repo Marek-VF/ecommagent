@@ -355,40 +355,8 @@ try {
             ]);
         }
 
-        // Speichere den unveränderten Payload, damit lange Meldungen nicht verloren gehen.
         $payloadSummary = $raw;
         $lastMessage = $statusMessage ?? 'Daten empfangen.';
-        $statusIndicator = null;
-
-        $statusCandidates = ['status', 'status_message', 'statusmessage', 'workflow_status', 'workflow_state', 'state'];
-        foreach ($statusCandidates as $candidate) {
-            if (!array_key_exists($candidate, $payload)) {
-                continue;
-            }
-
-            $candidateValue = $payload[$candidate];
-
-            if (is_bool($candidateValue)) {
-                $statusIndicator = $candidateValue ? 'running' : 'finished';
-                break;
-            }
-
-            if (is_numeric($candidateValue)) {
-                $statusIndicator = (float) $candidateValue > 0 ? 'running' : 'finished';
-                break;
-            }
-
-            if (is_string($candidateValue) && trim($candidateValue) !== '') {
-                $statusIndicator = $candidateValue;
-                break;
-            }
-        }
-
-        if ($statusIndicator === null && $statusMessage !== null) {
-            $statusIndicator = $statusMessage;
-        }
-
-        $normalizedStatus = normalizeStatusLabel($statusIndicator ?? 'running');
 
         $upsertState = $pdo->prepare(
             'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
@@ -401,7 +369,7 @@ try {
         );
         $upsertState->execute([
             ':user_id'              => $userId,
-            ':last_status'          => $normalizedStatus,
+            ':last_status'          => 'running',
             ':last_message'         => $lastMessage,
             ':last_payload_summary' => $payloadSummary,
         ]);
