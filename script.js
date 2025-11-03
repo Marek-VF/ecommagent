@@ -89,6 +89,18 @@ const mapLatestItemPayloadToLegacy = (payload) => {
         normalized.isrunning = false;
     }
 
+    if (payload && typeof payload === 'object' && payload.images && typeof payload.images === 'object') {
+        gallerySlotKeys.forEach((key) => {
+            const value = payload.images[key];
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed !== '') {
+                    normalized[key] = trimmed;
+                }
+            }
+        });
+    }
+
     return normalized;
 };
 
@@ -1033,6 +1045,24 @@ const fetchLatestData = async () => {
         applyLatestItemData(payload);
         const normalized = mapLatestItemPayloadToLegacy(payload);
         updateInterfaceFromData(normalized);
+
+        if (payload.images && typeof payload.images === 'object') {
+            gallerySlots.forEach((slot) => {
+                const src = payload.images[slot.key];
+                if (typeof src === 'string' && src.trim() !== '') {
+                    setSlotImageSource(slot, src.trim());
+                }
+            });
+        }
+
+        if (typeof payload.isrunning === 'boolean') {
+            if (payload.isrunning) {
+                // Polling läuft weiter automatisch.
+            } else {
+                stopPolling();
+                updateProcessingIndicator('Workflow abgeschlossen', 'success');
+            }
+        }
     } catch (error) {
         console.error('Polling-Fehler:', error);
     }
