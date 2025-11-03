@@ -14,7 +14,79 @@ const uploadEndpoint = 'upload.php';
 const initializationEndpoint = 'init.php';
 const STATUS_LOG_LIMIT = 60;
 const POLLING_INTERVAL = 2000;
-const DATA_ENDPOINT = 'data.json';
+const DATA_ENDPOINT = 'api/get-latest-item.php';
+
+const sanitizeLatestItemString = (value) => {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    return String(value);
+};
+
+const resolveLatestStatusMessage = (payload) => {
+    if (!payload || typeof payload !== 'object') {
+        return '';
+    }
+
+    const candidates = [payload.message, payload.status];
+
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string') {
+            const trimmed = candidate.trim();
+            if (trimmed !== '') {
+                return trimmed;
+            }
+        }
+    }
+
+    return '';
+};
+
+const applyLatestItemData = (payload) => {
+    const data = payload && typeof payload === 'object' ? payload : {};
+
+    if (articleNameInput) {
+        const value = sanitizeLatestItemString(data.product_name).trim();
+        articleNameInput.value = value;
+    }
+
+    if (articleDescriptionInput) {
+        const value = sanitizeLatestItemString(data.product_description);
+        articleDescriptionInput.value = value;
+    }
+
+    if (statusLogContainer && statusLogContainer.childElementCount === 0) {
+        statusLogContainer.textContent = resolveLatestStatusMessage(data);
+    }
+};
+
+const mapLatestItemPayloadToLegacy = (payload) => {
+    const normalized = payload && typeof payload === 'object' ? { ...payload } : {};
+
+    if (Object.prototype.hasOwnProperty.call(normalized, 'product_name')) {
+        normalized.product_name = sanitizeLatestItemString(normalized.product_name).trim();
+    }
+
+    if (Object.prototype.hasOwnProperty.call(normalized, 'product_description')) {
+        normalized.product_description = sanitizeLatestItemString(normalized.product_description);
+    }
+
+    const statusMessage = resolveLatestStatusMessage(normalized);
+    if (statusMessage) {
+        normalized.status_message = statusMessage;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(normalized, 'isrunning')) {
+        normalized.isrunning = false;
+    }
+
+    return normalized;
+};
 
 const appConfig = window.APP_CONFIG || {};
 const assetConfig = appConfig.assets || {};
@@ -542,6 +614,13 @@ const renderLog = (type, message, code) => {
         return;
     }
 
+    if (statusLogContainer.childElementCount === 0) {
+        const existingText = statusLogContainer.textContent;
+        if (typeof existingText === 'string' && existingText.trim() !== '') {
+            statusLogContainer.textContent = '';
+        }
+    }
+
     const normalizedMessage = sanitizeLogMessage(message);
     if (!normalizedMessage) {
         return;
@@ -933,8 +1012,20 @@ const fetchLatestData = async () => {
             throw new Error(`Serverantwort ${response.status}`);
         }
 
-        const data = await response.json();
-        updateInterfaceFromData(data);
+        const raw = await response.json();
+        if (!raw || typeof raw !== 'object') {
+            return;
+        }
+
+        if (raw.ok !== true) {
+            console.error('Fehler beim Abrufen der Artikeldaten', raw.error);
+            return;
+        }
+
+        const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+        applyLatestItemData(payload);
+        const normalized = mapLatestItemPayloadToLegacy(payload);
+        updateInterfaceFromData(normalized);
     } catch (error) {
         console.error('Polling-Fehler:', error);
     }
@@ -1031,10 +1122,22 @@ const loadInitialState = async () => {
             return;
         }
 
-        const data = await response.json();
-        updateInterfaceFromData(data);
+        const raw = await response.json();
+        if (!raw || typeof raw !== 'object') {
+            return;
+        }
 
-        if (Object.prototype.hasOwnProperty.call(data, 'isrunning') && toBoolean(data.isrunning)) {
+        if (raw.ok !== true) {
+            console.error('Fehler beim Abrufen der Artikeldaten', raw.error);
+            return;
+        }
+
+        const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+        applyLatestItemData(payload);
+        const normalized = mapLatestItemPayloadToLegacy(payload);
+        updateInterfaceFromData(normalized);
+
+        if (Object.prototype.hasOwnProperty.call(normalized, 'isrunning') && toBoolean(normalized.isrunning)) {
             hasShownCompletion = false;
             startPolling();
         }
