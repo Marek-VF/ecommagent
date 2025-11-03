@@ -161,6 +161,95 @@ function extractSanitizedField(array $payload, array $keys, ?int $maxLength = nu
     return null;
 }
 
+/**
+ * Normalisiert beliebige Statuswerte auf ein kurzes Label für die Datenbank.
+ */
+function normalizeStatusLabel(?string $value): string
+{
+    if ($value === null) {
+        return 'idle';
+    }
+
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+        return 'idle';
+    }
+
+    $directMatches = ['running', 'finished', 'idle', 'error'];
+    if (in_array($normalized, $directMatches, true)) {
+        return $normalized;
+    }
+
+    if ($normalized === 'true' || $normalized === '1') {
+        return 'running';
+    }
+
+    if ($normalized === 'false' || $normalized === '0') {
+        return 'finished';
+    }
+
+    if (
+        str_contains($normalized, 'läuft') ||
+        str_contains($normalized, 'processing') ||
+        str_contains($normalized, 'in arbeit') ||
+        str_contains($normalized, 'in bearbeitung') ||
+        str_contains($normalized, 'bearbeitung') ||
+        str_contains($normalized, 'working') ||
+        str_contains($normalized, 'busy') ||
+        str_contains($normalized, 'gestartet') ||
+        str_contains($normalized, 'startet') ||
+        str_contains($normalized, 'aktiv') ||
+        str_contains($normalized, 'aktiviert')
+    ) {
+        return 'running';
+    }
+
+    if (
+        str_contains($normalized, 'error') ||
+        str_contains($normalized, 'fehler') ||
+        str_contains($normalized, 'fail') ||
+        str_contains($normalized, 'fatal') ||
+        str_contains($normalized, 'exception') ||
+        str_contains($normalized, 'abgebrochen') ||
+        str_contains($normalized, 'abbruch')
+    ) {
+        return 'error';
+    }
+
+    if (
+        str_contains($normalized, 'fertig') ||
+        str_contains($normalized, 'abgeschlossen') ||
+        str_contains($normalized, 'done') ||
+        str_contains($normalized, 'complete') ||
+        str_contains($normalized, 'success') ||
+        str_contains($normalized, 'erfolg') ||
+        str_contains($normalized, 'erledigt') ||
+        str_contains($normalized, 'stop')
+    ) {
+        return 'finished';
+    }
+
+    if (
+        str_contains($normalized, 'idle') ||
+        str_contains($normalized, 'bereit') ||
+        str_contains($normalized, 'warten') ||
+        str_contains($normalized, 'wartet') ||
+        str_contains($normalized, 'wartend') ||
+        str_contains($normalized, 'pending') ||
+        str_contains($normalized, 'warte') ||
+        str_contains($normalized, 'warteschlange') ||
+        str_contains($normalized, 'queued') ||
+        str_contains($normalized, 'pause') ||
+        str_contains($normalized, 'pausiert') ||
+        str_contains($normalized, 'angehalten') ||
+        str_contains($normalized, 'hold')
+    ) {
+        return 'idle';
+    }
+
+    return 'idle';
+}
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         jsonResponse(405, [
@@ -221,7 +310,7 @@ try {
             }
         }
 
-        $lastStatus = $isRunning ? 'running' : 'finished';
+        $lastStatus = normalizeStatusLabel($isRunning ? 'running' : 'finished');
         $lastMessage = $isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.';
 
         $statement = $pdo->prepare(
@@ -253,7 +342,6 @@ try {
     if ($hasContentPayload) {
         $pdo->beginTransaction();
 
-        $noteId = null;
         if ($productName !== null || $productDescription !== null) {
             $insertNote = $pdo->prepare(
                 'INSERT INTO item_notes (user_id, product_name, product_description, source, created_at)
@@ -265,18 +353,42 @@ try {
                 ':product_description' => $productDescription,
                 ':source'              => 'n8n',
             ]);
-            $noteId = (int) $pdo->lastInsertId();
         }
 
-        $summaryPayload = [
-            'product_name'               => $productName,
-            'product_description_length' => $productDescription !== null ? mb_strlen($productDescription) : 0,
-            'status_message_length'      => $statusMessage !== null ? mb_strlen($statusMessage) : 0,
-            'note_id'                    => $noteId,
-        ];
-
-        $payloadSummary = json_encode($summaryPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
+        // Speichere den unveränderten Payload, damit lange Meldungen nicht verloren gehen.
+        $payloadSummary = $raw;
         $lastMessage = $statusMessage ?? 'Daten empfangen.';
+        $statusIndicator = null;
+
+        $statusCandidates = ['status', 'status_message', 'statusmessage', 'workflow_status', 'workflow_state', 'state'];
+        foreach ($statusCandidates as $candidate) {
+            if (!array_key_exists($candidate, $payload)) {
+                continue;
+            }
+
+            $candidateValue = $payload[$candidate];
+
+            if (is_bool($candidateValue)) {
+                $statusIndicator = $candidateValue ? 'running' : 'finished';
+                break;
+            }
+
+            if (is_numeric($candidateValue)) {
+                $statusIndicator = (float) $candidateValue > 0 ? 'running' : 'finished';
+                break;
+            }
+
+            if (is_string($candidateValue) && trim($candidateValue) !== '') {
+                $statusIndicator = $candidateValue;
+                break;
+            }
+        }
+
+        if ($statusIndicator === null && $statusMessage !== null) {
+            $statusIndicator = $statusMessage;
+        }
+
+        $normalizedStatus = normalizeStatusLabel($statusIndicator ?? 'running');
 
         $upsertState = $pdo->prepare(
             'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
@@ -289,7 +401,7 @@ try {
         );
         $upsertState->execute([
             ':user_id'              => $userId,
-            ':last_status'          => 'running',
+            ':last_status'          => $normalizedStatus,
             ':last_message'         => $lastMessage,
             ':last_payload_summary' => $payloadSummary,
         ]);
