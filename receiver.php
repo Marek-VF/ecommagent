@@ -140,16 +140,6 @@ function sanitizeString(?string $value, ?int $maxLength = null): ?string
     return $trimmed;
 }
 
-function sanitizeUrl(?string $value): ?string
-{
-    $value = sanitizeString($value, 1024);
-    if ($value === null) {
-        return null;
-    }
-
-    return filter_var($value, FILTER_VALIDATE_URL) ? $value : null;
-}
-
 function extractSanitizedField(array $payload, array $keys, ?int $maxLength = null): ?string
 {
     foreach ($keys as $key) {
@@ -162,47 +152,13 @@ function extractSanitizedField(array $payload, array $keys, ?int $maxLength = nu
             continue;
         }
 
-        return sanitizeString($value, $maxLength);
+        $sanitized = sanitizeString($value, $maxLength);
+        if ($sanitized !== null) {
+            return $sanitized;
+        }
     }
 
     return null;
-}
-
-function normalizeLogType(?string $type): string
-{
-    if ($type === null) {
-        return 'info';
-    }
-
-    return match (strtolower(trim($type))) {
-        'warn', 'warning' => 'warn',
-        'error', 'err', 'danger', 'fail', 'failed' => 'error',
-        default => 'info',
-    };
-}
-
-function aggregateLevel(array $logs): string
-{
-    $level = 'info';
-    foreach ($logs as $log) {
-        if (($log['type'] ?? 'info') === 'error') {
-            return 'error';
-        }
-        if (($log['type'] ?? 'info') === 'warn') {
-            $level = 'warn';
-        }
-    }
-
-    return $level;
-}
-
-function levelToState(string $level): string
-{
-    return match ($level) {
-        'error' => 'error',
-        'warn'  => 'warn',
-        default => 'ok',
-    };
 }
 
 try {
@@ -232,64 +188,20 @@ try {
         ]);
     }
 
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) {
+    $payload = json_decode($raw, true);
+    if (!is_array($payload)) {
         jsonResponse(400, [
             'ok'      => false,
             'message' => 'JSON konnte nicht gelesen werden.',
         ]);
     }
 
-    $productName = extractSanitizedField($decoded, ['product_name', 'produktname'], 255);
-    $productDescription = extractSanitizedField($decoded, ['product_description', 'produktbeschreibung']);
-    $statusMessage = extractSanitizedField($decoded, ['statusmessage', 'status_message', 'status'], 255);
+    $productName = extractSanitizedField($payload, ['product_name', 'produktname'], 255);
+    $productDescription = extractSanitizedField($payload, ['product_description', 'produktbeschreibung']);
+    $statusMessage = extractSanitizedField($payload, ['statusmessage', 'status_message', 'status'], 255);
+    $isRunningField = $payload['isrunning'] ?? $payload['is_running'] ?? null;
 
-    $statusLogs = [];
-    if (isset($decoded['statuslog']) && is_array($decoded['statuslog'])) {
-        foreach ($decoded['statuslog'] as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $message = isset($entry['message']) && is_string($entry['message'])
-                ? sanitizeString($entry['message'], 255)
-                : null;
-            if ($message === null) {
-                continue;
-            }
-            $type = normalizeLogType(isset($entry['type']) && is_string($entry['type']) ? $entry['type'] : null);
-
-            $timestamp = null;
-            if (isset($entry['timestamp']) && is_string($entry['timestamp'])) {
-                try {
-                    $timestamp = new DateTimeImmutable($entry['timestamp']);
-                } catch (Exception) {
-                    $timestamp = null;
-                }
-            }
-
-            $statusLogs[] = [
-                'message'   => $message,
-                'type'      => $type,
-                'timestamp' => $timestamp,
-            ];
-        }
-    }
-
-    $imageUrls = [];
-    for ($i = 1; $i <= 3; $i++) {
-        $key = 'image_' . $i;
-        if (!isset($decoded[$key]) || !is_string($decoded[$key])) {
-            continue;
-        }
-        $url = sanitizeUrl($decoded[$key]);
-        if ($url !== null) {
-            $imageUrls[] = [
-                'url'      => $url,
-                'position' => $i,
-            ];
-        }
-    }
-
+    $pdo = auth_pdo();
     $userId = resolveUserId();
     if ($userId === null || $userId <= 0) {
         jsonResponse(401, [
@@ -298,132 +210,113 @@ try {
         ]);
     }
 
-    $pdo = auth_pdo();
-    $pdo->beginTransaction();
-
-    $shouldInsertNote = ($productName !== null || $productDescription !== null);
-    $noteId = null;
-    $imagesSaved = 0;
-
-    if ($shouldInsertNote) {
-        $insertNote = $pdo->prepare(
-            'INSERT INTO item_notes (user_id, product_name, product_description, source) VALUES (:user_id, :product_name, :product_description, :source)'
-        );
-        $insertNote->execute([
-            ':user_id'             => $userId,
-            ':product_name'        => $productName,
-            ':product_description' => $productDescription,
-            ':source'              => 'n8n',
-        ]);
-
-        $noteId = (int) $pdo->lastInsertId();
-
-        if ($imageUrls !== []) {
-            $insertImage = $pdo->prepare(
-                'INSERT INTO item_images (user_id, note_id, url, position) VALUES (:user_id, :note_id, :url, :position)'
-            );
-            foreach ($imageUrls as $image) {
-                $insertImage->execute([
-                    ':user_id' => $userId,
-                    ':note_id' => $noteId,
-                    ':url'     => $image['url'],
-                    ':position'=> $image['position'],
-                ]);
-                $imagesSaved++;
+    if ($isRunningField !== null) {
+        $isRunning = filter_var($isRunningField, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($isRunning === null) {
+            $stringValue = is_string($isRunningField) ? strtolower(trim($isRunningField)) : '';
+            if ($stringValue === 'false' || $stringValue === '0') {
+                $isRunning = false;
+            } else {
+                $isRunning = true;
             }
         }
-    } elseif ($statusLogs === []) {
-        $statusLogs[] = [
-            'message'   => 'Payload ohne Produktinhalte empfangen',
-            'type'      => 'info',
-            'timestamp' => new DateTimeImmutable(),
-        ];
-    }
 
-    $logsSaved = 0;
-    if ($statusLogs !== []) {
-        $insertLog = $pdo->prepare(
-            'INSERT INTO status_logs (user_id, level, status_code, message, source, created_at) VALUES (:user_id, :level, NULL, :message, :source, :created_at)'
+        $lastStatus = $isRunning ? 'running' : 'finished';
+        $lastMessage = $isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.';
+
+        $statement = $pdo->prepare(
+            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
+             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, NOW())
+             ON DUPLICATE KEY UPDATE
+                 last_status = VALUES(last_status),
+                 last_message = VALUES(last_message),
+                 last_payload_summary = VALUES(last_payload_summary),
+                 updated_at = NOW()'
         );
-        foreach ($statusLogs as $log) {
-            $createdAt = $log['timestamp'] instanceof DateTimeImmutable
-                ? $log['timestamp']->format('Y-m-d H:i:s')
-                : (new DateTimeImmutable())->format('Y-m-d H:i:s');
 
-            $insertLog->execute([
-                ':user_id'    => $userId,
-                ':level'      => $log['type'],
-                ':message'    => $log['message'],
-                ':source'     => 'receiver',
-                ':created_at' => $createdAt,
-            ]);
-            $logsSaved++;
-        }
-    }
+        $statement->execute([
+            ':user_id'              => $userId,
+            ':last_status'          => $lastStatus,
+            ':last_message'         => $lastMessage,
+            ':last_payload_summary' => $raw,
+        ]);
 
-    $overallLevel = aggregateLevel($statusLogs);
-    $lastImageUrl = null;
-    if ($imageUrls !== []) {
-        $last = end($imageUrls);
-        if (is_array($last)) {
-            $lastImageUrl = $last['url'];
-        }
-        reset($imageUrls);
-    }
-
-    $stateHasMeaningfulContent = $shouldInsertNote || $statusMessage !== null;
-    if ($stateHasMeaningfulContent) {
-        $payloadSummary = json_encode([
-            'produktname'                => $productName,
-            'produktbeschreibung_length' => $productDescription !== null ? mb_strlen($productDescription) : 0,
-            'statusmessage_length'       => $statusMessage !== null ? mb_strlen($statusMessage) : 0,
-            'images_count'               => count($imageUrls),
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        $upsertState = $pdo->prepare(
-            'INSERT INTO user_state (user_id, last_status, last_message, last_image_url, last_payload_summary, updated_at)'
-             . ' VALUES (:user_id, :last_status, :last_message, :last_image_url, :last_payload_summary, NOW())'
-             . ' ON DUPLICATE KEY UPDATE'
-             . '                last_status = VALUES(last_status),'
-             . '                last_message = VALUES(last_message),'
-             . '                last_image_url = VALUES(last_image_url),'
-             . '                last_payload_summary = VALUES(last_payload_summary),'
-             . '                updated_at = VALUES(updated_at)'
-        );
-        $upsertState->execute([
-            ':user_id'               => $userId,
-            ':last_status'           => levelToState($overallLevel),
-            ':last_message'          => $statusMessage,
-            ':last_image_url'        => $lastImageUrl,
-            ':last_payload_summary'  => $payloadSummary,
+        jsonResponse(200, [
+            'ok'        => true,
+            'message'   => 'state updated',
+            'isrunning' => $isRunning,
         ]);
     }
 
+    $hasContentPayload = $productName !== null || $productDescription !== null || $statusMessage !== null;
 
-    $pdo->commit();
+    if ($hasContentPayload) {
+        $pdo->beginTransaction();
+
+        $noteId = null;
+        if ($productName !== null || $productDescription !== null) {
+            $insertNote = $pdo->prepare(
+                'INSERT INTO item_notes (user_id, product_name, product_description, source, created_at)
+                 VALUES (:user_id, :product_name, :product_description, :source, NOW())'
+            );
+            $insertNote->execute([
+                ':user_id'             => $userId,
+                ':product_name'        => $productName,
+                ':product_description' => $productDescription,
+                ':source'              => 'n8n',
+            ]);
+            $noteId = (int) $pdo->lastInsertId();
+        }
+
+        $summaryPayload = [
+            'product_name'               => $productName,
+            'product_description_length' => $productDescription !== null ? mb_strlen($productDescription) : 0,
+            'status_message_length'      => $statusMessage !== null ? mb_strlen($statusMessage) : 0,
+            'note_id'                    => $noteId,
+        ];
+
+        $payloadSummary = json_encode($summaryPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
+        $lastMessage = $statusMessage ?? 'Daten empfangen.';
+
+        $upsertState = $pdo->prepare(
+            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
+             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, NOW())
+             ON DUPLICATE KEY UPDATE
+                 last_status = VALUES(last_status),
+                 last_message = VALUES(last_message),
+                 last_payload_summary = VALUES(last_payload_summary),
+                 updated_at = NOW()'
+        );
+        $upsertState->execute([
+            ':user_id'              => $userId,
+            ':last_status'          => 'running',
+            ':last_message'         => $lastMessage,
+            ':last_payload_summary' => $payloadSummary,
+        ]);
+
+        $pdo->commit();
+
+        jsonResponse(200, [
+            'ok'      => true,
+            'message' => 'content saved',
+        ]);
+    }
 
     jsonResponse(200, [
-        'ok'           => true,
-        'message'      => $shouldInsertNote
-            ? 'content saved'
-            : 'payload received but contained no content fields',
-        'user_id'      => $userId,
-        'note_id'      => $noteId,
-        'inserted'     => $shouldInsertNote,
-        'images_saved' => $imagesSaved,
-        'logs_saved'   => $logsSaved,
+        'ok'      => true,
+        'message' => 'payload without content ignored',
     ]);
 } catch (Throwable $exception) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
 
-    $code = $exception instanceof RuntimeException ? 400 : 500;
+    $statusCode = $exception instanceof RuntimeException ? 400 : 500;
     if ($exception instanceof PDOException) {
-        $code = 500;
+        $statusCode = 500;
     }
 
-    jsonResponse($code, [
+    jsonResponse($statusCode, [
         'ok'      => false,
         'message' => $exception->getMessage(),
     ]);
