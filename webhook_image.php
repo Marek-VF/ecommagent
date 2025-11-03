@@ -362,20 +362,16 @@ try {
         ]);
 
         $stateSql = <<<'SQL'
-INSERT INTO user_state (user_id, last_status, last_message, last_image_url, updated_at)
-VALUES (:user, :status, :message, :image, NOW())
+INSERT INTO user_state (user_id, last_image_url, updated_at)
+VALUES (:user, :image, NOW())
 ON DUPLICATE KEY UPDATE
-    last_status = VALUES(last_status),
-    last_message = VALUES(last_message),
     last_image_url = VALUES(last_image_url),
     updated_at = NOW()
 SQL;
         $updateState = $pdo->prepare($stateSql);
         $updateState->execute([
-            ':user'    => $userId,
-            ':status'  => 'ok',
-            ':message' => 'Upload gespeichert',
-            ':image'   => $relativeUrl,
+            ':user'  => $userId,
+            ':image' => $relativeUrl,
         ]);
 
         $pdo->commit();
