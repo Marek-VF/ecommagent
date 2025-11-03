@@ -10,6 +10,8 @@ const statusLogContainer = document.getElementById('status-log');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 
+let workflowIsRunning = false;
+
 const uploadEndpoint = 'upload.php';
 const initializationEndpoint = 'init.php';
 const STATUS_LOG_LIMIT = 60;
@@ -743,8 +745,9 @@ const setLoadingState = (loading, options = {}) => {
         hasObservedActiveRun = false;
     }
 
+    // Nur anzeigen, wenn der Workflow tatsächlich läuft
     gallerySlots.forEach((slot) => {
-        if (loading) {
+        if (loading && workflowIsRunning) {
             clearSlotContent(slot);
             setSlotLoadingState(slot, true);
         } else {
@@ -757,6 +760,10 @@ const setLoadingState = (loading, options = {}) => {
 
     if (loading) {
         hasShownCompletion = false;
+    }
+
+    if (options && options.indicatorText) {
+        updateProcessingIndicator(options.indicatorText, options.indicatorState || 'idle');
     }
 };
 
@@ -1042,6 +1049,25 @@ const fetchLatestData = async () => {
         }
 
         const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+
+        // Workflowstatus vom Backend prüfen
+        if (typeof payload.isrunning === 'boolean') {
+            if (payload.isrunning && !workflowIsRunning) {
+                workflowIsRunning = true;
+                setLoadingState(true, {
+                    indicatorText: 'Verarbeitung läuft…',
+                    indicatorState: 'running',
+                });
+            } else if (!payload.isrunning && workflowIsRunning) {
+                workflowIsRunning = false;
+                setLoadingState(false, {
+                    indicatorText: 'Workflow abgeschlossen',
+                    indicatorState: 'success',
+                });
+                stopPolling();
+            }
+        }
+
         applyLatestItemData(payload);
         const normalized = mapLatestItemPayloadToLegacy(payload);
         updateInterfaceFromData(normalized);
@@ -1055,14 +1081,6 @@ const fetchLatestData = async () => {
             });
         }
 
-        if (typeof payload.isrunning === 'boolean') {
-            if (payload.isrunning) {
-                // Polling läuft weiter automatisch.
-            } else {
-                stopPolling();
-                updateProcessingIndicator('Workflow abgeschlossen', 'success');
-            }
-        }
     } catch (error) {
         console.error('Polling-Fehler:', error);
     }
