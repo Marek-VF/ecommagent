@@ -18,6 +18,156 @@ const STATUS_LOG_LIMIT = 60;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
+// zentrale Normalisierungstabelle
+const STATUS_NORMALIZER = [
+    {
+        key: 'workflow_started',
+        tests: [
+            /workflow was started/i,
+            /workflow gestartet/i,
+            /upload.*workflow.*gestartet/i,
+            /200/i,
+        ],
+        text: 'Workflow wurde gestartet.',
+        level: 'ok',
+    },
+    {
+        key: 'meta_saved',
+        tests: [
+            /name und beschreibung erfolgreich erstellt/i,
+            /produktname/i,
+            /beschreibung.*gespeichert/i,
+        ],
+        text: 'Name und Beschreibung erfolgreich erstellt.',
+        level: 'ok',
+    },
+    {
+        key: 'image_1_saved',
+        tests: [
+            /image[_\s]?1/i,
+            /bild 1/i,
+        ],
+        text: 'Bild 1 erfolgreich gespeichert.',
+        level: 'ok',
+    },
+    {
+        key: 'image_2_saved',
+        tests: [
+            /image[_\s]?2/i,
+            /bild 2/i,
+        ],
+        text: 'Bild 2 erfolgreich gespeichert.',
+        level: 'ok',
+    },
+    {
+        key: 'image_3_saved',
+        tests: [
+            /image[_\s]?3/i,
+            /bild 3/i,
+        ],
+        text: 'Bild 3 erfolgreich gespeichert.',
+        level: 'ok',
+    },
+    {
+        key: 'workflow_finished',
+        tests: [
+            /workflow abgeschlossen/i,
+            /workflow finished/i,
+            /isrunning:? ?false/i,
+        ],
+        text: 'Workflow abgeschlossen.',
+        level: 'ok',
+    },
+];
+
+// schon ausgegebene Schlüssel
+const SHOWN_STATUS_KEYS = new Set();
+
+const normalizeStatusMessage = (rawMessage = '', httpStatus = null) => {
+    const msg = String(rawMessage || '').trim();
+
+    if (typeof httpStatus === 'number' && httpStatus >= 400) {
+        return {
+            key: `http_${httpStatus}`,
+            text: msg || `Fehler vom Server (${httpStatus})`,
+            level: 'error',
+        };
+    }
+
+    for (const def of STATUS_NORMALIZER) {
+        for (const re of def.tests) {
+            if (re.test(msg)) {
+                return {
+                    key: def.key,
+                    text: def.text,
+                    level: def.level,
+                };
+            }
+        }
+    }
+
+    return {
+        key: msg.toLowerCase(),
+        text: msg,
+        level: 'info',
+    };
+};
+
+const STATUS_LEVEL_CLASS_MAP = {
+    ok: 'log-ok',
+    error: 'log-err',
+    info: 'log-info',
+};
+
+const renderNormalizedStatus = (normalized) => {
+    if (!statusLogContainer || !normalized || !normalized.text) {
+        return;
+    }
+
+    if (SHOWN_STATUS_KEYS.has(normalized.key)) {
+        return;
+    }
+
+    SHOWN_STATUS_KEYS.add(normalized.key);
+
+    if (statusLogContainer.childElementCount === 0) {
+        const existingText = statusLogContainer.textContent;
+        if (typeof existingText === 'string' && existingText.trim() !== '') {
+            statusLogContainer.textContent = '';
+        }
+    }
+
+    const finalClass = STATUS_LEVEL_CLASS_MAP[normalized.level] || STATUS_LEVEL_CLASS_MAP.info;
+    const entry = document.createElement('p');
+    entry.className = `log-entry ${finalClass}`;
+    entry.textContent = normalized.text;
+
+    statusLogContainer.prepend(entry);
+    trimStatusLog();
+    scrollStatusLogToTop();
+};
+
+const applyLevelHint = (normalized, levelHint) => {
+    const mapped = mapTypeHint(levelHint);
+    if (!mapped) {
+        return normalized;
+    }
+
+    if (mapped === 'error') {
+        return { ...normalized, level: 'error' };
+    }
+
+    if (mapped === 'ok' && normalized.level !== 'error') {
+        return { ...normalized, level: 'ok' };
+    }
+
+    if (mapped === 'info' && normalized.level === undefined) {
+        return { ...normalized, level: 'info' };
+    }
+
+    return normalized;
+};
+
 const sanitizeLatestItemString = (value) => {
     if (typeof value === 'string') {
         return value;
@@ -294,15 +444,6 @@ let isPollingActive = false;
 let lastStatusText = '';
 let hasShownCompletion = false;
 let hasObservedActiveRun = false;
-const statusLogState = {
-    seen: new Set(),
-};
-
-const LOG_TYPE_CLASSES = {
-    ok: 'log-ok',
-    error: 'log-err',
-    info: 'log-info',
-};
 
 const TYPE_KEYWORDS = {
     ok: ['success', 'ok', 'positive', 'completed'],
@@ -577,34 +718,6 @@ const buildUnauthorizedMessage = (message) => {
     return `Nicht autorisiert: ${sanitized}`;
 };
 
-const resolveLogType = ({ httpStatus, typeHint, fallback }) => {
-    const mappedHint = mapTypeHint(typeHint);
-    if (mappedHint) {
-        return mappedHint;
-    }
-
-    const mappedFallback = mapTypeHint(fallback);
-    if (mappedFallback) {
-        return mappedFallback;
-    }
-
-    if (typeof httpStatus === 'number') {
-        if (httpStatus >= 200 && httpStatus < 300) {
-            return 'ok';
-        }
-
-        if (httpStatus >= 400 && httpStatus < 600) {
-            return 'error';
-        }
-    }
-
-    if (typeof fallback === 'string' && ['ok', 'error', 'info'].includes(fallback)) {
-        return fallback;
-    }
-
-    return 'info';
-};
-
 const trimStatusLog = () => {
     if (!statusLogContainer) {
         return;
@@ -627,57 +740,37 @@ const scrollStatusLogToTop = () => {
     }
 };
 
-const renderLog = (type, message, code) => {
-    if (!statusLogContainer) {
-        return;
-    }
-
-    if (statusLogContainer.childElementCount === 0) {
-        const existingText = statusLogContainer.textContent;
-        if (typeof existingText === 'string' && existingText.trim() !== '') {
-            statusLogContainer.textContent = '';
-        }
-    }
-
+const logMessage = (message, type = 'info') => {
     const normalizedMessage = sanitizeLogMessage(message);
     if (!normalizedMessage) {
         return;
     }
 
-    const normalizedType = mapTypeHint(type) || (['ok', 'error', 'info'].includes(type) ? type : 'info');
-    const className = LOG_TYPE_CLASSES[normalizedType] || LOG_TYPE_CLASSES.info;
-
-    const entry = document.createElement('p');
-    entry.className = `log-entry ${className}`;
-
-    const codeText = code !== undefined && code !== null ? String(code).trim() : '';
-    entry.textContent = codeText ? `${normalizedMessage} (${codeText})` : normalizedMessage;
-
-    statusLogContainer.prepend(entry);
-    trimStatusLog();
-    scrollStatusLogToTop();
-};
-
-const logMessage = (message, type = 'info', code) => {
-    renderLog(type, message, code);
+    const normalized = applyLevelHint(normalizeStatusMessage(normalizedMessage), type);
+    renderNormalizedStatus(normalized);
 };
 
 const logResponse = ({ httpStatus, payload, fallbackMessage, fallbackType }) => {
-    const { message, code, type } = extractMessageAndCode(payload);
+    const { message, type } = extractMessageAndCode(payload);
+    const fallback = sanitizeLogMessage(fallbackMessage);
+    const fromPayload = sanitizeLogMessage(message);
+    const httpCode = Number.isFinite(httpStatus) ? httpStatus : Number(httpStatus);
+    const effectiveStatus = Number.isFinite(httpCode) ? httpCode : null;
 
-    let finalMessage = sanitizeLogMessage(message) || sanitizeLogMessage(fallbackMessage);
-    let finalCode = code || (typeof httpStatus === 'number' ? String(httpStatus) : null);
-    let finalType = resolveLogType({ httpStatus, typeHint: type, fallback: fallbackType });
-
-    if (isUnauthorized(httpStatus, finalMessage)) {
-        finalType = 'error';
-        finalMessage = buildUnauthorizedMessage(message || fallbackMessage);
-        if (!finalCode) {
-            finalCode = httpStatus || 401;
-        }
+    if (isUnauthorized(effectiveStatus, fromPayload || fallback)) {
+        const unauthorizedMessage = buildUnauthorizedMessage(message || fallbackMessage);
+        const normalized = normalizeStatusMessage(unauthorizedMessage, effectiveStatus || 401);
+        renderNormalizedStatus({ ...normalized, level: 'error' });
+        return;
     }
 
-    renderLog(finalType, finalMessage, finalCode);
+    const baseMessage = fromPayload || fallback || '';
+    const normalized = normalizeStatusMessage(baseMessage, effectiveStatus);
+    const levelHint = type || fallbackType || (effectiveStatus && effectiveStatus >= 200 && effectiveStatus < 300
+        ? 'ok'
+        : null);
+    const adjusted = applyLevelHint(normalized, levelHint);
+    renderNormalizedStatus(adjusted);
 };
 
 const updateStatusLog = (entries) => {
@@ -690,36 +783,23 @@ const updateStatusLog = (entries) => {
             return;
         }
 
-        const { message, code, type } = extractMessageAndCode(rawEntry);
+        const { message, type } = extractMessageAndCode(rawEntry);
         const fallbackMessage = typeof rawEntry.message === 'string' ? rawEntry.message : '';
-        const finalMessage = sanitizeLogMessage(message || fallbackMessage);
+        const sanitizedMessage = sanitizeLogMessage(message) || sanitizeLogMessage(fallbackMessage) || '';
+        const httpStatus = Number.isFinite(rawEntry.status)
+            ? rawEntry.status
+            : Number(rawEntry.status);
+        const effectiveStatus = Number.isFinite(httpStatus) ? httpStatus : null;
 
-        if (!finalMessage) {
-            return;
-        }
+        const normalized = normalizeStatusMessage(sanitizedMessage, effectiveStatus);
+        const adjusted = applyLevelHint(
+            normalized,
+            type || rawEntry.type || rawEntry.level || (effectiveStatus && effectiveStatus >= 200 && effectiveStatus < 300
+                ? 'ok'
+                : null),
+        );
 
-        const timestamp = rawEntry.timestamp ?? rawEntry.time ?? '';
-        const keyType = type || rawEntry.type || rawEntry.level || '';
-        const entryKey = `${timestamp}::${finalMessage}::${keyType}`;
-
-        if (statusLogState.seen.has(entryKey)) {
-            return;
-        }
-
-        statusLogState.seen.add(entryKey);
-
-        const httpStatus = typeof rawEntry.status === 'number' ? rawEntry.status : Number(rawEntry.status);
-        const resolvedType = resolveLogType({
-            httpStatus: Number.isFinite(httpStatus) ? httpStatus : null,
-            typeHint: type || rawEntry.type || rawEntry.level,
-            fallback: 'info',
-        });
-
-        const resolvedCode = code
-            || (rawEntry.code !== undefined && rawEntry.code !== null ? String(rawEntry.code).trim() : '')
-            || (rawEntry.status !== undefined && rawEntry.status !== null ? String(rawEntry.status).trim() : '');
-
-        renderLog(resolvedType, finalMessage, resolvedCode || null);
+        renderNormalizedStatus(adjusted);
     });
 };
 
@@ -905,29 +985,35 @@ const uploadFiles = async (files) => {
 
             if (result.webhook_response !== undefined && result.webhook_response !== null && result.webhook_response !== '') {
                 const webhookPayload = result.webhook_response;
-                const webhookStatus = result.webhook_status;
-                const { message: webhookMessage, code: webhookCode, type: webhookType } = extractMessageAndCode(webhookPayload);
-                const fallbackWebhookMessage = webhookStatus
-                    ? `Webhook ${String(webhookStatus).trim()}`
-                    : 'Webhook-Antwort';
-                const resolvedWebhookType = resolveLogType({
-                    httpStatus: Number(webhookStatus),
-                    typeHint: webhookType,
-                    fallback: 'info',
-                });
-                const resolvedWebhookCode = webhookCode
-                    || (webhookStatus !== undefined && webhookStatus !== null ? String(webhookStatus).trim() : null);
-                const sanitizedWebhookMessage = sanitizeLogMessage(webhookMessage) || sanitizeLogMessage(fallbackWebhookMessage);
+                const webhookStatus = Number.isFinite(result.webhook_status)
+                    ? result.webhook_status
+                    : Number(result.webhook_status);
+                const { message: webhookMessage, type: webhookType } = extractMessageAndCode(webhookPayload);
+                const fallbackWebhookMessage = typeof result.webhook_response === 'string'
+                    ? result.webhook_response
+                    : webhookStatus
+                        ? `Webhook ${String(webhookStatus).trim()}`
+                        : 'Webhook-Antwort';
+                const sanitizedWebhookMessage = sanitizeLogMessage(webhookMessage)
+                    || sanitizeLogMessage(fallbackWebhookMessage)
+                    || '';
 
-                if (sanitizedWebhookMessage) {
-                    renderLog(resolvedWebhookType, sanitizedWebhookMessage, resolvedWebhookCode);
-                }
+                const normalizedWebhook = normalizeStatusMessage(
+                    sanitizedWebhookMessage,
+                    Number.isFinite(webhookStatus) ? webhookStatus : null,
+                );
+                const adjustedWebhook = applyLevelHint(
+                    normalizedWebhook,
+                    webhookType || (Number.isFinite(webhookStatus) && webhookStatus >= 200 && webhookStatus < 300 ? 'ok' : null),
+                );
+
+                renderNormalizedStatus(adjustedWebhook);
             }
         } catch (error) {
             console.error(error);
             const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
             const message = sanitizeLogMessage(error?.message) || fallback;
-            renderLog('error', message, null);
+            logMessage(message, 'error');
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
         }
     });
@@ -1083,6 +1169,12 @@ const fetchLatestData = async () => {
 
     } catch (error) {
         console.error('Polling-Fehler:', error);
+        const fallbackMessage = 'Verbindung zum Server fehlgeschlagen.';
+        const sanitized = sanitizeLogMessage(error?.message) || fallbackMessage;
+        const statusMatch = sanitized.match(/(\d{3})/);
+        const statusCode = statusMatch ? Number(statusMatch[1]) : 500;
+        const normalized = normalizeStatusMessage(sanitized, Number.isFinite(statusCode) ? statusCode : 500);
+        renderNormalizedStatus({ ...normalized, level: 'error' });
     }
 };
 
@@ -1160,6 +1252,9 @@ const initializeBackendState = async () => {
         }
     } catch (error) {
         console.error('Backend-Initialisierung fehlgeschlagen:', error);
+        const sanitized = sanitizeLogMessage(error?.message) || 'Backend-Initialisierung fehlgeschlagen.';
+        const normalized = normalizeStatusMessage(sanitized, 500);
+        renderNormalizedStatus({ ...normalized, level: 'error' });
     }
 };
 
@@ -1198,6 +1293,9 @@ const loadInitialState = async () => {
         }
     } catch (error) {
         console.error('Initialisierung fehlgeschlagen:', error);
+        const sanitized = sanitizeLogMessage(error?.message) || 'Initialisierung fehlgeschlagen.';
+        const normalized = normalizeStatusMessage(sanitized, 500);
+        renderNormalizedStatus({ ...normalized, level: 'error' });
     }
 };
 
