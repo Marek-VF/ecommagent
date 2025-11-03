@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
+require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
 try {
@@ -16,20 +17,27 @@ try {
     exit;
 }
 
+$baseUrl = '';
+if (isset($config['base_url'])) {
+    $baseUrl = rtrim((string) $config['base_url'], '/') . '/';
+} elseif (defined('BASE_URL')) {
+    $baseUrl = rtrim((string) BASE_URL, '/') . '/';
+}
+
 $userId = 1;
 
 try {
-    $latestNoteStatement = $pdo->prepare(
+    $noteStatement = $pdo->prepare(
         'SELECT product_name, product_description
          FROM item_notes
          WHERE user_id = :user_id
          ORDER BY created_at DESC, id DESC
          LIMIT 1'
     );
-    $latestNoteStatement->execute(['user_id' => $userId]);
-    $latestNote = $latestNoteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+    $noteStatement->execute(['user_id' => $userId]);
+    $note = $noteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 
-    if ($latestNote === null) {
+    if ($note === null) {
         $fallbackNoteStatement = $pdo->query(
             'SELECT product_name, product_description
              FROM item_notes
@@ -38,27 +46,22 @@ try {
         );
 
         if ($fallbackNoteStatement !== false) {
-            $latestNote = $fallbackNoteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+            $note = $fallbackNoteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
         }
     }
 
-    $productName = '';
-    $productDescription = '';
+    $productName = isset($note['product_name']) ? (string) $note['product_name'] : '';
+    $productDescription = isset($note['product_description']) ? (string) $note['product_description'] : '';
 
-    if (is_array($latestNote)) {
-        $productName = isset($latestNote['product_name']) ? (string) $latestNote['product_name'] : '';
-        $productDescription = isset($latestNote['product_description']) ? (string) $latestNote['product_description'] : '';
-    }
-
-    $userStateStatement = $pdo->prepare(
+    $stateStatement = $pdo->prepare(
         'SELECT last_status, last_message
          FROM user_state
          WHERE user_id = :user_id
          ORDER BY updated_at DESC
          LIMIT 1'
     );
-    $userStateStatement->execute(['user_id' => $userId]);
-    $userState = $userStateStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+    $stateStatement->execute(['user_id' => $userId]);
+    $userState = $stateStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($userState === null) {
         $fallbackStateStatement = $pdo->query(
@@ -73,12 +76,15 @@ try {
         }
     }
 
-    $status = '';
-    $message = '';
+    $lastStatus = isset($userState['last_status']) ? (string) $userState['last_status'] : '';
+    $lastMessage = isset($userState['last_message']) ? (string) $userState['last_message'] : '';
 
-    if (is_array($userState)) {
-        $status = isset($userState['last_status']) ? (string) $userState['last_status'] : '';
-        $message = isset($userState['last_message']) ? (string) $userState['last_message'] : '';
+    $isRunning = true;
+    if ($lastStatus !== '') {
+        $normalizedStatus = strtolower(trim($lastStatus));
+        if ($normalizedStatus === 'finished') {
+            $isRunning = false;
+        }
     }
 
     $imagesStatement = $pdo->prepare(
@@ -109,34 +115,26 @@ try {
     ];
 
     foreach ($imageRows as $row) {
+        $pos = isset($row['position']) ? (string) $row['position'] : '';
         $url = isset($row['url']) ? (string) $row['url'] : '';
+
         if ($url === '') {
             continue;
         }
 
-        $positionValue = $row['position'] ?? null;
-        $key = null;
+        if ($baseUrl !== '' && !preg_match('#^https?://#i', $url)) {
+            $url = $baseUrl . ltrim($url, '/');
+        }
 
-        if (is_numeric($positionValue)) {
-            $index = (int) $positionValue;
-            if ($index >= 1 && $index <= 3) {
-                $key = 'image_' . $index;
-            }
-        } elseif (is_string($positionValue)) {
-            $normalized = trim($positionValue);
-            if ($normalized !== '') {
-                if (preg_match('/^image[_-]?(\d)$/i', $normalized, $matches) === 1) {
-                    $index = (int) $matches[1];
-                    if ($index >= 1 && $index <= 3) {
-                        $key = 'image_' . $index;
-                    }
-                } elseif (in_array(strtolower($normalized), ['1', '2', '3'], true)) {
-                    $index = (int) $normalized;
-                    if ($index >= 1 && $index <= 3) {
-                        $key = 'image_' . $index;
-                    }
-                }
-            }
+        $key = null;
+        if ($pos === '1') {
+            $key = 'image_1';
+        } elseif ($pos === '2') {
+            $key = 'image_2';
+        } elseif ($pos === '3') {
+            $key = 'image_3';
+        } elseif (preg_match('/^image_?([1-3])$/i', $pos, $matches) === 1) {
+            $key = 'image_' . $matches[1];
         }
 
         if ($key === null) {
@@ -148,24 +146,7 @@ try {
         }
     }
 
-    $statusNormalized = strtolower(trim($status));
-    $hasUserState = is_array($userState);
-    $isRunning = $hasUserState ? true : false;
-
-    if (!$hasUserState) {
-        $isRunning = false;
-    } elseif ($statusNormalized !== '') {
-        $runningStates = ['running', 'processing', 'in_progress', 'in-progress'];
-        $finishedStates = ['finished', 'done', 'completed', 'stopped', 'success', 'idle', 'ok', 'error', 'failed'];
-
-        if (in_array($statusNormalized, $runningStates, true)) {
-            $isRunning = true;
-        } elseif (in_array($statusNormalized, $finishedStates, true)) {
-            $isRunning = false;
-        }
-    }
-
-    $hasData = trim($productName) !== '' || trim($productDescription) !== '';
+    $hasData = ($productName !== '' || $productDescription !== '' || $lastMessage !== '');
 
     echo json_encode([
         'ok'       => true,
@@ -173,8 +154,8 @@ try {
         'data'     => [
             'product_name'        => $productName,
             'product_description' => $productDescription,
-            'status'              => $status,
-            'message'             => $message,
+            'status'              => $lastStatus,
+            'message'             => $lastMessage,
             'isrunning'           => $isRunning,
             'images'              => $images,
         ],
