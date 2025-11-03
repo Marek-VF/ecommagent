@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-require_once __DIR__ . '/../config.php';
+$config = require __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
 try {
@@ -17,12 +17,7 @@ try {
     exit;
 }
 
-$baseUrl = '';
-if (isset($config['base_url'])) {
-    $baseUrl = rtrim((string) $config['base_url'], '/') . '/';
-} elseif (defined('BASE_URL')) {
-    $baseUrl = rtrim((string) BASE_URL, '/') . '/';
-}
+$baseUrl = rtrim($config['base_url'] ?? '', '/') . '/';
 
 $userId = 1;
 
