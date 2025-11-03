@@ -43,28 +43,19 @@ const STATUS_NORMALIZER = [
     },
     {
         key: 'image_1_saved',
-        tests: [
-            /image[_\s]?1/i,
-            /bild 1/i,
-        ],
+        tests: [/bild 1/i, /image[_\s]?1/i],
         text: 'Bild 1 erfolgreich gespeichert.',
         level: 'ok',
     },
     {
         key: 'image_2_saved',
-        tests: [
-            /image[_\s]?2/i,
-            /bild 2/i,
-        ],
+        tests: [/bild 2/i, /image[_\s]?2/i],
         text: 'Bild 2 erfolgreich gespeichert.',
         level: 'ok',
     },
     {
         key: 'image_3_saved',
-        tests: [
-            /image[_\s]?3/i,
-            /bild 3/i,
-        ],
+        tests: [/bild 3/i, /image[_\s]?3/i],
         text: 'Bild 3 erfolgreich gespeichert.',
         level: 'ok',
     },
@@ -82,6 +73,13 @@ const STATUS_NORMALIZER = [
 
 // schon ausgegebene Schlüssel
 const SHOWN_STATUS_KEYS = new Set();
+
+// merkt sich, welche Bild-URLs zuletzt im UI bekannt waren
+const lastKnownImages = {
+    image_1: null,
+    image_2: null,
+    image_3: null,
+};
 
 const normalizeStatusMessage = (rawMessage = '', httpStatus = null) => {
     const msg = String(rawMessage || '').trim();
@@ -1160,9 +1158,50 @@ const fetchLatestData = async () => {
 
         if (payload.images && typeof payload.images === 'object') {
             gallerySlots.forEach((slot) => {
-                const src = payload.images[slot.key];
+                const slotKey = slot.key;
+                const src = payload.images[slotKey];
+
                 if (typeof src === 'string' && src.trim() !== '') {
-                    setSlotImageSource(slot, src.trim());
+                    const newSrc = src.trim();
+
+                    // prüfen, ob sich das Bild geändert hat
+                    const prevSrc = lastKnownImages[slotKey];
+                    if (!prevSrc || prevSrc !== newSrc) {
+                        // im UI setzen
+                        setSlotImageSource(slot, newSrc);
+
+                        // Status-Eintrag erzeugen
+                        let statusKey = '';
+                        if (slotKey === 'image_1') statusKey = 'image_1_saved';
+                        else if (slotKey === 'image_2') statusKey = 'image_2_saved';
+                        else if (slotKey === 'image_3') statusKey = 'image_3_saved';
+
+                        if (statusKey) {
+                            SHOWN_STATUS_KEYS.delete(statusKey);
+                        }
+
+                        if (statusKey && !SHOWN_STATUS_KEYS.has(statusKey)) {
+                            SHOWN_STATUS_KEYS.add(statusKey);
+
+                            if (statusLogContainer) {
+                                const entry = document.createElement('p');
+                                entry.className = 'log-entry log-ok';
+                                if (statusKey === 'image_1_saved') entry.textContent = 'Bild 1 erfolgreich gespeichert.';
+                                if (statusKey === 'image_2_saved') entry.textContent = 'Bild 2 erfolgreich gespeichert.';
+                                if (statusKey === 'image_3_saved') entry.textContent = 'Bild 3 erfolgreich gespeichert.';
+                                statusLogContainer.prepend(entry);
+                                trimStatusLog();
+                                scrollStatusLogToTop();
+                            }
+                        }
+
+                        // neuen Wert merken
+                        lastKnownImages[slotKey] = newSrc;
+                    } else {
+                        // Bild ist gleich wie vorher → nur sicherstellen, dass es gesetzt ist
+                        setSlotImageSource(slot, newSrc);
+                        lastKnownImages[slotKey] = newSrc;
+                    }
                 }
             });
         }
@@ -1283,6 +1322,16 @@ const loadInitialState = async () => {
         }
 
         const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+
+        if (payload.images && typeof payload.images === 'object') {
+            ['image_1', 'image_2', 'image_3'].forEach((slotKey) => {
+                const src = payload.images[slotKey];
+                if (typeof src === 'string' && src.trim() !== '') {
+                    lastKnownImages[slotKey] = src.trim();
+                }
+            });
+        }
+
         applyLatestItemData(payload);
         const normalized = mapLatestItemPayloadToLegacy(payload);
         updateInterfaceFromData(normalized);
