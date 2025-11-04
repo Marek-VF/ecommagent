@@ -164,30 +164,6 @@ function extractSanitizedField(array $payload, array $keys, ?int $maxLength = nu
     return null;
 }
 
-function extractRunId(array $payload): ?int
-{
-    $candidates = ['current_run_id', 'run_id', 'workflow_run_id'];
-
-    foreach ($candidates as $key) {
-        if (!isset($payload[$key])) {
-            continue;
-        }
-
-        $value = $payload[$key];
-        if (is_numeric($value)) {
-            $runId = (int) $value;
-            if ($runId > 0) {
-                return $runId;
-            }
-        }
-    }
-
-    return null;
-}
-
-/**
- * Normalisiert beliebige Statuswerte auf ein kurzes Label für die Datenbank.
- */
 function normalizeStatusLabel(?string $value): string
 {
     if ($value === null) {
@@ -274,6 +250,77 @@ function normalizeStatusLabel(?string $value): string
     return 'idle';
 }
 
+function fetchCurrentRunId(PDO $pdo, int $userId): ?int
+{
+    $stmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user_id LIMIT 1');
+    $stmt->execute([':user_id' => $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($row === false) {
+        return null;
+    }
+
+    if ($row['current_run_id'] === null) {
+        return null;
+    }
+
+    return (int) $row['current_run_id'];
+}
+
+function upsertUserState(PDO $pdo, int $userId, string $lastStatus, string $lastMessage, string $payloadSummary, ?int $currentRunId): void
+{
+    $statement = $pdo->prepare(
+        'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
+         VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
+         ON DUPLICATE KEY UPDATE
+             last_status = VALUES(last_status),
+             last_message = VALUES(last_message),
+             last_payload_summary = VALUES(last_payload_summary),
+             current_run_id = VALUES(current_run_id),
+             updated_at = NOW()'
+    );
+
+    $statement->execute([
+        ':user_id'              => $userId,
+        ':last_status'          => $lastStatus,
+        ':last_message'         => $lastMessage,
+        ':last_payload_summary' => $payloadSummary,
+        ':current_run_id'       => $currentRunId,
+    ]);
+}
+
+function startWorkflowRun(PDO $pdo, int $userId, string $statusMessage): int
+{
+    $insertRun = $pdo->prepare(
+        'INSERT INTO workflow_runs (user_id, status, last_message, started_at)
+         VALUES (:user_id, :status, :last_message, NOW())'
+    );
+    $insertRun->execute([
+        ':user_id'      => $userId,
+        ':status'       => 'running',
+        ':last_message' => $statusMessage,
+    ]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+function updateWorkflowRun(PDO $pdo, int $userId, int $runId, string $status, string $message, bool $markFinished): void
+{
+    $sql = 'UPDATE workflow_runs SET status = :status, last_message = :last_message';
+    if ($markFinished) {
+        $sql .= ', finished_at = NOW()';
+    }
+    $sql .= ' WHERE id = :id AND user_id = :user_id';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        ':status'    => $status,
+        ':last_message' => $message,
+        ':id'        => $runId,
+        ':user_id'   => $userId,
+    ]);
+}
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         jsonResponse(405, [
@@ -313,9 +360,9 @@ try {
     $productDescription = extractSanitizedField($payload, ['product_description', 'produktbeschreibung']);
     $statusMessage = extractSanitizedField($payload, ['statusmessage', 'status_message', 'status'], 255);
     $isRunningField = $payload['isrunning'] ?? $payload['is_running'] ?? null;
-    $currentRunId = extractRunId($payload);
 
     $pdo = auth_pdo();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $userId = resolveUserId($payload);
     if ($userId <= 0) {
         jsonResponse(401, [
@@ -336,27 +383,16 @@ try {
             }
         }
 
+        $currentRunId = fetchCurrentRunId($pdo, $userId);
+        $message = $statusMessage ?? ($isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.');
+
         $lastStatus = normalizeStatusLabel($isRunning ? 'running' : 'finished');
-        $lastMessage = $isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.';
+        $nextRunId = $isRunning ? $currentRunId : null;
+        upsertUserState($pdo, $userId, $lastStatus, $message, $raw, $nextRunId);
 
-        $statement = $pdo->prepare(
-            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
-             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
-             ON DUPLICATE KEY UPDATE
-                 last_status = VALUES(last_status),
-                 last_message = VALUES(last_message),
-                 last_payload_summary = VALUES(last_payload_summary),
-                 current_run_id = VALUES(current_run_id),
-                 updated_at = NOW()'
-        );
-
-        $statement->execute([
-            ':user_id'              => $userId,
-            ':last_status'          => $lastStatus,
-            ':last_message'         => $lastMessage,
-            ':last_payload_summary' => $raw,
-            ':current_run_id'       => $currentRunId,
-        ]);
+        if ($currentRunId !== null) {
+            updateWorkflowRun($pdo, $userId, $currentRunId, $isRunning ? 'running' : 'finished', $message, !$isRunning);
+        }
 
         jsonResponse(200, [
             'ok'        => true,
@@ -370,45 +406,44 @@ try {
     if ($hasContentPayload) {
         $pdo->beginTransaction();
 
-        if ($productName !== null || $productDescription !== null) {
-            $insertNote = $pdo->prepare(
-                'INSERT INTO item_notes (user_id, product_name, product_description, source, created_at)
-                 VALUES (:user_id, :product_name, :product_description, :source, NOW())'
-            );
-            $insertNote->execute([
-                ':user_id'             => $userId,
-                ':product_name'        => $productName,
-                ':product_description' => $productDescription,
-                ':source'              => 'n8n',
-            ]);
-        }
+        $message = $statusMessage ?? 'Daten empfangen.';
+        $runId = startWorkflowRun($pdo, $userId, $message);
 
-        $payloadSummary = $raw;
-        $lastMessage = $statusMessage ?? 'Daten empfangen.';
-
-        $upsertState = $pdo->prepare(
-            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
-             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
-             ON DUPLICATE KEY UPDATE
-                 last_status = VALUES(last_status),
-                 last_message = VALUES(last_message),
-                 last_payload_summary = VALUES(last_payload_summary),
-                 current_run_id = VALUES(current_run_id),
-                 updated_at = NOW()'
+        $insertNote = $pdo->prepare(
+            'INSERT INTO item_notes (user_id, run_id, product_name, product_description, source, created_at)
+             VALUES (:user_id, :run_id, :product_name, :product_description, :source, NOW())'
         );
-        $upsertState->execute([
-            ':user_id'              => $userId,
-            ':last_status'          => 'running',
-            ':last_message'         => $lastMessage,
-            ':last_payload_summary' => $payloadSummary,
-            ':current_run_id'       => $currentRunId,
+        $insertNote->execute([
+            ':user_id'             => $userId,
+            ':run_id'              => $runId,
+            ':product_name'        => $productName,
+            ':product_description' => $productDescription,
+            ':source'              => 'n8n',
         ]);
+
+        $payloadExcerpt = mb_substr($raw, 0, 65535);
+        $insertLog = $pdo->prepare(
+            'INSERT INTO status_logs (user_id, run_id, level, status_code, message, payload_excerpt, source, created_at)
+             VALUES (:user_id, :run_id, :level, :status_code, :message, :payload_excerpt, :source, NOW())'
+        );
+        $insertLog->execute([
+            ':user_id'         => $userId,
+            ':run_id'          => $runId,
+            ':level'           => 'info',
+            ':status_code'     => 200,
+            ':message'         => 'Workflow gestartet',
+            ':payload_excerpt' => $payloadExcerpt,
+            ':source'          => 'receiver',
+        ]);
+
+        upsertUserState($pdo, $userId, 'running', $message, $raw, $runId);
 
         $pdo->commit();
 
         jsonResponse(200, [
             'ok'      => true,
             'message' => 'content saved',
+            'run_id'  => $runId,
         ]);
     }
 
