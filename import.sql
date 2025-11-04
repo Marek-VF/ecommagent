@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- =========================================
 CREATE TABLE IF NOT EXISTS `user_state` (
   `user_id` INT UNSIGNED NOT NULL,
-  `last_status` ENUM('ok','warn','error') NULL,
+  `last_status` ENUM('ok','warn','error','running','finished','idle') NULL,
   `last_message` VARCHAR(255) NULL,
   `last_image_url` TEXT NULL,
   `last_payload_summary` TEXT NULL,
@@ -35,11 +35,30 @@ CREATE TABLE IF NOT EXISTS `user_state` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
+-- WORKFLOW RUNS (Historie je Benutzer)
+-- =========================================
+CREATE TABLE IF NOT EXISTS `workflow_runs` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED NOT NULL,
+  `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `finished_at` DATETIME NULL,
+  `status` ENUM('running','finished','error') NOT NULL DEFAULT 'running',
+  `last_message` TEXT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_workflow_runs_user` (`user_id`),
+  KEY `idx_workflow_runs_status` (`status`),
+  CONSTRAINT `fk_workflow_runs_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================
 -- STATUS LOGS (Historie von Events)
 -- =========================================
 CREATE TABLE IF NOT EXISTS `status_logs` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
+  `run_id` INT UNSIGNED NULL,
   `level` ENUM('info','warn','error') NOT NULL DEFAULT 'info',
   `status_code` INT NULL,
   `message` VARCHAR(255) NOT NULL,
@@ -50,8 +69,11 @@ CREATE TABLE IF NOT EXISTS `status_logs` (
   KEY `idx_logs_user_created` (`user_id`,`created_at`),
   KEY `idx_logs_level` (`level`),
   KEY `idx_logs_source` (`source`),
+  KEY `idx_logs_run` (`run_id`),
   CONSTRAINT `fk_status_logs_user`
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_status_logs_run`
+    FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
@@ -60,13 +82,16 @@ CREATE TABLE IF NOT EXISTS `status_logs` (
 CREATE TABLE IF NOT EXISTS `item_notes` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
+  `run_id` INT UNSIGNED NULL,
   `product_name` VARCHAR(255) NULL,
   `product_description` MEDIUMTEXT NULL,
   `source` ENUM('n8n','user') NOT NULL DEFAULT 'n8n',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_notes_user_created` (`user_id`,`created_at`),
-  CONSTRAINT `fk_item_notes_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+  KEY `idx_notes_run` (`run_id`),
+  CONSTRAINT `fk_item_notes_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_item_notes_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
@@ -75,15 +100,18 @@ CREATE TABLE IF NOT EXISTS `item_notes` (
 CREATE TABLE IF NOT EXISTS `item_images` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
-  `note_id` INT UNSIGNED NOT NULL,
+  `run_id` INT UNSIGNED NULL,
+  `note_id` INT UNSIGNED NULL,
   `url` VARCHAR(1024) NOT NULL,
   `position` TINYINT UNSIGNED NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_images_note_pos` (`note_id`,`position`),
   KEY `idx_images_user_created` (`user_id`,`created_at`),
+  KEY `idx_images_run_created` (`run_id`,`created_at`),
   CONSTRAINT `fk_item_images_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_item_images_note` FOREIGN KEY (`note_id`) REFERENCES `item_notes`(`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_item_images_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_item_images_note` FOREIGN KEY (`note_id`) REFERENCES `item_notes`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
