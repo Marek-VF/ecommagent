@@ -1,0 +1,215 @@
+# Codex System Prompt — Ecomm Agent
+
+## Projektbeschreibung
+Ecomm Agent ist eine webbasierte PHP-Anwendung, die mit einem externen n8n-Server interagiert.  
+Sie dient dazu, Bilder an n8n zu senden, die verarbeiteten Ergebnisse (Artikeldaten, generierte Bilder) zeitversetzt zu empfangen, zu speichern und im Frontend anzuzeigen.  
+Das System ist **multi-user-fähig** und beinhaltet eine vollständige Authentifizierung (Registrierung, Login, Passwort-Reset, E-Mail-Verifizierung).  
+Alle Daten werden in einer **MySQL-Datenbank** gespeichert, das Frontend nutzt **Vanilla JavaScript**, und der Server läuft auf **Apache + PHP 8.2+**.
+
+---
+
+## Architekturübersicht
+- **Frontend:** `index.php`, `script.js`, `style.css`
+- **API-Schicht:** `/api`-Endpoints (JSON-Antworten, Session-basiert)
+- **Backend-Controller:** `upload.php`, `receiver.php`, `webhook_image.php`
+- **Auth-System:** `/auth/*` (Bootstrap, Login, Register, Reset, PHPMailer)
+- **Persistenz:** `db.php` (PDO), `import.sql` (Schema)
+- **Konfiguration:** `config.php` (DB, Webhook, SMTP, Token)
+- **Webhooks:** 
+  - `receiver.php` empfängt JSON von n8n (Artikeldaten, Status)
+  - `webhook_image.php` empfängt Bilder (multipart/form-data)
+- **Polling:** Frontend fragt periodisch `api/get-latest-item.php` für Live-Updates ab
+- **History:** Alte Runs werden über `api/get-runs.php` und `api/get-run-details.php` geladen
+
+---
+
+## Systemfluss (Kurzbeschreibung)
+1. Benutzer lädt ein Bild hoch (`upload.php`).
+2. Server sendet das Bild + `user_id` an die `workflow_webhook` (n8n).
+3. n8n verarbeitet das Bild und sendet zeitversetzt:
+   - Artikeldaten → `receiver.php`
+   - Bilder → `webhook_image.php`
+   - Abschlussstatus → `receiver.php` (`isrunning:false`)
+4. Die Anwendung schreibt alle Schritte in MySQL-Tabellen:
+   - `workflow_runs`, `item_notes`, `item_images`, `status_logs`, `user_state`.
+5. Das Frontend pollt `api/get-latest-item.php` und zeigt Fortschritt in Echtzeit.
+6. Benutzer kann alte Runs in der Sidebar einsehen (`api/get-runs.php`).
+
+---
+
+## Dateien & Rollen
+
+| Datei / Ordner | Funktion |
+|----------------|-----------|
+| `index.php` | Haupt-UI; zeigt Upload, Status, Ergebnis, History |
+| `upload.php` | Empfängt Bild vom User, sendet an n8n |
+| `receiver.php` | n8n-Webhook (JSON: Artikeldaten, Status) |
+| `webhook_image.php` | n8n-Webhook (multipart: Bilder) |
+| `/api/get-runs.php` | Liefert alle Runs eines Users |
+| `/api/get-run-details.php` | Liefert Detaildaten zu einem Run |
+| `/api/get-latest-item.php` | Liefert aktuellen Status |
+| `/auth/bootstrap.php` | Session, CSRF, Helper-Funktionen |
+| `/auth/register.php` | Benutzerregistrierung + Mailversand |
+| `/auth/login.php` | Benutzer-Login |
+| `/auth/verify.php` | Verifizierung per Token |
+| `/auth/forgot_password.php` | Passwort vergessen |
+| `/auth/reset_password.php` | Neues Passwort setzen |
+| `/db.php` | PDO-Verbindung |
+| `/config.php` | DB-, Mail-, Token- und Webhook-Konfiguration |
+| `/style.css` | Styling (Dark Mode, Responsive Layout) |
+| `/script.js` | Upload, Polling, Logfarben, Sidebar, History |
+| `/import.sql` | Datenbankschema |
+| `/docs/technical_spec.md` | Technische Spezifikation |
+| `/README.md` | Kurzanleitung, Setup, Architekturüberblick |
+
+---
+
+## API-Routen (Frontend)
+Alle erfordern Session (eingeloggt).
+
+| Route | Methode | Funktion |
+|-------|----------|----------|
+| `/api/get-runs.php` | GET | Liste aller Workflow-Läufe |
+| `/api/get-run-details.php?id={id}` | GET | Detaildaten eines Laufs |
+| `/api/get-latest-item.php` | GET | Aktueller Status (Polling) |
+
+### Beispielantwort `api/get-latest-item.php`
+```json
+{
+  "ok": true,
+  "data": {
+    "isrunning": false,
+    "status": "finished",
+    "message": "Workflow abgeschlossen",
+    "product_name": "Holztisch Buche",
+    "product_description": "Automatisch erkannter Artikel",
+    "images": [
+      "/uploads/5/2025/11/image_1.png",
+      "/uploads/5/2025/11/image_2.png"
+    ]
+  }
+}
+
+Webhook-Endpunkte (n8n → PHP)
+1️⃣ Artikeldaten
+
+POST /receiver.php
+Authorization: Bearer {receiver_api_token}
+Content-Type: application/json
+{
+  "user_id": 5,
+  "product_name": "Testartikel",
+  "product_description": "Automatisch generiert",
+  "isrunning": true
+}
+
+2️⃣ Bild
+
+POST /webhook_image.php
+Authorization: Bearer {receiver_api_token}
+Content-Type: multipart/form-data
+file=@image.png
+user_id=5
+
+3️⃣ Abschlussmeldung
+
+{
+  "user_id": 5,
+  "isrunning": false,
+  "status": "done",
+  "message": "Workflow abgeschlossen"
+}
+
+Datenbankschema (Kurzfassung)
+Tabelle	Zweck
+users	Authentifizierung, Registrierung
+workflow_runs	Jeder Workflow-Durchlauf
+user_state	Letzter Status pro Benutzer
+item_notes	Artikeldaten (Name, Beschreibung)
+item_images	Bilder pro Artikel
+status_logs	Logmeldungen & Ereignisse
+Beziehungen
+
+users ───< workflow_runs ───< item_notes ───< item_images
+   │             │                   │
+   └────< status_logs        user_state (1:1)
+
+Entwicklungsrichtlinien
+
+    Verwende PDO + prepared statements für alle SQL-Queries.
+
+    Nur eingeloggte User dürfen /api- und /index.php-Routen aufrufen.
+
+    Webhooks (receiver.php, webhook_image.php) immer über Bearer Token absichern.
+
+    config.php ist zentraler Einstiegspunkt für alle Verbindungsdaten.
+
+    Bei neuen Features:
+
+        UI-Logik in script.js erweitern.
+
+        Backend-API im /api-Ordner mit JSON-Antworten umsetzen.
+
+        Datenhaltung über neue Spalten oder Tabellen mit Fremdschlüsseln auf users.id oder workflow_runs.id.
+
+Frontend-Verhalten (JS)
+
+    Upload via fetch('upload.php') mit FormData.
+
+    Polling alle 2 s → api/get-latest-item.php.
+
+    Logs farbcodiert:
+
+        Grün: Erfolg ✅
+
+        Blau: Info 🔵
+
+        Rot: Fehler ❌
+
+    Sidebar:
+
+        Klick → lädt Run-Details
+
+        Titel = Datum + Artikelname
+
+Sicherheit
+
+    Authentifizierung: PHP-Session (HTTP-only, Secure, SameSite=Lax)
+
+    Passwort: password_hash() / password_verify()
+
+    E-Mail-Verification via PHPMailer
+
+    CSRF-Schutz in Formularen
+
+    .htaccess erzwingt Weitergabe des Authorization-Headers für n8n
+
+    Uploads in /uploads/{user_id}/YYYY/MM/ mit 755-Rechten
+
+Erweiterungspunkte für Codex
+
+Wenn Codex neue Features erstellen soll, beachte:
+
+    Neue API-Endpoints → in /api-Ordner, JSON-Struktur konsistent halten.
+
+    Neue Tabellen → in import.sql definieren + db.php nutzen.
+
+    Frontend-Änderungen → in script.js; CSS in style.css erweitern.
+
+    n8n-Interaktion → Webhook-Endpunkte sind receiver.php (JSON) und webhook_image.php (Bilddaten).
+
+    Auth-bezogene Logik → nur über auth/bootstrap.php.
+
+Ziel für Codex
+
+Ziel dieses Prompts ist, dass Codex bei neuen Aufgaben automatisch:
+
+    Die Struktur der App versteht (Backend, API, Frontend, DB).
+
+    Den n8n-Kommunikationsfluss berücksichtigt.
+
+    Nur sichere, PHP-8.2-kompatible und PDO-basierte Lösungen erzeugt.
+
+    JSON-konforme API-Endpunkte bereitstellt.
+
+    Multi-User-Funktionalität beibehält.
