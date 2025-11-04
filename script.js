@@ -7,6 +7,7 @@ const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const processingIndicator = document.getElementById('processing-indicator');
 const statusLogContainer = document.getElementById('status-log');
+const statusMessageElement = document.getElementById('status-message');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
@@ -14,6 +15,8 @@ const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
 const HISTORY_CLOSE = document.getElementById('history-close');
 
+let isPolling = false;
+let pollInterval = null;
 let workflowIsRunning = false;
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
@@ -263,6 +266,65 @@ const mapLatestItemPayloadToLegacy = (payload) => {
     return normalized;
 };
 
+const updateUiWithData = (payload) => {
+    const data = payload && typeof payload === 'object' ? payload : {};
+
+    applyLatestItemData(data);
+    const normalized = mapLatestItemPayloadToLegacy(data);
+    updateInterfaceFromData(normalized);
+
+    if (data.images && typeof data.images === 'object') {
+        gallerySlots.forEach((slot) => {
+            const slotKey = slot?.key;
+            if (!slotKey) {
+                return;
+            }
+
+            const src = data.images[slotKey];
+
+            if (typeof src === 'string' && src.trim() !== '') {
+                const newSrc = src.trim();
+                const prevSrc = lastKnownImages[slotKey];
+
+                if (!prevSrc || prevSrc !== newSrc) {
+                    setSlotImageSource(slot, newSrc);
+
+                    let statusKey = '';
+                    if (slotKey === 'image_1') statusKey = 'image_1_saved';
+                    else if (slotKey === 'image_2') statusKey = 'image_2_saved';
+                    else if (slotKey === 'image_3') statusKey = 'image_3_saved';
+
+                    if (statusKey) {
+                        SHOWN_STATUS_KEYS.delete(statusKey);
+                    }
+
+                    if (statusKey && !SHOWN_STATUS_KEYS.has(statusKey)) {
+                        SHOWN_STATUS_KEYS.add(statusKey);
+
+                        if (statusLogContainer) {
+                            const entry = document.createElement('p');
+                            entry.className = 'log-entry log-ok';
+                            if (statusKey === 'image_1_saved') entry.textContent = 'Bild 1 erfolgreich gespeichert.';
+                            if (statusKey === 'image_2_saved') entry.textContent = 'Bild 2 erfolgreich gespeichert.';
+                            if (statusKey === 'image_3_saved') entry.textContent = 'Bild 3 erfolgreich gespeichert.';
+                            statusLogContainer.prepend(entry);
+                            trimStatusLog();
+                            scrollStatusLogToTop();
+                        }
+                    }
+
+                    lastKnownImages[slotKey] = newSrc;
+                } else {
+                    setSlotImageSource(slot, newSrc);
+                    lastKnownImages[slotKey] = newSrc;
+                }
+            }
+        });
+    }
+
+    return normalized;
+};
+
 const appConfig = window.APP_CONFIG || {};
 const assetConfig = appConfig.assets || {};
 const DEFAULT_ASSET_BASE = '/assets';
@@ -446,11 +508,11 @@ gallerySlots.forEach((slot) => {
 });
 
 let isProcessing = false;
-let pollingTimer = null;
-let isPollingActive = false;
 let lastStatusText = '';
 let hasShownCompletion = false;
 let hasObservedActiveRun = false;
+let uploadHandlersInitialized = false;
+let historyHandlersInitialized = false;
 
 const TYPE_KEYWORDS = {
     ok: ['success', 'ok', 'positive', 'completed'],
@@ -920,24 +982,6 @@ const addPreviews = (files) => {
     });
 };
 
-const stopPolling = () => {
-    if (pollingTimer !== null) {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-    }
-    isPollingActive = false;
-};
-
-const startPolling = () => {
-    if (isPollingActive) {
-        return;
-    }
-
-    isPollingActive = true;
-    fetchLatestData();
-    pollingTimer = setInterval(fetchLatestData, POLLING_INTERVAL);
-};
-
 const uploadFiles = async (files) => {
     const uploads = Array.from(files).map(async (file) => {
         const formData = new FormData();
@@ -963,6 +1007,10 @@ const uploadFiles = async (files) => {
             }
 
             if (!response.ok) {
+                const errorMessage = typeof payload === 'object' && payload !== null && typeof payload.message === 'string'
+                    ? payload.message
+                    : `Upload fehlgeschlagen: ${file.name}`;
+                setStatus('error', errorMessage);
                 logResponse({
                     httpStatus: response.status,
                     payload,
@@ -992,14 +1040,16 @@ const uploadFiles = async (files) => {
             });
 
             if (!isSuccessful) {
+                const errorMessage = typeof result.message === 'string'
+                    ? result.message
+                    : `Upload fehlgeschlagen: ${file.name}`;
+                setStatus('error', errorMessage);
                 setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
                 return;
             }
 
-            setLoadingState(true);
-            if (processingIndicator) {
-                processingIndicator.textContent = 'Verarbeitung läuft…';
-            }
+            setStatus('info', 'Upload erfolgreich – Verarbeitung gestartet …');
+            setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
             hasShownCompletion = false;
             startPolling();
 
@@ -1035,6 +1085,7 @@ const uploadFiles = async (files) => {
             const message = sanitizeLogMessage(error?.message) || fallback;
             logMessage(message, 'error');
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+            setStatus('error', 'Uploadfehler – bitte erneut versuchen.');
         }
     });
 
@@ -1070,6 +1121,8 @@ const updateInterfaceFromData = (data) => {
 
     const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
     const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
+
+    workflowIsRunning = isRunning;
 
     if (isRunning && !isProcessing) {
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
@@ -1380,7 +1433,7 @@ const closeHistory = () => {
     }
 };
 
-const fetchLatestData = async () => {
+async function fetchLatestItem() {
     try {
         const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
             cache: 'no-store',
@@ -1391,11 +1444,7 @@ const fetchLatestData = async () => {
         }
 
         const raw = await response.json();
-        if (!raw || typeof raw !== 'object') {
-            return;
-        }
-
-        if (raw.ok !== true) {
+        if (!raw || typeof raw !== 'object' || raw.ok !== true) {
             return;
         }
 
@@ -1404,133 +1453,100 @@ const fetchLatestData = async () => {
         }
 
         const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+        const normalized = updateUiWithData(payload);
 
-        // Workflowstatus vom Backend prüfen
-        if (typeof payload.isrunning === 'boolean') {
-            if (payload.isrunning && !workflowIsRunning) {
-                workflowIsRunning = true;
-                setLoadingState(true, {
-                    indicatorText: 'Verarbeitung läuft…',
-                    indicatorState: 'running',
-                });
-            } else if (!payload.isrunning && workflowIsRunning) {
-                workflowIsRunning = false;
-                setLoadingState(false, {
-                    indicatorText: 'Workflow abgeschlossen',
-                    indicatorState: 'success',
-                });
-                stopPolling();
-            }
+        const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
+        const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : toBoolean(payload.isrunning);
+
+        if (!isRunning) {
+            setStatus('success', 'Workflow abgeschlossen');
+            stopPolling();
+        } else {
+            setStatus('info', 'Verarbeitung läuft …');
         }
-
-        applyLatestItemData(payload);
-        const normalized = mapLatestItemPayloadToLegacy(payload);
-        updateInterfaceFromData(normalized);
-
-        if (payload.images && typeof payload.images === 'object') {
-            gallerySlots.forEach((slot) => {
-                const slotKey = slot.key;
-                const src = payload.images[slotKey];
-
-                if (typeof src === 'string' && src.trim() !== '') {
-                    const newSrc = src.trim();
-
-                    // prüfen, ob sich das Bild geändert hat
-                    const prevSrc = lastKnownImages[slotKey];
-                    if (!prevSrc || prevSrc !== newSrc) {
-                        // im UI setzen
-                        setSlotImageSource(slot, newSrc);
-
-                        // Status-Eintrag erzeugen
-                        let statusKey = '';
-                        if (slotKey === 'image_1') statusKey = 'image_1_saved';
-                        else if (slotKey === 'image_2') statusKey = 'image_2_saved';
-                        else if (slotKey === 'image_3') statusKey = 'image_3_saved';
-
-                        if (statusKey) {
-                            SHOWN_STATUS_KEYS.delete(statusKey);
-                        }
-
-                        if (statusKey && !SHOWN_STATUS_KEYS.has(statusKey)) {
-                            SHOWN_STATUS_KEYS.add(statusKey);
-
-                            if (statusLogContainer) {
-                                const entry = document.createElement('p');
-                                entry.className = 'log-entry log-ok';
-                                if (statusKey === 'image_1_saved') entry.textContent = 'Bild 1 erfolgreich gespeichert.';
-                                if (statusKey === 'image_2_saved') entry.textContent = 'Bild 2 erfolgreich gespeichert.';
-                                if (statusKey === 'image_3_saved') entry.textContent = 'Bild 3 erfolgreich gespeichert.';
-                                statusLogContainer.prepend(entry);
-                                trimStatusLog();
-                                scrollStatusLogToTop();
-                            }
-                        }
-
-                        // neuen Wert merken
-                        lastKnownImages[slotKey] = newSrc;
-                    } else {
-                        // Bild ist gleich wie vorher → nur sicherstellen, dass es gesetzt ist
-                        setSlotImageSource(slot, newSrc);
-                        lastKnownImages[slotKey] = newSrc;
-                    }
-                }
-            });
-        }
-
     } catch (error) {
         console.error('Polling-Fehler:', error);
-        const fallbackMessage = 'Verbindung zum Server fehlgeschlagen.';
-        const sanitized = sanitizeLogMessage(error?.message) || fallbackMessage;
-        const statusMatch = sanitized.match(/(\d{3})/);
-        const statusCode = statusMatch ? Number(statusMatch[1]) : 500;
-        const normalized = normalizeStatusMessage(sanitized, Number.isFinite(statusCode) ? statusCode : 500);
-        renderNormalizedStatus({ ...normalized, level: 'error' });
+        setStatus('error', 'Fehler beim Abrufen des Status');
     }
-};
+}
 
-selectFileButton.addEventListener('click', () => fileInput.click());
+function setupUploadHandler() {
+    if (uploadHandlersInitialized) {
+        return;
+    }
 
-fileInput.addEventListener('change', (event) => {
-    handleFiles(event.target.files);
-    event.target.value = '';
-});
+    uploadHandlersInitialized = true;
 
-dropZone.addEventListener('dragenter', (event) => {
-    event.preventDefault();
-    dropZone.classList.add('dragover');
-});
+    if (selectFileButton) {
+        selectFileButton.addEventListener('click', () => {
+            if (fileInput) {
+                fileInput.click();
+            }
+        });
+    }
 
-dropZone.addEventListener('dragover', (event) => {
-    event.preventDefault();
-});
+    if (fileInput) {
+        fileInput.addEventListener('change', (event) => {
+            handleFiles(event.target.files);
+            event.target.value = '';
+        });
+    }
 
-dropZone.addEventListener('dragleave', (event) => {
-    if (event.target === dropZone) {
+    if (!dropZone) {
+        return;
+    }
+
+    dropZone.addEventListener('dragenter', (event) => {
+        event.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+    });
+
+    dropZone.addEventListener('dragleave', (event) => {
+        if (event.target === dropZone) {
+            dropZone.classList.remove('dragover');
+        }
+    });
+
+    dropZone.addEventListener('drop', (event) => {
+        event.preventDefault();
         dropZone.classList.remove('dragover');
-    }
-});
+        const files = event.dataTransfer?.files;
+        if (files) {
+            handleFiles(files);
+        }
+    });
 
-dropZone.addEventListener('drop', (event) => {
-    event.preventDefault();
-    dropZone.classList.remove('dragover');
-    const files = event.dataTransfer.files;
-    handleFiles(files);
-});
-
-dropZone.addEventListener('click', () => fileInput.click());
-
-if (HISTORY_TOGGLE) {
-    HISTORY_TOGGLE.addEventListener('click', () => {
-        if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
-            closeHistory();
-        } else {
-            openHistory();
+    dropZone.addEventListener('click', () => {
+        if (fileInput) {
+            fileInput.click();
         }
     });
 }
 
-if (HISTORY_CLOSE) {
-    HISTORY_CLOSE.addEventListener('click', closeHistory);
+function setupHistoryHandler() {
+    if (historyHandlersInitialized) {
+        return;
+    }
+
+    historyHandlersInitialized = true;
+
+    if (HISTORY_TOGGLE) {
+        HISTORY_TOGGLE.addEventListener('click', () => {
+            if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
+                closeHistory();
+            } else {
+                openHistory();
+            }
+        });
+    }
+
+    if (HISTORY_CLOSE) {
+        HISTORY_CLOSE.addEventListener('click', closeHistory);
+    }
 }
 
 lightboxClose.addEventListener('click', closeLightbox);
@@ -1573,6 +1589,94 @@ gallerySlots.forEach((slot) => {
     });
 });
 
+function clearLogDisplay() {
+    if (!statusLogContainer) {
+        return;
+    }
+
+    statusLogContainer.innerHTML = '';
+    statusLogContainer.textContent = '';
+
+    if (typeof SHOWN_STATUS_KEYS.clear === 'function') {
+        SHOWN_STATUS_KEYS.clear();
+    }
+
+    lastStatusText = '';
+}
+
+function clearProductFields() {
+    if (articleNameInput) {
+        articleNameInput.value = '';
+    }
+
+    if (articleDescriptionInput) {
+        articleDescriptionInput.value = '';
+    }
+}
+
+function showPlaceholderImages() {
+    if (previewList) {
+        previewList.innerHTML = '';
+    }
+
+    gallerySlots.forEach((slot) => {
+        clearSlotContent(slot);
+        setSlotLoadingState(slot, false);
+    });
+
+    Object.keys(lastKnownImages).forEach((key) => {
+        lastKnownImages[key] = null;
+    });
+}
+
+function setStatus(level, message) {
+    if (!statusMessageElement) {
+        return;
+    }
+
+    let color = 'blue';
+    if (level === 'success') {
+        color = 'green';
+    } else if (level === 'error') {
+        color = 'red';
+    }
+
+    statusMessageElement.textContent = message;
+    statusMessageElement.style.color = color;
+}
+
+function startPolling() {
+    if (isPolling) {
+        return;
+    }
+
+    isPolling = true;
+    workflowIsRunning = true;
+    fetchLatestItem();
+    pollInterval = setInterval(fetchLatestItem, POLLING_INTERVAL);
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+
+    pollInterval = null;
+    isPolling = false;
+    workflowIsRunning = false;
+}
+
+function setInitialUiState() {
+    stopPolling();
+    setStatus('ready', 'Bereit zum Upload');
+    clearProductFields();
+    showPlaceholderImages();
+    clearLogDisplay();
+    setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+    hasShownCompletion = false;
+    hasObservedActiveRun = false;
+}
+
 const initializeBackendState = async () => {
     try {
         const response = await fetch(`${initializationEndpoint}?${Date.now()}`, {
@@ -1587,58 +1691,13 @@ const initializeBackendState = async () => {
         const sanitized = sanitizeLogMessage(error?.message) || 'Backend-Initialisierung fehlgeschlagen.';
         const normalized = normalizeStatusMessage(sanitized, 500);
         renderNormalizedStatus({ ...normalized, level: 'error' });
+        setStatus('error', sanitized);
     }
 };
 
-const loadInitialState = async () => {
-    setLoadingState(false);
-
-    try {
-        await initializeBackendState();
-
-        const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
-            cache: 'no-store',
-        });
-
-        if (!response.ok) {
-            return;
-        }
-
-        const raw = await response.json();
-        if (!raw || typeof raw !== 'object') {
-            return;
-        }
-
-        if (raw.ok !== true) {
-            console.error('Fehler beim Abrufen der Artikeldaten', raw.error);
-            return;
-        }
-
-        const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
-
-        if (payload.images && typeof payload.images === 'object') {
-            ['image_1', 'image_2', 'image_3'].forEach((slotKey) => {
-                const src = payload.images[slotKey];
-                if (typeof src === 'string' && src.trim() !== '') {
-                    lastKnownImages[slotKey] = src.trim();
-                }
-            });
-        }
-
-        applyLatestItemData(payload);
-        const normalized = mapLatestItemPayloadToLegacy(payload);
-        updateInterfaceFromData(normalized);
-
-        if (Object.prototype.hasOwnProperty.call(normalized, 'isrunning') && toBoolean(normalized.isrunning)) {
-            hasShownCompletion = false;
-            startPolling();
-        }
-    } catch (error) {
-        console.error('Initialisierung fehlgeschlagen:', error);
-        const sanitized = sanitizeLogMessage(error?.message) || 'Initialisierung fehlgeschlagen.';
-        const normalized = normalizeStatusMessage(sanitized, 500);
-        renderNormalizedStatus({ ...normalized, level: 'error' });
-    }
-};
-
-loadInitialState();
+document.addEventListener('DOMContentLoaded', () => {
+    setInitialUiState();
+    setupUploadHandler();
+    setupHistoryHandler();
+    initializeBackendState();
+});
