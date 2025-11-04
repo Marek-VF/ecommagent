@@ -128,3 +128,15 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `status_logs` (`user_id`,`level`,`status_code`,`message`,`source`)
 SELECT 1, 'info', 200, 'DB-Basis angelegt', 'migration'
 WHERE EXISTS (SELECT 1 FROM `users` WHERE `id`=1);
+
+-- =========================================
+-- ALTERS (Bestandsdatenbanken aktualisieren)
+-- =========================================
+ALTER TABLE `item_notes`
+  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+
+ALTER TABLE `item_images`
+  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+
+ALTER TABLE `status_logs`
+  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
