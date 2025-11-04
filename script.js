@@ -9,8 +9,15 @@ const processingIndicator = document.getElementById('processing-indicator');
 const statusLogContainer = document.getElementById('status-log');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
+const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
+const HISTORY_LIST = document.getElementById('history-list');
+const HISTORY_TOGGLE = document.getElementById('history-toggle');
+const HISTORY_CLOSE = document.getElementById('history-close');
 
 let workflowIsRunning = false;
+
+const RUNS_ENDPOINT = 'api/get-runs.php';
+const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
 
 const uploadEndpoint = 'upload.php';
 const initializationEndpoint = 'init.php';
@@ -80,6 +87,8 @@ const lastKnownImages = {
     image_2: null,
     image_3: null,
 };
+
+let selectedHistoryRunId = null;
 
 const normalizeStatusMessage = (rawMessage = '', httpStatus = null) => {
     const msg = String(rawMessage || '').trim();
@@ -748,6 +757,19 @@ const logMessage = (message, type = 'info') => {
     renderNormalizedStatus(normalized);
 };
 
+const renderLog = (level, message, statusCode) => {
+    const sanitizedMessage = sanitizeLogMessage(message);
+    if (!sanitizedMessage) {
+        return;
+    }
+
+    const numericStatus = Number(statusCode);
+    const httpStatus = Number.isFinite(numericStatus) ? numericStatus : null;
+    const normalized = normalizeStatusMessage(sanitizedMessage, httpStatus);
+    const adjusted = applyLevelHint(normalized, level);
+    renderNormalizedStatus(adjusted);
+};
+
 const logResponse = ({ httpStatus, payload, fallbackMessage, fallbackType }) => {
     const { message, type } = extractMessageAndCode(payload);
     const fallback = sanitizeLogMessage(fallbackMessage);
@@ -1109,6 +1131,255 @@ const updateInterfaceFromData = (data) => {
     }
 };
 
+const applyRunDataToUI = (payload) => {
+    const data = payload && typeof payload === 'object' ? payload : {};
+    const note = data.note && typeof data.note === 'object' ? data.note : {};
+    const images = Array.isArray(data.images) ? data.images : [];
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+
+    if (articleNameInput) {
+        articleNameInput.value = (note.product_name || '').trim();
+    }
+
+    if (articleDescriptionInput) {
+        articleDescriptionInput.value = note.product_description || '';
+    }
+
+    const normalizedImages = images.map((entry) => ({
+        position: Number(entry.position),
+        url: typeof entry.url === 'string' ? entry.url.trim() : '',
+    }));
+
+    gallerySlots.forEach((slot) => {
+        const slotKey = slot?.key;
+        if (!slotKey) {
+            return;
+        }
+
+        let expectedPosition = null;
+        if (slotKey === 'image_1') expectedPosition = 1;
+        else if (slotKey === 'image_2') expectedPosition = 2;
+        else if (slotKey === 'image_3') expectedPosition = 3;
+
+        if (!expectedPosition) {
+            return;
+        }
+
+        const image = normalizedImages.find((entry) => Number.isFinite(entry.position) && entry.position === expectedPosition);
+        if (image && image.url) {
+            setSlotImageSource(slot, image.url);
+            setSlotLoadingState(slot, false);
+            lastKnownImages[slotKey] = image.url;
+        } else {
+            clearSlotContent(slot);
+            setSlotLoadingState(slot, false);
+            lastKnownImages[slotKey] = null;
+        }
+    });
+
+    if (statusLogContainer) {
+        statusLogContainer.textContent = '';
+    }
+    if (typeof SHOWN_STATUS_KEYS.clear === 'function') {
+        SHOWN_STATUS_KEYS.clear();
+    }
+    lastStatusText = '';
+
+    if (logs.length > 0) {
+        logs
+            .slice()
+            .reverse()
+            .forEach((entry) => {
+                if (!entry || typeof entry !== 'object') {
+                    return;
+                }
+
+                const message = entry.message ?? '';
+                const statusCode = entry.status_code ?? entry.code ?? null;
+                const level = entry.level || 'info';
+                renderLog(level, message, statusCode);
+            });
+    } else if (data.run && data.run.last_message) {
+        renderLog('info', data.run.last_message, data.run.status_code ?? null);
+    }
+
+    if (data.run) {
+        const statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
+        const indicatorMessage = sanitizeLogMessage(data.run.last_message) || sanitizeLogMessage(data.run.status) || 'Bereit.';
+        let indicatorState = 'idle';
+
+        if (statusRaw === 'running') {
+            indicatorState = 'running';
+        } else if (['finished', 'success', 'completed'].includes(statusRaw)) {
+            indicatorState = 'success';
+        } else if (['failed', 'error'].includes(statusRaw)) {
+            indicatorState = 'error';
+        }
+
+        updateProcessingIndicator(indicatorMessage || 'Bereit.', indicatorState);
+    }
+};
+
+const setActiveRun = (runId) => {
+    const numericId = Number(runId);
+    selectedHistoryRunId = Number.isFinite(numericId) ? numericId : null;
+
+    if (!HISTORY_LIST) {
+        return;
+    }
+
+    Array.from(HISTORY_LIST.children).forEach((element) => {
+        if (!(element instanceof HTMLElement)) {
+            return;
+        }
+
+        const candidateId = Number(element.dataset.runId);
+        const isActive = selectedHistoryRunId !== null && Number.isFinite(candidateId) && candidateId === selectedHistoryRunId;
+
+        if (isActive) {
+            element.classList.add('history-list__item--active');
+            element.setAttribute('aria-current', 'true');
+        } else {
+            element.classList.remove('history-list__item--active');
+            element.removeAttribute('aria-current');
+        }
+    });
+};
+
+const loadRunDetails = async (runId) => {
+    const numericId = Number(runId);
+    if (!Number.isFinite(numericId) || numericId <= 0) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${RUN_DETAILS_ENDPOINT}?id=${encodeURIComponent(numericId)}&${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const json = await response.json();
+        if (!json || typeof json !== 'object' || json.ok !== true) {
+            return;
+        }
+
+        const data = json.data && typeof json.data === 'object' ? json.data : {};
+        applyRunDataToUI(data);
+        setActiveRun(numericId);
+    } catch (error) {
+        console.error('Run-Details laden fehlgeschlagen', error);
+    }
+};
+
+const renderRuns = (runs, options = {}) => {
+    if (!HISTORY_LIST) {
+        return;
+    }
+
+    HISTORY_LIST.innerHTML = '';
+
+    const emptyMessage = typeof options.emptyMessage === 'string' && options.emptyMessage.trim() !== ''
+        ? options.emptyMessage.trim()
+        : 'Keine Verläufe vorhanden.';
+
+    if (!Array.isArray(runs) || runs.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'history-list__empty';
+        empty.textContent = emptyMessage;
+        HISTORY_LIST.appendChild(empty);
+        return;
+    }
+
+    runs.forEach((run) => {
+        if (!run || typeof run !== 'object') {
+            return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'history-list__item';
+        item.dataset.runId = run.id;
+        item.tabIndex = 0;
+        item.textContent = `${run.date} – ${run.title}`;
+        if (run.last_message) {
+            item.title = run.last_message;
+        }
+
+        item.addEventListener('click', () => {
+            loadRunDetails(run.id);
+        });
+
+        item.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                loadRunDetails(run.id);
+            }
+        });
+
+        if (selectedHistoryRunId !== null && Number(run.id) === selectedHistoryRunId) {
+            item.classList.add('history-list__item--active');
+            item.setAttribute('aria-current', 'true');
+        }
+
+        HISTORY_LIST.appendChild(item);
+    });
+};
+
+const fetchRuns = async () => {
+    if (!RUNS_ENDPOINT) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${RUNS_ENDPOINT}?${Date.now()}`, {
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Serverantwort ${response.status}`);
+        }
+
+        const json = await response.json();
+        if (!json || typeof json !== 'object' || json.ok !== true) {
+            renderRuns([], { emptyMessage: 'Keine Verläufe verfügbar.' });
+            return;
+        }
+
+        renderRuns(json.data || []);
+    } catch (error) {
+        console.error('Runs laden fehlgeschlagen', error);
+        renderRuns([], { emptyMessage: 'Verläufe konnten nicht geladen werden.' });
+    }
+};
+
+const openHistory = () => {
+    if (!HISTORY_SIDEBAR) {
+        return;
+    }
+
+    HISTORY_SIDEBAR.classList.add('history-sidebar--open');
+    HISTORY_SIDEBAR.setAttribute('aria-hidden', 'false');
+    if (HISTORY_TOGGLE) {
+        HISTORY_TOGGLE.setAttribute('aria-expanded', 'true');
+    }
+
+    fetchRuns();
+};
+
+const closeHistory = () => {
+    if (!HISTORY_SIDEBAR) {
+        return;
+    }
+
+    HISTORY_SIDEBAR.classList.remove('history-sidebar--open');
+    HISTORY_SIDEBAR.setAttribute('aria-hidden', 'true');
+    if (HISTORY_TOGGLE) {
+        HISTORY_TOGGLE.setAttribute('aria-expanded', 'false');
+    }
+};
+
 const fetchLatestData = async () => {
     try {
         const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
@@ -1248,6 +1519,20 @@ dropZone.addEventListener('drop', (event) => {
 
 dropZone.addEventListener('click', () => fileInput.click());
 
+if (HISTORY_TOGGLE) {
+    HISTORY_TOGGLE.addEventListener('click', () => {
+        if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
+            closeHistory();
+        } else {
+            openHistory();
+        }
+    });
+}
+
+if (HISTORY_CLOSE) {
+    HISTORY_CLOSE.addEventListener('click', closeHistory);
+}
+
 lightboxClose.addEventListener('click', closeLightbox);
 lightbox.addEventListener('click', (event) => {
     if (event.target === lightbox) {
@@ -1256,8 +1541,16 @@ lightbox.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && lightbox.classList.contains('open')) {
+    if (event.key !== 'Escape') {
+        return;
+    }
+
+    if (lightbox.classList.contains('open')) {
         closeLightbox();
+    }
+
+    if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
+        closeHistory();
     }
 });
 
