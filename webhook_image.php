@@ -113,26 +113,36 @@ function ensureAuthorized(array $config): void
     }
 }
 
-function resolveUserId(): ?int
+function resolveUserId(): int
 {
-    if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
-        $userId = $_SESSION['user']['id'] ?? null;
-        if ($userId !== null && is_numeric($userId)) {
-            $userId = (int) $userId;
-            if ($userId > 0) {
-                return $userId;
-            }
-        }
-    }
-
-    if (isset($_SESSION['user_id']) && is_numeric($_SESSION['user_id'])) {
-        $userId = (int) $_SESSION['user_id'];
+    if (isset($_POST['user_id']) && is_numeric($_POST['user_id'])) {
+        $userId = (int) $_POST['user_id'];
         if ($userId > 0) {
             return $userId;
         }
     }
 
-    return 1;
+    if (isset($_GET['user_id']) && is_numeric($_GET['user_id'])) {
+        $userId = (int) $_GET['user_id'];
+        if ($userId > 0) {
+            return $userId;
+        }
+    }
+
+    if (isset($_SESSION['user']['id']) && is_numeric($_SESSION['user']['id'])) {
+        $userId = (int) $_SESSION['user']['id'];
+        if ($userId > 0) {
+            return $userId;
+        }
+    }
+
+    jsonResponse(401, [
+        'ok'      => false,
+        'message' => 'user_id missing',
+        'logout'  => true,
+    ]);
+
+    return 0;
 }
 
 function normalizeNoteId(mixed $value): ?int
