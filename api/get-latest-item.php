@@ -6,6 +6,23 @@ header('Content-Type: application/json; charset=utf-8');
 $config = require __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+$sessionUserId = $_SESSION['user']['id'] ?? null;
+if (!is_numeric($sessionUserId) || (int) $sessionUserId <= 0) {
+    http_response_code(401);
+    echo json_encode([
+        'ok'     => false,
+        'error'  => 'not authenticated',
+        'logout' => true,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+$userId = (int) $sessionUserId;
+
 try {
     $pdo = getPDO();
 } catch (Throwable $exception) {
@@ -17,9 +34,11 @@ try {
     exit;
 }
 
-$baseUrl = rtrim($config['base_url'] ?? '', '/') . '/';
-
-$userId = 1;
+$baseUrlConfig = $config['base_url'] ?? '';
+$baseUrl = '';
+if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
+    $baseUrl = rtrim($baseUrlConfig, '/');
+}
 
 try {
     $noteStatement = $pdo->prepare(
@@ -31,19 +50,6 @@ try {
     );
     $noteStatement->execute(['user_id' => $userId]);
     $note = $noteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
-
-    if ($note === null) {
-        $fallbackNoteStatement = $pdo->query(
-            'SELECT product_name, product_description
-             FROM item_notes
-             ORDER BY created_at DESC, id DESC
-             LIMIT 1'
-        );
-
-        if ($fallbackNoteStatement !== false) {
-            $note = $fallbackNoteStatement->fetch(PDO::FETCH_ASSOC) ?: null;
-        }
-    }
 
     $productName = isset($note['product_name']) ? (string) $note['product_name'] : '';
     $productDescription = isset($note['product_description']) ? (string) $note['product_description'] : '';
@@ -58,27 +64,16 @@ try {
     $stateStatement->execute(['user_id' => $userId]);
     $userState = $stateStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 
-    if ($userState === null) {
-        $fallbackStateStatement = $pdo->query(
-            'SELECT last_status, last_message
-             FROM user_state
-             ORDER BY updated_at DESC
-             LIMIT 1'
-        );
-
-        if ($fallbackStateStatement !== false) {
-            $userState = $fallbackStateStatement->fetch(PDO::FETCH_ASSOC) ?: null;
-        }
-    }
-
     $lastStatus = isset($userState['last_status']) ? (string) $userState['last_status'] : '';
     $lastMessage = isset($userState['last_message']) ? (string) $userState['last_message'] : '';
 
-    $isRunning = true;
+    $isRunning = false;
     if ($lastStatus !== '') {
         $normalizedStatus = strtolower(trim($lastStatus));
         if ($normalizedStatus === 'finished') {
             $isRunning = false;
+        } elseif ($normalizedStatus === 'running') {
+            $isRunning = true;
         }
     }
 
@@ -90,18 +85,6 @@ try {
     );
     $imagesStatement->execute(['user_id' => $userId]);
     $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
-
-    if (!$imageRows) {
-        $fallbackImagesStatement = $pdo->query(
-            'SELECT url, position
-             FROM item_images
-             ORDER BY created_at DESC, id DESC'
-        );
-
-        if ($fallbackImagesStatement !== false) {
-            $imageRows = $fallbackImagesStatement->fetchAll(PDO::FETCH_ASSOC);
-        }
-    }
 
     $images = [
         'image_1' => null,
@@ -118,7 +101,7 @@ try {
         }
 
         if ($baseUrl !== '' && !preg_match('#^https?://#i', $url)) {
-            $url = $baseUrl . ltrim($url, '/');
+            $url = $baseUrl . '/' . ltrim($url, '/');
         }
 
         $key = null;

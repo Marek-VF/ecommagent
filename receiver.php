@@ -100,26 +100,29 @@ function ensureAuthorized(array $config): void
     }
 }
 
-function resolveUserId(): ?int
+function resolveUserId(array $payload): int
 {
-    if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
-        $userId = $_SESSION['user']['id'] ?? null;
-        if ($userId !== null && is_numeric($userId)) {
-            $userId = (int) $userId;
-            if ($userId > 0) {
-                return $userId;
-            }
-        }
-    }
-
-    if (isset($_SESSION['user_id']) && is_numeric($_SESSION['user_id'])) {
-        $userId = (int) $_SESSION['user_id'];
+    if (isset($payload['user_id']) && is_numeric($payload['user_id'])) {
+        $userId = (int) $payload['user_id'];
         if ($userId > 0) {
             return $userId;
         }
     }
 
-    return 1;
+    if (isset($_SESSION['user']['id']) && is_numeric($_SESSION['user']['id'])) {
+        $userId = (int) $_SESSION['user']['id'];
+        if ($userId > 0) {
+            return $userId;
+        }
+    }
+
+    jsonResponse(401, [
+        'ok'      => false,
+        'message' => 'user_id missing in payload and no session',
+        'logout'  => true,
+    ]);
+
+    return 0;
 }
 
 function sanitizeString(?string $value, ?int $maxLength = null): ?string
@@ -155,6 +158,27 @@ function extractSanitizedField(array $payload, array $keys, ?int $maxLength = nu
         $sanitized = sanitizeString($value, $maxLength);
         if ($sanitized !== null) {
             return $sanitized;
+        }
+    }
+
+    return null;
+}
+
+function extractRunId(array $payload): ?int
+{
+    $candidates = ['current_run_id', 'run_id', 'workflow_run_id'];
+
+    foreach ($candidates as $key) {
+        if (!isset($payload[$key])) {
+            continue;
+        }
+
+        $value = $payload[$key];
+        if (is_numeric($value)) {
+            $runId = (int) $value;
+            if ($runId > 0) {
+                return $runId;
+            }
         }
     }
 
@@ -289,13 +313,15 @@ try {
     $productDescription = extractSanitizedField($payload, ['product_description', 'produktbeschreibung']);
     $statusMessage = extractSanitizedField($payload, ['statusmessage', 'status_message', 'status'], 255);
     $isRunningField = $payload['isrunning'] ?? $payload['is_running'] ?? null;
+    $currentRunId = extractRunId($payload);
 
     $pdo = auth_pdo();
-    $userId = resolveUserId();
-    if ($userId === null || $userId <= 0) {
+    $userId = resolveUserId($payload);
+    if ($userId <= 0) {
         jsonResponse(401, [
             'ok'      => false,
             'message' => 'Kein Benutzer ermittelt.',
+            'logout'  => true,
         ]);
     }
 
@@ -314,12 +340,13 @@ try {
         $lastMessage = $isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.';
 
         $statement = $pdo->prepare(
-            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
-             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, NOW())
+            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
+             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
              ON DUPLICATE KEY UPDATE
                  last_status = VALUES(last_status),
                  last_message = VALUES(last_message),
                  last_payload_summary = VALUES(last_payload_summary),
+                 current_run_id = VALUES(current_run_id),
                  updated_at = NOW()'
         );
 
@@ -328,6 +355,7 @@ try {
             ':last_status'          => $lastStatus,
             ':last_message'         => $lastMessage,
             ':last_payload_summary' => $raw,
+            ':current_run_id'       => $currentRunId,
         ]);
 
         jsonResponse(200, [
@@ -359,12 +387,13 @@ try {
         $lastMessage = $statusMessage ?? 'Daten empfangen.';
 
         $upsertState = $pdo->prepare(
-            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, updated_at)
-             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, NOW())
+            'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
+             VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
              ON DUPLICATE KEY UPDATE
                  last_status = VALUES(last_status),
                  last_message = VALUES(last_message),
                  last_payload_summary = VALUES(last_payload_summary),
+                 current_run_id = VALUES(current_run_id),
                  updated_at = NOW()'
         );
         $upsertState->execute([
@@ -372,6 +401,7 @@ try {
             ':last_status'          => 'running',
             ':last_message'         => $lastMessage,
             ':last_payload_summary' => $payloadSummary,
+            ':current_run_id'       => $currentRunId,
         ]);
 
         $pdo->commit();

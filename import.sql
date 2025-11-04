@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS `user_state` (
   `last_message` VARCHAR(255) NULL,
   `last_image_url` TEXT NULL,
   `last_payload_summary` TEXT NULL,
+  `current_run_id` INT UNSIGNED NULL,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`),
   CONSTRAINT `fk_user_state_user`

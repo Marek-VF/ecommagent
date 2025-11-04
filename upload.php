@@ -29,6 +29,20 @@ if (!auth_is_logged_in()) {
         'status'    => 'unauthorized',
         'message'   => 'Anmeldung erforderlich.',
         'timestamp' => $timestamp(),
+        'logout'    => true,
+    ], 401);
+}
+
+$user = auth_user();
+$userId = isset($user['id']) && is_numeric($user['id']) ? (int) $user['id'] : 0;
+
+if ($userId <= 0) {
+    $respond([
+        'success'   => false,
+        'status'    => 'unauthorized',
+        'message'   => 'Nicht angemeldet. Bitte erneut einloggen.',
+        'timestamp' => $timestamp(),
+        'logout'    => true,
     ], 401);
 }
 
@@ -113,11 +127,14 @@ try {
         throw new RuntimeException('Workflow-Webhook ist nicht konfiguriert.');
     }
 
-    $payload = json_encode([
-        'image_url' => $publicUrl,
-        'file_name' => $storedName,
-        'timestamp' => $timestamp(),
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
+    $postFields = [
+        'file'       => $curlFile,
+        'user_id'    => $userId,
+        'image_url'  => $publicUrl,
+        'file_name'  => $storedName,
+        'timestamp'  => $timestamp(),
+    ];
 
     $ch = curl_init($webhook);
     if ($ch === false) {
@@ -126,23 +143,22 @@ try {
 
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json, */*;q=0.8'],
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS     => $postFields,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json, */*;q=0.8'],
     ]);
 
     $webhookResponse = curl_exec($ch);
     $webhookStatus   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: null;
+    $curlError       = curl_error($ch);
+    curl_close($ch);
 
     if ($webhookResponse === false) {
-        $errorMessage = curl_error($ch) ?: 'Unbekannter Fehler bei der Webhook-Ausführung.';
-        curl_close($ch);
+        $errorMessage = $curlError !== '' ? $curlError : 'Unbekannter Fehler bei der Webhook-Ausführung.';
         throw new RuntimeException('Webhook-Aufruf fehlgeschlagen: ' . $errorMessage);
     }
-
-    curl_close($ch);
 
     $forwardResponse = json_decode($webhookResponse, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
