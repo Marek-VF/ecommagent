@@ -59,9 +59,26 @@ $appConfig = [
 <?php endif; ?>
 </head>
 <body>
+    <div id="history-sidebar" class="history-sidebar" aria-hidden="true">
+        <div class="history-sidebar__header">
+            <h2>Verläufe</h2>
+            <button id="history-close" class="history-sidebar__close" type="button" aria-label="Schließen">&times;</button>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
+    </div>
     <div class="app">
         <header class="app__header">
-            <h1>Ecomm Agent</h1>
+            <div class="app__header-left">
+                <button
+                    id="history-toggle"
+                    class="history-toggle"
+                    type="button"
+                    aria-label="Historie öffnen"
+                    aria-controls="history-sidebar"
+                    aria-expanded="false"
+                >&#9776;</button>
+                <h1>Ecomm Agent</h1>
+            </div>
             <?php if ($currentUser !== null): ?>
             <div class="app__user">
                 <span class="app__user-name">Angemeldet als <?php echo htmlspecialchars((string) ($currentUser['name'] ?? $currentUser['email']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
