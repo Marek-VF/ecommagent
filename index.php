@@ -114,6 +114,7 @@ $appConfig = [
                             <h3 class="status-panel__title">Status</h3>
                             <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
                         </div>
+                        <div id="status-message" class="status-bar" aria-live="polite">Bereit zum Upload</div>
                         <div
                             id="status-log"
                             class="status-panel__log"
