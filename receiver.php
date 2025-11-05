@@ -271,10 +271,6 @@ try {
         ':uid'    => $userId,
     ]);
 
-    if ($updateRun->rowCount() === 0) {
-        throw new RuntimeException('run not found');
-    }
-
     $stateStmt = $pdo->prepare(
         'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:uid, :rid, :status, :message, NOW())'
         . ' ON DUPLICATE KEY UPDATE'
@@ -297,9 +293,8 @@ try {
     }
 
     json_response(false, $runtimeException->getMessage(), [
-        'run_id'   => $runId,
-        'status'   => $statusStr,
-        'message'  => $message,
+        'run_id' => $runId,
+        'status' => $statusStr,
     ], 404);
     return;
 } catch (Throwable $exception) {
