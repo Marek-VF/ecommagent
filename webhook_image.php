@@ -397,6 +397,27 @@ try {
     }
 
     $runId = (int) $runId;
+
+    $noteLookup = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+    $noteLookup->execute([
+        ':user' => $userId,
+        ':run'  => $runId,
+    ]);
+    $existingNoteId = $noteLookup->fetchColumn();
+
+    if ($existingNoteId === false) {
+        $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
+        $createNote->execute([
+            ':user' => $userId,
+            ':run'  => $runId,
+        ]);
+        $existingNoteId = $pdo->lastInsertId();
+    }
+
+    if ($noteId === null && $existingNoteId !== false) {
+        $noteId = (int) $existingNoteId;
+    }
+
     $shouldUpdateState = $currentRunId === null || $currentRunId === $runId;
 
     $uploadDirConfig = $config['upload_dir'] ?? (__DIR__ . '/uploads/');

@@ -94,8 +94,10 @@ $userId = isset($payload['user_id']) ? (int)$payload['user_id'] : 0;
 $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
-$name = isset($payload['product_name']) ? trim((string)$payload['product_name']) : '';
-$desc = isset($payload['product_description']) ? trim((string)$payload['product_description']) : '';
+$hasNameField = array_key_exists('product_name', $payload);
+$hasDescField = array_key_exists('product_description', $payload);
+$name = $hasNameField ? trim((string)$payload['product_name']) : '';
+$desc = $hasDescField ? trim((string)$payload['product_description']) : '';
 $message = isset($payload['message']) ? trim((string)$payload['message']) : '';
 if ($message === '' && isset($payload['status'])) {
     $message = trim((string)$payload['status']);
@@ -114,6 +116,9 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $errors = [];
 $runId = 0;
+$noteId = null;
+$existingNoteName = '';
+$existingNoteDescription = '';
 
 // 1) aktuellen Run ermitteln
 try {
@@ -134,39 +139,52 @@ if ($runId === 0) {
     }
 }
 
-// 2) Artikeldaten speichern (optional)
-if ($name !== '' || $desc !== '') {
-    if ($runId > 0) {
-        try {
-            $stmt = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :uid AND run_id = :rid LIMIT 1');
-            $stmt->execute([':uid' => $userId, ':rid' => $runId]);
-            $noteId = (int)($stmt->fetchColumn() ?? 0);
+// 2) Notiz für den aktuellen Run sicherstellen
+if ($runId > 0) {
+    try {
+        $stmt = $pdo->prepare('SELECT id, product_name, product_description FROM item_notes WHERE user_id = :uid AND run_id = :rid ORDER BY id ASC LIMIT 1');
+        $stmt->execute([':uid' => $userId, ':rid' => $runId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($noteId > 0) {
-                $stmt = $pdo->prepare("UPDATE item_notes SET product_name = :pname, product_description = :pdesc, source = 'n8n' WHERE id = :nid");
-                $stmt->execute([
-                    ':pname' => $name,
-                    ':pdesc' => $desc,
-                    ':nid'   => $noteId,
-                ]);
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, :pname, :pdesc, 'n8n')");
-                $stmt->execute([
-                    ':uid'   => $userId,
-                    ':rid'   => $runId,
-                    ':pname' => $name,
-                    ':pdesc' => $desc,
-                ]);
-            }
-        } catch (Throwable $e) {
-            $errors[] = 'item_notes write failed: ' . $e->getMessage();
+        if ($row !== false) {
+            $noteId = (int) $row['id'];
+            $existingNoteName = isset($row['product_name']) ? (string) $row['product_name'] : '';
+            $existingNoteDescription = isset($row['product_description']) ? (string) $row['product_description'] : '';
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, '', '', 'n8n')");
+            $stmt->execute([
+                ':uid' => $userId,
+                ':rid' => $runId,
+            ]);
+            $noteId = (int) $pdo->lastInsertId();
+            $existingNoteName = '';
+            $existingNoteDescription = '';
         }
-    } else {
-        $errors[] = 'item_notes skipped: run_id missing';
+    } catch (Throwable $e) {
+        $errors[] = 'item_notes ensure failed: ' . $e->getMessage();
+    }
+} else {
+    $errors[] = 'item_notes skipped: run_id missing';
+}
+
+// 3) Artikeldaten speichern (optional)
+if ($noteId !== null && ($hasNameField || $hasDescField)) {
+    try {
+        $newName = $hasNameField ? $name : $existingNoteName;
+        $newDesc = $hasDescField ? $desc : $existingNoteDescription;
+
+        $stmt = $pdo->prepare("UPDATE item_notes SET product_name = :pname, product_description = :pdesc, source = 'n8n' WHERE id = :nid");
+        $stmt->execute([
+            ':pname' => $newName,
+            ':pdesc' => $newDesc,
+            ':nid'   => $noteId,
+        ]);
+    } catch (Throwable $e) {
+        $errors[] = 'item_notes update failed: ' . $e->getMessage();
     }
 }
 
-// 3) user_state + workflow_runs aktualisieren
+// 4) user_state + workflow_runs aktualisieren
 if ($runId > 0) {
     try {
         $statusStr = $isRunning ? 'running' : 'finished';

@@ -75,18 +75,37 @@ try {
     }
 
     if ($runId === null) {
-        echo json_encode([
-            'ok'   => true,
-            'data' => [
-                'isrunning'           => false,
-                'status'              => 'idle',
-                'message'             => 'Bereit zum Upload',
-                'product_name'        => '',
-                'product_description' => '',
-                'images'              => [],
-            ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+        $imageRunStatement = $pdo->prepare(
+            'SELECT run_id
+             FROM item_images
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1'
+        );
+        $imageRunStatement->execute([':user_id' => $userId]);
+        $imageRunId = $imageRunStatement->fetchColumn();
+
+        if ($imageRunId !== false) {
+            $runId = (int) $imageRunId;
+            if ($runId <= 0) {
+                $runId = null;
+            }
+        }
+
+        if ($runId === null) {
+            echo json_encode([
+                'ok'   => true,
+                'data' => [
+                    'isrunning'           => false,
+                    'status'              => 'idle',
+                    'message'             => 'Bereit zum Upload',
+                    'product_name'        => '',
+                    'product_description' => '',
+                    'images'              => [],
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
     }
 
     $runStatement = $pdo->prepare(
@@ -102,15 +121,56 @@ try {
     $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($run === null) {
+        $statusValue = $stateStatus !== '' ? $stateStatus : 'running';
+        $messageValue = $stateMessage !== '' ? $stateMessage : ($statusValue === 'finished' ? 'Workflow abgeschlossen' : 'Verarbeitung läuft …');
+
+        $images = [];
+
+        $imagesStatement = $pdo->prepare(
+            'SELECT url, position
+             FROM item_images
+             WHERE user_id = :user_id AND run_id = :run_id
+             ORDER BY position ASC, id ASC'
+        );
+        $imagesStatement->execute([
+            ':user_id' => $userId,
+            ':run_id'  => $runId,
+        ]);
+        $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($imageRows as $row) {
+            $url = isset($row['url']) ? (string) $row['url'] : '';
+            if ($url === '') {
+                continue;
+            }
+
+            if ($baseUrl !== '' && !preg_match('#^https?://#i', $url)) {
+                $url = $baseUrl . '/' . ltrim($url, '/');
+            }
+
+            $position = isset($row['position']) ? (int) $row['position'] : 0;
+            $images[] = [
+                'url'      => $url,
+                'position' => $position,
+            ];
+        }
+
         echo json_encode([
             'ok'   => true,
             'data' => [
-                'isrunning'           => false,
-                'status'              => 'idle',
-                'message'             => 'Bereit zum Upload',
+                'run_id'              => $runId,
+                'isrunning'           => strtolower($statusValue) === 'running',
+                'status'              => $statusValue,
+                'message'             => $messageValue,
                 'product_name'        => '',
                 'product_description' => '',
-                'images'              => [],
+                'images'              => array_map(
+                    static fn (array $row): array => [
+                        'url'      => $row['url'],
+                        'position' => (int) $row['position'],
+                    ],
+                    $images
+                ),
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
