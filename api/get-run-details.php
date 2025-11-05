@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
+$config = require __DIR__ . '/../config.php';
+
 session_start();
 require_once __DIR__ . '/../db.php';
 
@@ -49,6 +51,36 @@ $imgStmt = $pdo->prepare('
 ');
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $images = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$baseUrlConfig = $config['base_url'] ?? '';
+$baseUrl = '';
+if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
+    $baseUrl = rtrim($baseUrlConfig, '/');
+}
+
+$images = array_map(function ($row) use ($baseUrl) {
+    if (!is_array($row)) {
+        return $row;
+    }
+
+    $url = isset($row['url']) ? (string) $row['url'] : '';
+
+    if ($url !== '') {
+        $trimmed = trim($url);
+
+        if ($trimmed !== '') {
+            if ($baseUrl !== '' && !preg_match('#^https?://#i', $trimmed)) {
+                $trimmed = $baseUrl . '/' . ltrim($trimmed, '/');
+            } elseif ($baseUrl === '' && !preg_match('#^https?://#i', $trimmed)) {
+                $trimmed = '/' . ltrim($trimmed, '/');
+            }
+        }
+
+        $row['url'] = $trimmed;
+    }
+
+    return $row;
+}, $images);
 
 $logStmt = $pdo->prepare('
     SELECT level, status_code, message, created_at
