@@ -325,100 +325,69 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $stateStmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user LIMIT 1');
-    $stateStmt->execute([':user' => $userId]);
-    $stateRow = $stateStmt->fetch(PDO::FETCH_ASSOC);
-    $currentRunId = null;
-    if ($stateRow !== false && $stateRow['current_run_id'] !== null) {
-        $currentRunId = (int) $stateRow['current_run_id'];
-    }
-
-    $requestedRunId = normalizeRunId($_POST['run_id'] ?? ($_GET['run_id'] ?? null));
-    $runId = $requestedRunId;
-    if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
-        $runId = null;
-    }
-
-    if ($runId === null && $currentRunId !== null) {
-        $runId = $currentRunId;
-    }
-
-    $noteId = normalizeNoteId($_POST['note_id'] ?? null);
-    if ($noteId !== null) {
-        $stmt = $pdo->prepare('SELECT id, run_id FROM item_notes WHERE id = :id AND user_id = :user LIMIT 1');
-        $stmt->execute([
-            ':id'   => $noteId,
-            ':user' => $userId,
-        ]);
-        $noteRow = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($noteRow === false) {
-            jsonResponse(400, [
-                'ok'      => false,
-                'message' => 'note_id ist ungültig oder gehört nicht zum Benutzer.',
-            ]);
-        }
-
-        $noteId = (int) $noteRow['id'];
-        if (isset($noteRow['run_id']) && $noteRow['run_id'] !== null) {
-            $runId = (int) $noteRow['run_id'];
-        }
-    } else {
-        if ($runId !== null) {
-            $stmt = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY created_at DESC, id DESC LIMIT 1');
-            $stmt->execute([
-                ':user' => $userId,
-                ':run'  => $runId,
-            ]);
-            $latest = $stmt->fetchColumn();
-            if ($latest !== false) {
-                $noteId = (int) $latest;
-            }
-        }
-
-        if ($noteId === null) {
-            $stmt = $pdo->prepare('SELECT id, run_id FROM item_notes WHERE user_id = :user ORDER BY created_at DESC LIMIT 1');
-            $stmt->execute([':user' => $userId]);
-            $latestRow = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($latestRow !== false) {
-                $noteId = (int) $latestRow['id'];
-                if ($runId === null && isset($latestRow['run_id']) && $latestRow['run_id'] !== null) {
-                    $runId = (int) $latestRow['run_id'];
-                }
-            }
-        }
-    }
-
-    $extension = $allowedMimeTypes[$mimeType];
-    if ($runId === null) {
+    $runIdValue = normalizeRunId($_POST['run_id'] ?? ($_GET['run_id'] ?? null));
+    if ($runIdValue === null) {
         jsonResponse(400, [
             'ok'      => false,
             'message' => 'run_id missing',
         ]);
     }
 
-    $runId = (int) $runId;
+    $runId = (int) $runIdValue;
+    if (!runBelongsToUser($pdo, $userId, $runId)) {
+        jsonResponse(404, [
+            'ok'      => false,
+            'message' => 'run_id does not belong to user',
+        ]);
+    }
 
-    $noteLookup = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
-    $noteLookup->execute([
-        ':user' => $userId,
-        ':run'  => $runId,
-    ]);
-    $existingNoteId = $noteLookup->fetchColumn();
+    $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
+    $noteId = null;
 
-    if ($existingNoteId === false) {
-        $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
-        $createNote->execute([
+    if ($noteIdInput !== null) {
+        $noteCheck = $pdo->prepare('SELECT id FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+        $noteCheck->execute([
+            ':id'   => $noteIdInput,
             ':user' => $userId,
             ':run'  => $runId,
         ]);
-        $existingNoteId = $pdo->lastInsertId();
+        $noteRow = $noteCheck->fetchColumn();
+        if ($noteRow === false) {
+            jsonResponse(400, [
+                'ok'      => false,
+                'message' => 'note_id ist ungültig oder gehört nicht zum Run.',
+            ]);
+        }
+
+        $noteId = (int) $noteRow;
+    } else {
+        $existingNote = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+        $existingNote->execute([
+            ':user' => $userId,
+            ':run'  => $runId,
+        ]);
+        $existingNoteId = $existingNote->fetchColumn();
+
+        if ($existingNoteId !== false) {
+            $noteId = (int) $existingNoteId;
+        } else {
+            $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
+            $createNote->execute([
+                ':user' => $userId,
+                ':run'  => $runId,
+            ]);
+            $noteId = (int) $pdo->lastInsertId();
+        }
     }
 
-    if ($noteId === null && $existingNoteId !== false) {
-        $noteId = (int) $existingNoteId;
+    if ($noteId === null || $noteId <= 0) {
+        jsonResponse(500, [
+            'ok'      => false,
+            'message' => 'note could not be determined.',
+        ]);
     }
 
-    $shouldUpdateState = $currentRunId === null || $currentRunId === $runId;
+    $extension = $allowedMimeTypes[$mimeType];
 
     $uploadDirConfig = $config['upload_dir'] ?? (__DIR__ . '/uploads/');
     $baseUploadDir = rtrim((string) $uploadDirConfig, " \\t\n\r\0\x0B/\\");
@@ -513,7 +482,7 @@ SQL;
         $updateState->execute([
             ':user'            => $userId,
             ':image'           => $relativeUrl,
-            ':current_run_id'  => $shouldUpdateState ? $runId : null,
+            ':current_run_id'  => $runId,
         ]);
 
         $pdo->commit();

@@ -22,6 +22,16 @@ if (!is_numeric($sessionUserId) || (int) $sessionUserId <= 0) {
 }
 
 $userId = (int) $sessionUserId;
+$requestedRunId = null;
+if (isset($_GET['run_id'])) {
+    $runIdParam = trim((string) $_GET['run_id']);
+    if ($runIdParam !== '' && ctype_digit($runIdParam)) {
+        $requestedRunId = (int) $runIdParam;
+        if ($requestedRunId <= 0) {
+            $requestedRunId = null;
+        }
+    }
+}
 
 try {
     $pdo = getPDO();
@@ -69,9 +79,12 @@ try {
         }
     }
 
-    $runId = $stateRunId !== null ? (int) $stateRunId : null;
-    if ($runId !== null && $runId <= 0) {
-        $runId = null;
+    $runId = $requestedRunId;
+    if ($runId === null && $stateRunId !== null) {
+        $runId = (int) $stateRunId;
+        if ($runId <= 0) {
+            $runId = null;
+        }
     }
 
     if ($runId === null) {
@@ -121,6 +134,15 @@ try {
     $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($run === null) {
+        if ($requestedRunId !== null) {
+            http_response_code(404);
+            echo json_encode([
+                'ok'    => false,
+                'error' => 'run not found',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
         $statusValue = $stateStatus !== '' ? $stateStatus : 'running';
         $messageValue = $stateMessage !== '' ? $stateMessage : ($statusValue === 'finished' ? 'Workflow abgeschlossen' : 'Verarbeitung läuft …');
 

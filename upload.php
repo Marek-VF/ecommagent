@@ -130,50 +130,9 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
-    $postFields = [
-        'file'      => $curlFile,
-        'user_id'   => $userId,
-        'image_url' => $publicUrl,
-        'file_name' => $storedName,
-        'timestamp' => $timestamp(),
-    ];
-
-    $ch = curl_init($webhook);
-    if ($ch === false) {
-        throw new RuntimeException('Webhook konnte nicht initialisiert werden.');
-    }
-
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS     => $postFields,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_HTTPHEADER     => ['Accept: application/json, */*;q=0.8'],
-    ]);
-
-    $webhookResponse = curl_exec($ch);
-    $webhookStatus   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: null;
-    $curlError       = curl_error($ch);
-    curl_close($ch);
-
-    if ($webhookResponse === false) {
-        $errorMessage = $curlError !== '' ? $curlError : 'Unbekannter Fehler bei der Webhook-Ausführung.';
-        throw new RuntimeException('Webhook-Aufruf fehlgeschlagen: ' . $errorMessage);
-    }
-
-    $forwardResponse = json_decode($webhookResponse, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        $forwardResponse = $webhookResponse;
-    }
-
-    if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
-        throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
-    }
-
-    $runId = null;
     $runMessage = 'Workflow gestartet';
+    $forwardResponse = null;
+    $webhookStatus = null;
 
     $pdo->beginTransaction();
     try {
@@ -187,15 +146,60 @@ try {
         ]);
 
         $runId = (int) $pdo->lastInsertId();
+        if ($runId <= 0) {
+            throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+        }
+
+        $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
+        $postFields = [
+            'file'      => $curlFile,
+            'user_id'   => $userId,
+            'run_id'    => $runId,
+            'image_url' => $publicUrl,
+            'file_name' => $storedName,
+            'timestamp' => $timestamp(),
+        ];
+
+        $ch = curl_init($webhook);
+        if ($ch === false) {
+            throw new RuntimeException('Webhook konnte nicht initialisiert werden.');
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POSTFIELDS     => $postFields,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json, */*;q=0.8'],
+        ]);
+
+        $webhookResponse = curl_exec($ch);
+        $webhookStatus   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: null;
+        $curlError       = curl_error($ch);
+        curl_close($ch);
+
+        if ($webhookResponse === false) {
+            $errorMessage = $curlError !== '' ? $curlError : 'Unbekannter Fehler bei der Webhook-Ausführung.';
+            throw new RuntimeException('Webhook-Aufruf fehlgeschlagen: ' . $errorMessage);
+        }
+
+        $forwardResponse = json_decode($webhookResponse, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $forwardResponse = $webhookResponse;
+        }
+
+        if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
+            throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
+        }
 
         $stateStmt = $pdo->prepare(
-            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at)
-             VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())
-             ON DUPLICATE KEY UPDATE
-                 current_run_id = VALUES(current_run_id),
-                 last_status = VALUES(last_status),
-                 last_message = VALUES(last_message),
-                 updated_at = NOW()'
+            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
+            . ' ON DUPLICATE KEY UPDATE'
+            . '     current_run_id = VALUES(current_run_id),'
+            . '     last_status = VALUES(last_status),'
+            . '     last_message = VALUES(last_message),'
+            . '     updated_at = NOW()'
         );
         $stateStmt->execute([
             ':user_id'        => $userId,
