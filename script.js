@@ -53,6 +53,70 @@ const toAbsoluteUrl = (path) => {
     return `/${raw.replace(/^\/+/, '')}`;
 };
 
+const pad2 = (value) => String(value).padStart(2, '0');
+
+const parseDateValue = (value) => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return null;
+    }
+
+    let candidate = new Date(trimmed);
+    if (!Number.isNaN(candidate.getTime())) {
+        return candidate;
+    }
+
+    const normalized = trimmed.replace(' ', 'T');
+    candidate = new Date(normalized);
+    if (!Number.isNaN(candidate.getTime())) {
+        return candidate;
+    }
+
+    return null;
+};
+
+const parseFirstDateValue = (...values) => {
+    for (const value of values) {
+        const parsed = parseDateValue(value);
+        if (parsed) {
+            return parsed;
+        }
+    }
+
+    return null;
+};
+
+const formatDateLabel = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`;
+};
+
+const formatDateTimeLabel = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return `${formatDateLabel(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+};
+
+const extractRunDates = (run) => {
+    if (!run || typeof run !== 'object') {
+        return { started: null, finished: null };
+    }
+
+    const started = parseFirstDateValue(run.started_at_iso, run.started_at);
+    const finished = parseFirstDateValue(run.finished_at_iso, run.finished_at);
+
+    return { started, finished };
+};
+
 // merkt sich, welche Bild-URLs zuletzt im UI bekannt waren
 const lastKnownImages = {
     image_1: null,
@@ -919,7 +983,36 @@ const renderRuns = (runs, options = {}) => {
         item.className = 'history-list__item';
         item.dataset.runId = run.id;
         item.tabIndex = 0;
-        item.textContent = `${run.date} – ${run.title}`;
+
+        const { started, finished } = extractRunDates(run);
+        const providedDate = typeof run.date === 'string' ? run.date.trim() : '';
+        const computedDate = formatDateLabel(started || finished);
+        const dateLabel = providedDate !== '' ? providedDate : computedDate;
+
+        const fallbackTitle = (() => {
+            const referenceDate = started || finished;
+            if (referenceDate) {
+                const formatted = formatDateTimeLabel(referenceDate);
+                return formatted ? `Run vom ${formatted}` : 'Run';
+            }
+
+            if (run && (typeof run.id === 'number' || typeof run.id === 'string')) {
+                const idValue = String(run.id).trim();
+                return idValue !== '' ? `Run #${idValue}` : 'Run';
+            }
+
+            return 'Run';
+        })();
+
+        const rawTitle = typeof run.title === 'string' ? run.title.trim() : '';
+        const resolvedTitle = rawTitle !== '' ? rawTitle : fallbackTitle;
+
+        if (dateLabel && !resolvedTitle.startsWith(dateLabel)) {
+            item.textContent = `${dateLabel} – ${resolvedTitle}`;
+        } else {
+            item.textContent = resolvedTitle;
+        }
+
         if (run.last_message) {
             item.title = run.last_message;
         }

@@ -287,9 +287,11 @@ function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
     return $stmt->fetchColumn() !== false;
 }
 
-function fetchLatestRunId(PDO $pdo, int $userId): ?int
+function fetchStateRunId(PDO $pdo, int $userId): ?int
 {
-    $stmt = $pdo->prepare('SELECT id FROM workflow_runs WHERE user_id = :user_id ORDER BY started_at DESC, id DESC LIMIT 1');
+    $stmt = $pdo->prepare(
+        "SELECT wr.id\n           FROM user_state us\n           JOIN workflow_runs wr ON wr.id = us.current_run_id\n          WHERE us.user_id = :user_id\n            AND wr.user_id = :user_id\n            AND wr.status = 'running'\n          LIMIT 1"
+    );
     $stmt->execute([':user_id' => $userId]);
     $value = $stmt->fetchColumn();
 
@@ -298,6 +300,43 @@ function fetchLatestRunId(PDO $pdo, int $userId): ?int
     }
 
     return (int) $value;
+}
+
+function fetchLatestRunId(PDO $pdo, int $userId, ?string $status = null): ?int
+{
+    $sql = 'SELECT id FROM workflow_runs WHERE user_id = :user_id';
+    $params = [':user_id' => $userId];
+
+    if ($status !== null) {
+        $sql .= ' AND status = :status';
+        $params[':status'] = $status;
+    }
+
+    $sql .= ' ORDER BY started_at DESC, id DESC LIMIT 1';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $value = $stmt->fetchColumn();
+
+    if ($value === false || $value === null) {
+        return null;
+    }
+
+    return (int) $value;
+}
+
+function findExistingRunId(PDO $pdo, int $userId, ?int $preferredRunId): ?int
+{
+    if ($preferredRunId !== null && runBelongsToUser($pdo, $userId, $preferredRunId)) {
+        return $preferredRunId;
+    }
+
+    $stateRunId = fetchStateRunId($pdo, $userId);
+    if ($stateRunId !== null) {
+        return $stateRunId;
+    }
+
+    return fetchLatestRunId($pdo, $userId, 'running');
 }
 
 function resolveMessageFromPayload(array $payload, string $fallback): string
@@ -345,35 +384,45 @@ function upsertUserState(PDO $pdo, int $userId, string $lastStatus, string $last
     ]);
 }
 
-function startWorkflowRun(PDO $pdo, int $userId, string $statusMessage): int
+function createWorkflowRun(PDO $pdo, int $userId, string $status, string $message): int
 {
-    $insertRun = $pdo->prepare(
-        'INSERT INTO workflow_runs (user_id, status, last_message, started_at)
-         VALUES (:user_id, :status, :last_message, NOW())'
+    $normalizedStatus = in_array($status, ['running', 'finished', 'error'], true) ? $status : 'running';
+    $finishedExpression = $normalizedStatus === 'running' ? 'NULL' : 'NOW()';
+
+    $sql = sprintf(
+        'INSERT INTO workflow_runs (user_id, status, last_message, started_at, finished_at)
+         VALUES (:user_id, :status, :last_message, NOW(), %s)',
+        $finishedExpression
     );
-    $insertRun->execute([
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
         ':user_id'      => $userId,
-        ':status'       => 'running',
-        ':last_message' => $statusMessage,
+        ':status'       => $normalizedStatus,
+        ':last_message' => $message,
     ]);
 
     return (int) $pdo->lastInsertId();
 }
 
-function updateWorkflowRun(PDO $pdo, int $userId, int $runId, string $status, string $message, bool $markFinished): void
+function updateWorkflowRun(PDO $pdo, int $userId, int $runId, string $status, string $message): void
 {
+    $normalizedStatus = in_array($status, ['running', 'finished', 'error'], true) ? $status : 'running';
+
     $sql = 'UPDATE workflow_runs SET status = :status, last_message = :last_message';
-    if ($markFinished) {
+    if ($normalizedStatus === 'running') {
+        $sql .= ', finished_at = NULL';
+    } else {
         $sql .= ', finished_at = NOW()';
     }
     $sql .= ' WHERE id = :id AND user_id = :user_id';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
-        ':status'    => $status,
+        ':status'       => $normalizedStatus,
         ':last_message' => $message,
-        ':id'        => $runId,
-        ':user_id'   => $userId,
+        ':id'           => $runId,
+        ':user_id'      => $userId,
     ]);
 }
 
@@ -428,100 +477,147 @@ try {
         ]);
     }
 
+    $payloadRunId = normalizeRunId($payload['run_id'] ?? null);
+    $runId = findExistingRunId($pdo, $userId, $payloadRunId);
+    $payloadSummary = mb_substr($raw, 0, 65535);
+
+    $normalizedIsRunning = null;
     if ($isRunningField !== null) {
-        $isRunning = filter_var($isRunningField, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-        if ($isRunning === null) {
+        $normalizedIsRunning = filter_var($isRunningField, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($normalizedIsRunning === null) {
             $stringValue = is_string($isRunningField) ? strtolower(trim($isRunningField)) : '';
             if ($stringValue === 'false' || $stringValue === '0') {
-                $isRunning = false;
+                $normalizedIsRunning = false;
             } else {
-                $isRunning = true;
+                $normalizedIsRunning = true;
             }
         }
-
-        $payloadRunId = normalizeRunId($payload['run_id'] ?? null);
-        $runId = null;
-        if ($payloadRunId !== null && runBelongsToUser($pdo, $userId, $payloadRunId)) {
-            $runId = $payloadRunId;
-        }
-
-        if ($runId === null) {
-            $runId = fetchLatestRunId($pdo, $userId);
-        }
-
-        $messageDefault = $statusMessage ?? ($isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.');
-        $message = resolveMessageFromPayload($payload, $messageDefault);
-        $lastStatus = $isRunning ? 'running' : 'finished';
-
-        if ($runId !== null) {
-            updateWorkflowRun($pdo, $userId, $runId, $isRunning ? 'running' : 'finished', $message, !$isRunning);
-        }
-
-        $payloadSummary = mb_substr($raw, 0, 65535);
-        upsertUserState($pdo, $userId, $lastStatus, $message, $payloadSummary, $runId);
-
-        jsonResponse(200, [
-            'ok'        => true,
-            'message'   => 'state updated',
-            'isrunning' => $isRunning,
-        ]);
     }
 
     $hasContentPayload = $productName !== null || $productDescription !== null || $statusMessage !== null;
+    $handled = false;
+    $responseData = null;
 
     if ($hasContentPayload) {
         $pdo->beginTransaction();
 
         $message = $statusMessage ?? 'Daten empfangen.';
-        $payloadRunId = normalizeRunId($payload['run_id'] ?? null);
-        $runId = $payloadRunId;
-        if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
-            $runId = null;
-        }
+        $targetRunId = $runId;
+        $createdNewRun = false;
 
-        if ($runId === null) {
-            $runId = startWorkflowRun($pdo, $userId, $message);
+        if ($targetRunId === null) {
+            $targetRunId = createWorkflowRun($pdo, $userId, 'running', $message);
+            $createdNewRun = true;
         } else {
-            updateWorkflowRun($pdo, $userId, $runId, 'running', $message, false);
+            updateWorkflowRun($pdo, $userId, $targetRunId, 'running', $message);
         }
 
-        $insertNote = $pdo->prepare(
-            'INSERT INTO item_notes (user_id, run_id, product_name, product_description, source, created_at)
-             VALUES (:user_id, :run_id, :product_name, :product_description, :source, NOW())'
-        );
-        $insertNote->execute([
-            ':user_id'             => $userId,
-            ':run_id'              => $runId,
-            ':product_name'        => $productName,
-            ':product_description' => $productDescription,
-            ':source'              => 'n8n',
-        ]);
+        if ($productName !== null || $productDescription !== null) {
+            $noteId = null;
+            $selectNote = $pdo->prepare(
+                'SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run AND source = :source ORDER BY created_at DESC, id DESC LIMIT 1'
+            );
+            $selectNote->execute([
+                ':user'   => $userId,
+                ':run'    => $targetRunId,
+                ':source' => 'n8n',
+            ]);
+            $existingNoteId = $selectNote->fetchColumn();
+            if ($existingNoteId !== false && $existingNoteId !== null) {
+                $noteId = (int) $existingNoteId;
+            }
 
-        $payloadExcerpt = mb_substr($raw, 0, 65535);
-        $insertLog = $pdo->prepare(
-            'INSERT INTO status_logs (user_id, run_id, level, status_code, message, payload_excerpt, source, created_at)
-             VALUES (:user_id, :run_id, :level, :status_code, :message, :payload_excerpt, :source, NOW())'
-        );
-        $insertLog->execute([
-            ':user_id'         => $userId,
-            ':run_id'          => $runId,
-            ':level'           => 'info',
-            ':status_code'     => 200,
-            ':message'         => 'Workflow gestartet',
-            ':payload_excerpt' => $payloadExcerpt,
-            ':source'          => 'receiver',
-        ]);
+            if ($noteId !== null) {
+                $updateNote = $pdo->prepare(
+                    'UPDATE item_notes
+                        SET product_name = COALESCE(:product_name, product_name),
+                            product_description = COALESCE(:product_description, product_description),
+                            source = :source
+                      WHERE id = :id'
+                );
+                $updateNote->execute([
+                    ':product_name'        => $productName,
+                    ':product_description' => $productDescription,
+                    ':source'              => 'n8n',
+                    ':id'                  => $noteId,
+                ]);
+            } else {
+                $insertNote = $pdo->prepare(
+                    'INSERT INTO item_notes (user_id, run_id, product_name, product_description, source, created_at)
+                     VALUES (:user_id, :run_id, :product_name, :product_description, :source, NOW())'
+                );
+                $insertNote->execute([
+                    ':user_id'             => $userId,
+                    ':run_id'              => $targetRunId,
+                    ':product_name'        => $productName,
+                    ':product_description' => $productDescription,
+                    ':source'              => 'n8n',
+                ]);
+            }
+        }
+
+        if ($createdNewRun) {
+            $insertLog = $pdo->prepare(
+                'INSERT INTO status_logs (user_id, run_id, level, status_code, message, payload_excerpt, source, created_at)
+                 VALUES (:user_id, :run_id, :level, :status_code, :message, :payload_excerpt, :source, NOW())'
+            );
+            $insertLog->execute([
+                ':user_id'         => $userId,
+                ':run_id'          => $targetRunId,
+                ':level'           => 'info',
+                ':status_code'     => 200,
+                ':message'         => 'Workflow gestartet',
+                ':payload_excerpt' => $payloadSummary,
+                ':source'          => 'receiver',
+            ]);
+        }
 
         $stateMessage = resolveMessageFromPayload($payload, $message);
-        upsertUserState($pdo, $userId, 'running', $stateMessage, $raw, $runId);
+        upsertUserState($pdo, $userId, 'running', $stateMessage, $payloadSummary, $targetRunId);
 
         $pdo->commit();
 
-        jsonResponse(200, [
+        $runId = $targetRunId;
+        $handled = true;
+        $responseData = [
             'ok'      => true,
             'message' => 'content saved',
             'run_id'  => $runId,
-        ]);
+        ];
+    }
+
+    if ($isRunningField !== null) {
+        $isRunning = $normalizedIsRunning ?? true;
+        $status = $isRunning ? 'running' : 'finished';
+        $messageDefault = $statusMessage ?? ($isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.');
+        $message = resolveMessageFromPayload($payload, $messageDefault);
+
+        $pdo->beginTransaction();
+
+        $targetRunId = $runId;
+        if ($targetRunId === null) {
+            $targetRunId = createWorkflowRun($pdo, $userId, $status, $message);
+        } else {
+            updateWorkflowRun($pdo, $userId, $targetRunId, $status, $message);
+        }
+
+        $currentRunIdForState = $status === 'running' ? $targetRunId : null;
+        upsertUserState($pdo, $userId, $status, $message, $payloadSummary, $currentRunIdForState);
+
+        $pdo->commit();
+
+        $runId = $targetRunId;
+        $handled = true;
+        $responseData = [
+            'ok'        => true,
+            'message'   => 'state updated',
+            'isrunning' => $isRunning,
+            'run_id'    => $runId,
+        ];
+    }
+
+    if ($handled && $responseData !== null) {
+        jsonResponse(200, $responseData);
     }
 
     jsonResponse(200, [
