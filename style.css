@@ -439,6 +439,28 @@ body {
     opacity: 0.8;
 }
 
+.gallery__item.is-pulsing::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, 0.12);
+    animation: gallery-pulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes gallery-pulse {
+    0% {
+        opacity: 0.2;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 0.2;
+    }
+}
+
 .gallery__item:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 4px;

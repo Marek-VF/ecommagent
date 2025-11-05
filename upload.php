@@ -143,7 +143,7 @@ try {
     );
     $stateStmt->execute([
         ':user_id'        => $userId,
-        ':current_run_id' => null,
+        ':current_run_id' => 0,
         ':last_status'    => 'running',
         ':last_message'   => $runMessage,
     ]);

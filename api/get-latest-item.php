@@ -69,57 +69,58 @@ try {
         }
     }
 
-    $runId = $stateRunId;
-    $run = null;
-
-    if ($runId !== null) {
-        $runStatement = $pdo->prepare(
-            'SELECT id, status, last_message
-             FROM workflow_runs
-             WHERE id = :run_id AND user_id = :user_id
-             LIMIT 1'
-        );
-        $runStatement->execute([
-            ':run_id'  => $runId,
-            ':user_id' => $userId,
-        ]);
-        $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
-
-        if ($run === null) {
-            $runId = null;
-        }
+    $runId = $stateRunId !== null ? (int) $stateRunId : null;
+    if ($runId !== null && $runId <= 0) {
+        $runId = null;
     }
 
     if ($runId === null) {
-        $latestRunStatement = $pdo->prepare(
-            'SELECT id
-             FROM workflow_runs
-             WHERE user_id = :user_id
-             ORDER BY started_at DESC, id DESC
-             LIMIT 1'
-        );
-        $latestRunStatement->execute([':user_id' => $userId]);
-        $latestRunId = $latestRunStatement->fetchColumn();
+        $normalizedStatus = strtolower(trim($stateStatus));
+        $isRunning = $normalizedStatus === 'running';
+        $statusLabel = $isRunning ? 'running' : 'idle';
+        $message = $stateMessage !== ''
+            ? $stateMessage
+            : ($isRunning ? 'Workflow gestartet – warte auf Ergebnisse …' : 'Bereit zum Upload');
 
-        if ($latestRunId !== false && $latestRunId !== null) {
-            $runId = (int) $latestRunId;
-
-            $runStatement = $pdo->prepare(
-                'SELECT id, status, last_message
-                 FROM workflow_runs
-                 WHERE id = :run_id AND user_id = :user_id
-                 LIMIT 1'
-            );
-            $runStatement->execute([
-                ':run_id'  => $runId,
-                ':user_id' => $userId,
-            ]);
-            $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
-        }
+        echo json_encode([
+            'ok'   => true,
+            'data' => [
+                'isrunning'           => $isRunning,
+                'status'              => $statusLabel,
+                'message'             => $message,
+                'product_name'        => '',
+                'product_description' => '',
+                'images'              => [],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
-    if ($runId !== null && $run === null) {
-        $runId = null;
+    $runStatement = $pdo->prepare(
+        'SELECT id, status, last_message
+         FROM workflow_runs
+         WHERE id = :run_id AND user_id = :user_id
+         LIMIT 1'
+    );
+    $runStatement->execute([
+        ':run_id'  => $runId,
+        ':user_id' => $userId,
+    ]);
+    $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if ($run === null) {
+        echo json_encode([
+            'ok'   => true,
+            'data' => [
+                'isrunning'           => false,
+                'status'              => 'idle',
+                'message'             => 'Bereit zum Upload',
+                'product_name'        => '',
+                'product_description' => '',
+                'images'              => [],
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
     if ($runId !== null) {
