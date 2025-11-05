@@ -6,6 +6,7 @@ const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const processingIndicator = document.getElementById('processing-indicator');
+const newButton = document.getElementById('btn-new');
 const statusLogContainer = document.getElementById('status-log');
 const statusMessageElement = document.getElementById('status-message');
 const articleNameInput = document.getElementById('article-name');
@@ -27,6 +28,33 @@ const initializationEndpoint = 'init.php';
 const STATUS_LOG_LIMIT = 60;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
+
+const toAbsoluteUrl = (path) => {
+    if (path === undefined || path === null) {
+        return '';
+    }
+
+    const raw = String(path).trim();
+    if (raw === '') {
+        return '';
+    }
+
+    if (/^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/')) {
+        return raw;
+    }
+
+    const configBase =
+        window.APP_CONFIG && typeof window.APP_CONFIG.base_url === 'string'
+            ? window.APP_CONFIG.base_url.trim()
+            : '';
+    const base = configBase || (typeof window.location === 'object' ? window.location.origin : '');
+
+    if (base) {
+        return `${base.replace(/\/+$/, '')}/${raw.replace(/^\/+/, '')}`;
+    }
+
+    return `/${raw.replace(/^\/+/, '')}`;
+};
 
 // zentrale Normalisierungstabelle
 const STATUS_NORMALIZER = [
@@ -283,11 +311,18 @@ const updateUiWithData = (payload) => {
             const src = data.images[slotKey];
 
             if (typeof src === 'string' && src.trim() !== '') {
-                const newSrc = src.trim();
+                const resolvedSrc = toAbsoluteUrl(src);
+                if (!resolvedSrc) {
+                    clearSlotContent(slot);
+                    setSlotLoadingState(slot, false);
+                    lastKnownImages[slotKey] = null;
+                    return;
+                }
+
                 const prevSrc = lastKnownImages[slotKey];
 
-                if (!prevSrc || prevSrc !== newSrc) {
-                    setSlotImageSource(slot, newSrc);
+                if (!prevSrc || prevSrc !== resolvedSrc) {
+                    setSlotImageSource(slot, resolvedSrc);
 
                     let statusKey = '';
                     if (slotKey === 'image_1') statusKey = 'image_1_saved';
@@ -313,10 +348,10 @@ const updateUiWithData = (payload) => {
                         }
                     }
 
-                    lastKnownImages[slotKey] = newSrc;
+                    lastKnownImages[slotKey] = resolvedSrc;
                 } else {
-                    setSlotImageSource(slot, newSrc);
-                    lastKnownImages[slotKey] = newSrc;
+                    setSlotImageSource(slot, resolvedSrc);
+                    lastKnownImages[slotKey] = resolvedSrc;
                 }
             }
         });
@@ -474,17 +509,22 @@ const setSlotImageSource = (slot, src) => {
         return;
     }
 
-    if (slot.container.dataset.currentSrc === sanitized && slot.container.dataset.hasContent === 'true') {
+    const resolved = toAbsoluteUrl(sanitized);
+    if (!resolved) {
+        return;
+    }
+
+    if (slot.container.dataset.currentSrc === resolved && slot.container.dataset.hasContent === 'true') {
         slot.container.dataset.isLoading = 'false';
         return;
     }
 
-    slot.container.dataset.currentSrc = sanitized;
+    slot.container.dataset.currentSrc = resolved;
     slot.container.dataset.hasContent = 'true';
     slot.container.dataset.isLoading = 'false';
 
     if (slot.content) {
-        slot.content.src = sanitized;
+        slot.content.src = resolved;
     }
 };
 
@@ -957,12 +997,18 @@ const getDataField = (data, key) => {
 };
 
 const createPreviewItem = (url, name) => {
+    const resolvedUrl = toAbsoluteUrl(url) || String(url || '').trim();
+
+    if (!resolvedUrl) {
+        return null;
+    }
+
     const item = document.createElement('figure');
     item.className = 'preview-item';
     item.tabIndex = 0;
-    item.innerHTML = `<img src="${url}" alt="${name}">`;
+    item.innerHTML = `<img src="${resolvedUrl}" alt="${name}">`;
 
-    const openPreview = () => openLightbox(url, name);
+    const openPreview = () => openLightbox(resolvedUrl, name);
 
     item.addEventListener('click', openPreview);
     item.addEventListener('keydown', (event) => {
@@ -978,12 +1024,23 @@ const createPreviewItem = (url, name) => {
 const addPreviews = (files) => {
     files.forEach(({ url, name }) => {
         const previewItem = createPreviewItem(url, name);
-        previewList.prepend(previewItem);
+        if (previewItem && previewList) {
+            previewList.prepend(previewItem);
+        }
     });
 };
 
 const uploadFiles = async (files) => {
-    const uploads = Array.from(files).map(async (file) => {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) {
+        return;
+    }
+
+    resetFrontendState();
+    setStatus('info', 'Bild wird hochgeladen …');
+    updateProcessingIndicator('Bild wird hochgeladen …', 'running');
+
+    const uploads = fileList.map(async (file) => {
         const formData = new FormData();
         formData.append('image', file);
 
@@ -1220,9 +1277,16 @@ const applyRunDataToUI = (payload) => {
 
         const image = normalizedImages.find((entry) => Number.isFinite(entry.position) && entry.position === expectedPosition);
         if (image && image.url) {
-            setSlotImageSource(slot, image.url);
-            setSlotLoadingState(slot, false);
-            lastKnownImages[slotKey] = image.url;
+            const resolvedImageUrl = toAbsoluteUrl(image.url);
+            if (resolvedImageUrl) {
+                setSlotImageSource(slot, resolvedImageUrl);
+                setSlotLoadingState(slot, false);
+                lastKnownImages[slotKey] = resolvedImageUrl;
+            } else {
+                clearSlotContent(slot);
+                setSlotLoadingState(slot, false);
+                lastKnownImages[slotKey] = null;
+            }
         } else {
             clearSlotContent(slot);
             setSlotLoadingState(slot, false);
@@ -1666,7 +1730,7 @@ function stopPolling() {
     workflowIsRunning = false;
 }
 
-function setInitialUiState() {
+function resetFrontendState() {
     stopPolling();
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields();
@@ -1675,6 +1739,21 @@ function setInitialUiState() {
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
     hasShownCompletion = false;
     hasObservedActiveRun = false;
+    workflowIsRunning = false;
+
+    selectedHistoryRunId = null;
+    if (HISTORY_LIST) {
+        Array.from(HISTORY_LIST.children).forEach((element) => {
+            if (element instanceof HTMLElement) {
+                element.classList.remove('history-list__item--active');
+                element.removeAttribute('aria-current');
+            }
+        });
+    }
+}
+
+function setInitialUiState() {
+    resetFrontendState();
 }
 
 const initializeBackendState = async () => {
@@ -1700,4 +1779,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUploadHandler();
     setupHistoryHandler();
     initializeBackendState();
+
+    if (newButton) {
+        newButton.addEventListener('click', () => {
+            resetFrontendState();
+        });
+    }
 });
