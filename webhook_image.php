@@ -178,6 +178,43 @@ function mapUploadError(int $errorCode): string
     };
 }
 
+function normalizeRunId(mixed $value): ?int
+{
+    if ($value === null) {
+        return null;
+    }
+
+    if (is_int($value) && $value > 0) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (ctype_digit($trimmed)) {
+            $runId = (int) $trimmed;
+
+            return $runId > 0 ? $runId : null;
+        }
+    }
+
+    return null;
+}
+
+function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
+{
+    $stmt = $pdo->prepare('SELECT 1 FROM workflow_runs WHERE id = :run AND user_id = :user LIMIT 1');
+    $stmt->execute([
+        ':run'  => $runId,
+        ':user' => $userId,
+    ]);
+
+    return $stmt->fetchColumn() !== false;
+}
+
 $storedFilePath = null;
 
 try {
@@ -288,12 +325,22 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runId = null;
-    $runStmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user LIMIT 1');
-    $runStmt->execute([':user' => $userId]);
-    $runRow = $runStmt->fetch(PDO::FETCH_ASSOC);
-    if ($runRow !== false && $runRow['current_run_id'] !== null) {
-        $runId = (int) $runRow['current_run_id'];
+    $stateStmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user LIMIT 1');
+    $stateStmt->execute([':user' => $userId]);
+    $stateRow = $stateStmt->fetch(PDO::FETCH_ASSOC);
+    $currentRunId = null;
+    if ($stateRow !== false && $stateRow['current_run_id'] !== null) {
+        $currentRunId = (int) $stateRow['current_run_id'];
+    }
+
+    $requestedRunId = normalizeRunId($_POST['run_id'] ?? ($_GET['run_id'] ?? null));
+    $runId = $requestedRunId;
+    if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
+        $runId = null;
+    }
+
+    if ($runId === null && $currentRunId !== null) {
+        $runId = $currentRunId;
     }
 
     $noteId = normalizeNoteId($_POST['note_id'] ?? null);
@@ -340,6 +387,8 @@ try {
             }
         }
     }
+
+    $shouldUpdateState = $runId !== null && ($currentRunId === null || $currentRunId === $runId);
 
     $extension = $allowedMimeTypes[$mimeType];
     $now = new DateTimeImmutable('now');
@@ -434,7 +483,7 @@ SQL;
         $updateState->execute([
             ':user'            => $userId,
             ':image'           => $relativeUrl,
-            ':current_run_id'  => $runId,
+            ':current_run_id'  => $shouldUpdateState ? $runId : null,
         ]);
 
         $pdo->commit();

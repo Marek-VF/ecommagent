@@ -127,6 +127,38 @@ try {
         throw new RuntimeException('Workflow-Webhook ist nicht konfiguriert.');
     }
 
+    $pdo = auth_pdo();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $runMessage = 'Upload gestartet';
+
+    $insertRun = $pdo->prepare(
+        'INSERT INTO workflow_runs (user_id, status, last_message, started_at) VALUES (:user_id, :status, :last_message, NOW())'
+    );
+    $insertRun->execute([
+        ':user_id'      => $userId,
+        ':status'       => 'running',
+        ':last_message' => $runMessage,
+    ]);
+
+    $runId = (int) $pdo->lastInsertId();
+
+    $stateStmt = $pdo->prepare(
+        'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at)
+         VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())
+         ON DUPLICATE KEY UPDATE
+             current_run_id = VALUES(current_run_id),
+             last_status = VALUES(last_status),
+             last_message = VALUES(last_message),
+             updated_at = NOW()'
+    );
+    $stateStmt->execute([
+        ':user_id'        => $userId,
+        ':current_run_id' => $runId,
+        ':last_status'    => 'running',
+        ':last_message'   => $runMessage,
+    ]);
+
     $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
     $postFields = [
         'file'       => $curlFile,
@@ -134,6 +166,7 @@ try {
         'image_url'  => $publicUrl,
         'file_name'  => $storedName,
         'timestamp'  => $timestamp(),
+        'run_id'     => $runId,
     ];
 
     $ch = curl_init($webhook);
@@ -173,6 +206,7 @@ try {
         'timestamp'        => $timestamp(),
         'webhook_status'   => $webhookStatus,
         'webhook_response' => $forwardResponse,
+        'run_id'           => $runId,
     ]);
 } catch (Throwable $exception) {
     $respond([

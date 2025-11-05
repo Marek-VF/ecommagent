@@ -19,6 +19,7 @@ const HISTORY_CLOSE = document.getElementById('history-close');
 let isPolling = false;
 let pollInterval = null;
 let workflowIsRunning = false;
+let activeRunId = null;
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -1108,6 +1109,12 @@ const uploadFiles = async (files) => {
             setStatus('info', 'Upload erfolgreich – Verarbeitung gestartet …');
             setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
             hasShownCompletion = false;
+
+            if (result.run_id !== undefined && result.run_id !== null) {
+                const parsedRunId = Number(result.run_id);
+                activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
+            }
+
             startPolling();
 
             if (result.webhook_response !== undefined && result.webhook_response !== null && result.webhook_response !== '') {
@@ -1499,7 +1506,12 @@ const closeHistory = () => {
 
 async function fetchLatestItem() {
     try {
-        const response = await fetch(`${DATA_ENDPOINT}?${Date.now()}`, {
+        const params = new URLSearchParams({ _: String(Date.now()) });
+        if (activeRunId !== null && Number.isFinite(activeRunId)) {
+            params.set('run_id', String(activeRunId));
+        }
+
+        const response = await fetch(`${DATA_ENDPOINT}?${params.toString()}`, {
             cache: 'no-store',
         });
 
@@ -1525,6 +1537,7 @@ async function fetchLatestItem() {
         if (!isRunning) {
             setStatus('success', 'Workflow abgeschlossen');
             stopPolling();
+            activeRunId = null;
         } else {
             setStatus('info', 'Verarbeitung läuft …');
         }
@@ -1732,6 +1745,7 @@ function stopPolling() {
 
 function resetFrontendState() {
     stopPolling();
+    activeRunId = null;
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields();
     showPlaceholderImages();
