@@ -421,6 +421,18 @@ const ensurePlaceholderForSlot = (slot) => {
     }
 };
 
+const setPulseState = (slot, shouldPulse) => {
+    if (!slot || !slot.container) {
+        return;
+    }
+
+    if (shouldPulse) {
+        slot.container.classList.add('is-pulsing');
+    } else {
+        slot.container.classList.remove('is-pulsing');
+    }
+};
+
 const clearSlotContent = (slot) => {
     if (!slot || !slot.container) {
         return;
@@ -442,6 +454,7 @@ const setSlotLoadingState = (slot, loading) => {
     }
 
     slot.container.dataset.isLoading = loading ? 'true' : 'false';
+    setPulseState(slot, Boolean(loading));
 
     if (slot.overlay && slot.overlay.src !== OVERLAY_SRC) {
         slot.overlay.src = OVERLAY_SRC;
@@ -475,6 +488,7 @@ const setSlotImageSource = (slot, src) => {
     slot.container.dataset.currentSrc = resolved;
     slot.container.dataset.hasContent = 'true';
     slot.container.dataset.isLoading = 'false';
+    setPulseState(slot, false);
 
     if (slot.content) {
         slot.content.src = resolved;
@@ -561,7 +575,7 @@ const setLoadingState = (loading, options = {}) => {
 
     // Nur anzeigen, wenn der Workflow tatsächlich läuft
     gallerySlots.forEach((slot) => {
-        if (loading && workflowIsRunning) {
+        if (loading) {
             clearSlotContent(slot);
             setSlotLoadingState(slot, true);
         } else {
@@ -648,7 +662,7 @@ const uploadFiles = async (files) => {
         return;
     }
 
-    resetFrontendState();
+    resetFrontendState({ withPulse: true });
     setStatus('info', 'Bild wird hochgeladen …');
     updateProcessingIndicator('Bild wird hochgeladen …', 'running');
 
@@ -1259,14 +1273,14 @@ function clearProductFields() {
     }
 }
 
-function showPlaceholderImages() {
+function showPlaceholderImages(withPulse = false) {
     if (previewList) {
         previewList.innerHTML = '';
     }
 
     gallerySlots.forEach((slot) => {
         clearSlotContent(slot);
-        setSlotLoadingState(slot, false);
+        setSlotLoadingState(slot, withPulse);
     });
 
     Object.keys(lastKnownImages).forEach((key) => {
@@ -1313,13 +1327,14 @@ function stopPolling() {
     workflowIsRunning = false;
 }
 
-function resetFrontendState() {
+function resetFrontendState(options = {}) {
+    const withPulse = Boolean(options.withPulse);
     stopPolling();
     activeRunId = null;
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields();
-    showPlaceholderImages();
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+    showPlaceholderImages(withPulse);
     hasShownCompletion = false;
     hasObservedActiveRun = false;
     workflowIsRunning = false;
