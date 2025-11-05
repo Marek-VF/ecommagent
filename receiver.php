@@ -53,6 +53,34 @@ function to_bool(mixed $value, bool $default = true): bool
     return $default;
 }
 
+function normalize_positive_int(mixed $value): ?int
+{
+    if (is_int($value) && $value > 0) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (ctype_digit($trimmed)) {
+            $intValue = (int) $trimmed;
+
+            return $intValue > 0 ? $intValue : null;
+        }
+    }
+
+    if (is_float($value) || is_numeric($value)) {
+        $intValue = (int) $value;
+
+        return $intValue > 0 ? $intValue : null;
+    }
+
+    return null;
+}
+
 function check_authorization(array $config): ?string
 {
     $token = trim((string)($config['receiver_api_token'] ?? ''));
@@ -90,17 +118,18 @@ if ($error = check_authorization($config)) {
 }
 
 $payload = read_json_body();
-$userId = isset($payload['user_id']) ? (int)$payload['user_id'] : 0;
+$userId = isset($payload['user_id']) ? (int) $payload['user_id'] : 0;
+$runId = normalize_positive_int($payload['run_id'] ?? null);
 $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
 $hasNameField = array_key_exists('product_name', $payload);
 $hasDescField = array_key_exists('product_description', $payload);
-$name = $hasNameField ? trim((string)$payload['product_name']) : '';
-$desc = $hasDescField ? trim((string)$payload['product_description']) : '';
-$message = isset($payload['message']) ? trim((string)$payload['message']) : '';
+$name = $hasNameField ? trim((string) $payload['product_name']) : '';
+$desc = $hasDescField ? trim((string) $payload['product_description']) : '';
+$message = isset($payload['message']) ? trim((string) $payload['message']) : '';
 if ($message === '' && isset($payload['status'])) {
-    $message = trim((string)$payload['status']);
+    $message = trim((string) $payload['status']);
 }
 if ($message === '') {
     $message = 'aktualisiert';
@@ -111,132 +140,160 @@ if ($userId <= 0) {
     return;
 }
 
-$pdo = auth_pdo();
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+if ($runId === null) {
+    $errorMessage = 'run_id missing';
 
-$errors = [];
-$runId = 0;
-$noteId = null;
-$existingNoteName = '';
-$existingNoteDescription = '';
+    try {
+        $pdo = auth_pdo();
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// 1) aktuellen Run ermitteln
+        $stateStmt = $pdo->prepare(
+            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:uid, NULL, :status, :message, NOW())'
+            . ' ON DUPLICATE KEY UPDATE'
+            . '     last_status = VALUES(last_status),'
+            . '     last_message = VALUES(last_message),'
+            . '     updated_at = NOW()'
+        );
+        $stateStmt->execute([
+            ':uid'     => $userId,
+            ':status'  => 'error',
+            ':message' => $errorMessage,
+        ]);
+    } catch (Throwable $stateException) {
+        error_log('[receiver] failed to persist missing run_id state: ' . $stateException->getMessage());
+    }
+
+    json_response(false, $errorMessage, ['run_id' => null], 400);
+    return;
+}
+
 try {
-    $stmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :uid');
-    $stmt->execute([':uid' => $userId]);
-    $runId = (int)($stmt->fetchColumn() ?? 0);
-} catch (Throwable $e) {
-    $errors[] = 'user_state lookup failed: ' . $e->getMessage();
+    $pdo = auth_pdo();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (Throwable $connectionException) {
+    json_response(false, 'database connection failed', ['run_id' => $runId], 500);
+    return;
 }
 
-if ($runId === 0) {
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM workflow_runs WHERE user_id = :uid AND status = 'running' ORDER BY started_at DESC, id DESC LIMIT 1");
-        $stmt->execute([':uid' => $userId]);
-        $runId = (int)($stmt->fetchColumn() ?? 0);
-    } catch (Throwable $e) {
-        $errors[] = 'workflow_runs lookup failed: ' . $e->getMessage();
+$statusStr = $isRunning ? 'running' : 'finished';
+
+try {
+    $pdo->beginTransaction();
+
+    $runCheck = $pdo->prepare('SELECT id FROM workflow_runs WHERE id = :rid AND user_id = :uid LIMIT 1 FOR UPDATE');
+    $runCheck->execute([
+        ':rid' => $runId,
+        ':uid' => $userId,
+    ]);
+    $runExists = $runCheck->fetchColumn();
+
+    if ($runExists === false) {
+        throw new RuntimeException('run not found');
     }
-}
 
-// 2) Notiz für den aktuellen Run sicherstellen
-if ($runId > 0) {
-    try {
-        $stmt = $pdo->prepare('SELECT id, product_name, product_description FROM item_notes WHERE user_id = :uid AND run_id = :rid ORDER BY id ASC LIMIT 1');
-        $stmt->execute([':uid' => $userId, ':rid' => $runId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $noteId = null;
+    $existingNoteName = '';
+    $existingNoteDescription = '';
 
-        if ($row !== false) {
-            $noteId = (int) $row['id'];
-            $existingNoteName = isset($row['product_name']) ? (string) $row['product_name'] : '';
-            $existingNoteDescription = isset($row['product_description']) ? (string) $row['product_description'] : '';
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, '', '', 'n8n')");
-            $stmt->execute([
-                ':uid' => $userId,
-                ':rid' => $runId,
-            ]);
-            $noteId = (int) $pdo->lastInsertId();
-            $existingNoteName = '';
-            $existingNoteDescription = '';
-        }
-    } catch (Throwable $e) {
-        $errors[] = 'item_notes ensure failed: ' . $e->getMessage();
+    $noteLookup = $pdo->prepare('SELECT id, product_name, product_description FROM item_notes WHERE user_id = :uid AND run_id = :rid ORDER BY id ASC LIMIT 1 FOR UPDATE');
+    $noteLookup->execute([
+        ':uid' => $userId,
+        ':rid' => $runId,
+    ]);
+    $noteRow = $noteLookup->fetch(PDO::FETCH_ASSOC);
+
+    if ($noteRow !== false) {
+        $noteId = (int) $noteRow['id'];
+        $existingNoteName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
+        $existingNoteDescription = isset($noteRow['product_description']) ? (string) $noteRow['product_description'] : '';
+    } else {
+        $noteInsert = $pdo->prepare(
+            "INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, '', '', 'n8n')"
+        );
+        $noteInsert->execute([
+            ':uid' => $userId,
+            ':rid' => $runId,
+        ]);
+        $noteId = (int) $pdo->lastInsertId();
+        $existingNoteName = '';
+        $existingNoteDescription = '';
     }
-} else {
-    $errors[] = 'item_notes skipped: run_id missing';
-}
 
-// 3) Artikeldaten speichern (optional)
-if ($noteId !== null && ($hasNameField || $hasDescField)) {
-    try {
+    if ($noteId <= 0) {
+        throw new RuntimeException('note could not be created');
+    }
+
+    if ($hasNameField || $hasDescField) {
         $newName = $hasNameField ? $name : $existingNoteName;
         $newDesc = $hasDescField ? $desc : $existingNoteDescription;
 
-        $stmt = $pdo->prepare("UPDATE item_notes SET product_name = :pname, product_description = :pdesc, source = 'n8n' WHERE id = :nid");
-        $stmt->execute([
+        $updateNote = $pdo->prepare("UPDATE item_notes SET product_name = :pname, product_description = :pdesc, source = 'n8n' WHERE id = :nid");
+        $updateNote->execute([
             ':pname' => $newName,
             ':pdesc' => $newDesc,
             ':nid'   => $noteId,
         ]);
-    } catch (Throwable $e) {
-        $errors[] = 'item_notes update failed: ' . $e->getMessage();
-    }
-}
-
-// 4) user_state + workflow_runs aktualisieren
-if ($runId > 0) {
-    try {
-        $statusStr = $isRunning ? 'running' : 'finished';
-        $stmt = $pdo->prepare('INSERT INTO user_state (user_id, current_run_id, last_status, last_message) VALUES (:uid, :rid, :st, :msg) ON DUPLICATE KEY UPDATE current_run_id = VALUES(current_run_id), last_status = VALUES(last_status), last_message = VALUES(last_message)');
-        $stmt->execute([
-            ':uid' => $userId,
-            ':rid' => $runId,
-            ':st'  => $statusStr,
-            ':msg' => $message,
-        ]);
-    } catch (Throwable $e) {
-        $errors[] = 'user_state write failed: ' . $e->getMessage();
     }
 
-    try {
-        $statusStr = $isRunning ? 'running' : 'finished';
-        $sql = $isRunning
-            ? "UPDATE workflow_runs SET status = :status, last_message = :msg, finished_at = NULL WHERE id = :rid AND user_id = :uid"
-            : "UPDATE workflow_runs SET status = :status, finished_at = NOW(), last_message = :msg WHERE id = :rid AND user_id = :uid";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':status' => $statusStr,
-            ':msg'    => $message,
-            ':rid'    => $runId,
-            ':uid'    => $userId,
-        ]);
-    } catch (Throwable $e) {
-        $errors[] = 'workflow_runs update failed: ' . $e->getMessage();
-    }
-} else {
-    $errors[] = 'user_state skipped: run_id missing';
-}
+    $runSql = $isRunning
+        ? "UPDATE workflow_runs SET status = :status, last_message = :message, finished_at = NULL WHERE id = :rid AND user_id = :uid"
+        : "UPDATE workflow_runs SET status = :status, last_message = :message, finished_at = NOW() WHERE id = :rid AND user_id = :uid";
 
-if ($runId <= 0) {
-    json_response(false, 'Run could not be determined', [
-        'errors'   => $errors,
-        'run_id'   => $runId,
-        'isrunning'=> $isRunning,
+    $updateRun = $pdo->prepare($runSql);
+    $updateRun->execute([
+        ':status' => $statusStr,
+        ':message'=> $message,
+        ':rid'    => $runId,
+        ':uid'    => $userId,
     ]);
+
+    if ($updateRun->rowCount() === 0) {
+        throw new RuntimeException('run not found');
+    }
+
+    $stateStmt = $pdo->prepare(
+        'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:uid, :rid, :status, :message, NOW())'
+        . ' ON DUPLICATE KEY UPDATE'
+        . '     current_run_id = VALUES(current_run_id),'
+        . '     last_status = VALUES(last_status),'
+        . '     last_message = VALUES(last_message),'
+        . '     updated_at = NOW()'
+    );
+    $stateStmt->execute([
+        ':uid'     => $userId,
+        ':rid'     => $runId,
+        ':status'  => $statusStr,
+        ':message' => $message,
+    ]);
+
+    $pdo->commit();
+} catch (RuntimeException $runtimeException) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    json_response(false, $runtimeException->getMessage(), [
+        'run_id'   => $runId,
+        'status'   => $statusStr,
+        'message'  => $message,
+    ], 404);
     return;
-}
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
 
-if ($errors !== []) {
-    json_response(false, 'state updated with warnings', [
-        'errors'   => $errors,
-        'run_id'   => $runId,
-        'isrunning'=> $isRunning,
-    ]);
+    error_log('[receiver] ' . $exception->getMessage());
+    json_response(false, 'internal error', [
+        'run_id'  => $runId,
+        'status'  => $statusStr,
+    ], 500);
     return;
 }
 
 json_response(true, 'state updated', [
-    'run_id'   => $runId,
-    'isrunning'=> $isRunning,
+    'run_id'    => $runId,
+    'isrunning' => $isRunning,
+    'status'    => $statusStr,
+    'message'   => $message,
 ]);
