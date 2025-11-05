@@ -366,7 +366,7 @@ function upsertUserState(PDO $pdo, int $userId, string $lastStatus, string $last
 {
     $statement = $pdo->prepare(
         'INSERT INTO user_state (user_id, last_status, last_message, last_payload_summary, current_run_id, updated_at)
-         VALUES (:user_id, :last_status, :last_message, :last_payload_summary, :current_run_id, NOW())
+         VALUES (?, ?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE
              last_status = VALUES(last_status),
              last_message = VALUES(last_message),
@@ -376,11 +376,11 @@ function upsertUserState(PDO $pdo, int $userId, string $lastStatus, string $last
     );
 
     $statement->execute([
-        ':user_id'              => $userId,
-        ':last_status'          => $lastStatus,
-        ':last_message'         => $lastMessage,
-        ':last_payload_summary' => $payloadSummary,
-        ':current_run_id'       => $currentRunId,
+        $userId,
+        $lastStatus,
+        $lastMessage,
+        $payloadSummary,
+        $currentRunId,
     ]);
 }
 
@@ -530,28 +530,28 @@ try {
             if ($noteId !== null) {
                 $updateNote = $pdo->prepare(
                     'UPDATE item_notes
-                        SET product_name = COALESCE(:product_name, product_name),
-                            product_description = COALESCE(:product_description, product_description),
-                            source = :source
-                      WHERE id = :id'
+                        SET product_name = ?,
+                            product_description = ?,
+                            source = ?
+                      WHERE id = ?'
                 );
                 $updateNote->execute([
-                    ':product_name'        => $productName,
-                    ':product_description' => $productDescription,
-                    ':source'              => 'n8n',
-                    ':id'                  => $noteId,
+                    $productName,
+                    $productDescription,
+                    'n8n',
+                    $noteId,
                 ]);
             } else {
                 $insertNote = $pdo->prepare(
                     'INSERT INTO item_notes (user_id, run_id, product_name, product_description, source, created_at)
-                     VALUES (:user_id, :run_id, :product_name, :product_description, :source, NOW())'
+                     VALUES (?, ?, ?, ?, ?, NOW())'
                 );
                 $insertNote->execute([
-                    ':user_id'             => $userId,
-                    ':run_id'              => $targetRunId,
-                    ':product_name'        => $productName,
-                    ':product_description' => $productDescription,
-                    ':source'              => 'n8n',
+                    $userId,
+                    $targetRunId,
+                    $productName,
+                    $productDescription,
+                    'n8n',
                 ]);
             }
         }
