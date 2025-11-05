@@ -115,7 +115,7 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $errors = [];
 $runId = 0;
 
-// 1) aktuellen Run ermitteln oder anlegen
+// 1) aktuellen Run ermitteln
 try {
     $stmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :uid');
     $stmt->execute([':uid' => $userId]);
@@ -131,16 +131,6 @@ if ($runId === 0) {
         $runId = (int)($stmt->fetchColumn() ?? 0);
     } catch (Throwable $e) {
         $errors[] = 'workflow_runs lookup failed: ' . $e->getMessage();
-    }
-}
-
-if ($runId === 0) {
-    try {
-        $stmt = $pdo->prepare("INSERT INTO workflow_runs (user_id, started_at, status, last_message) VALUES (:uid, NOW(), 'running', :msg)");
-        $stmt->execute([':uid' => $userId, ':msg' => $message]);
-        $runId = (int)$pdo->lastInsertId();
-    } catch (Throwable $e) {
-        $errors[] = 'workflow_runs insert failed: ' . $e->getMessage();
     }
 }
 
@@ -191,17 +181,20 @@ if ($runId > 0) {
         $errors[] = 'user_state write failed: ' . $e->getMessage();
     }
 
-    if (!$isRunning) {
-        try {
-            $stmt = $pdo->prepare("UPDATE workflow_runs SET status = 'finished', finished_at = NOW(), last_message = :msg WHERE id = :rid AND user_id = :uid");
-            $stmt->execute([
-                ':msg' => $message,
-                ':rid' => $runId,
-                ':uid' => $userId,
-            ]);
-        } catch (Throwable $e) {
-            $errors[] = 'workflow_runs update failed: ' . $e->getMessage();
-        }
+    try {
+        $statusStr = $isRunning ? 'running' : 'finished';
+        $sql = $isRunning
+            ? "UPDATE workflow_runs SET status = :status, last_message = :msg, finished_at = NULL WHERE id = :rid AND user_id = :uid"
+            : "UPDATE workflow_runs SET status = :status, finished_at = NOW(), last_message = :msg WHERE id = :rid AND user_id = :uid";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':status' => $statusStr,
+            ':msg'    => $message,
+            ':rid'    => $runId,
+            ':uid'    => $userId,
+        ]);
+    } catch (Throwable $e) {
+        $errors[] = 'workflow_runs update failed: ' . $e->getMessage();
     }
 } else {
     $errors[] = 'user_state skipped: run_id missing';

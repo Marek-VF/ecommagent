@@ -75,19 +75,12 @@ try {
     }
 
     if ($runId === null) {
-        $normalizedStatus = strtolower(trim($stateStatus));
-        $isRunning = $normalizedStatus === 'running';
-        $statusLabel = $isRunning ? 'running' : 'idle';
-        $message = $stateMessage !== ''
-            ? $stateMessage
-            : ($isRunning ? 'Workflow gestartet – warte auf Ergebnisse …' : 'Bereit zum Upload');
-
         echo json_encode([
             'ok'   => true,
             'data' => [
-                'isrunning'           => $isRunning,
-                'status'              => $statusLabel,
-                'message'             => $message,
+                'isrunning'           => false,
+                'status'              => 'idle',
+                'message'             => 'Bereit zum Upload',
                 'product_name'        => '',
                 'product_description' => '',
                 'images'              => [],
@@ -176,60 +169,34 @@ try {
         }
     }
 
-    if ($runId !== null) {
-        $statusValue = isset($run['status']) ? (string) $run['status'] : '';
-        $messageValue = isset($run['last_message']) ? (string) $run['last_message'] : '';
-    } else {
-        $statusValue = '';
-        $messageValue = '';
-    }
-
+    $statusValue = isset($run['status']) ? (string) $run['status'] : '';
     if ($statusValue === '') {
         $statusValue = $stateStatus !== '' ? $stateStatus : 'running';
     }
 
+    $messageValue = isset($run['last_message']) ? (string) $run['last_message'] : '';
     if ($messageValue === '') {
-        $messageValue = $stateMessage;
+        $messageValue = $stateMessage !== '' ? $stateMessage : ($statusValue === 'finished' ? 'Workflow abgeschlossen' : 'Verarbeitung läuft …');
     }
 
-    $isRunning = false;
-    if ($run !== null && isset($run['status'])) {
-        $isRunning = strtolower((string) $run['status']) === 'running';
-    } elseif ($statusValue !== '') {
-        $isRunning = strtolower((string) $statusValue) === 'running';
-    }
-
-    if ($runId !== null) {
-        echo json_encode([
-            'ok'   => true,
-            'data' => [
-                'run_id'              => $runId,
-                'isrunning'           => $isRunning,
-                'status'              => $statusValue,
-                'message'             => $messageValue,
-                'product_name'        => $productName,
-                'product_description' => $productDescription,
-                'images'              => array_map(
-                    static fn (array $row): array => [
-                        'url'      => $row['url'],
-                        'position' => (int) $row['position'],
-                    ],
-                    $images
-                ),
-            ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
+    $isRunning = strtolower($statusValue) === 'running';
 
     echo json_encode([
         'ok'   => true,
         'data' => [
-            'isrunning'           => false,
-            'status'              => 'idle',
-            'message'             => 'kein aktueller Lauf',
-            'product_name'        => '',
-            'product_description' => '',
-            'images'              => [],
+            'run_id'              => $runId,
+            'isrunning'           => $isRunning,
+            'status'              => $statusValue,
+            'message'             => $messageValue,
+            'product_name'        => $productName,
+            'product_description' => $productDescription,
+            'images'              => array_map(
+                static fn (array $row): array => [
+                    'url'      => $row['url'],
+                    'position' => (int) $row['position'],
+                ],
+                $images
+            ),
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (PDOException $exception) {

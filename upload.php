@@ -130,24 +130,6 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runMessage = 'Upload gestartet';
-
-    $stateStmt = $pdo->prepare(
-        'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at)
-         VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())
-         ON DUPLICATE KEY UPDATE
-             current_run_id = VALUES(current_run_id),
-             last_status = VALUES(last_status),
-             last_message = VALUES(last_message),
-             updated_at = NOW()'
-    );
-    $stateStmt->execute([
-        ':user_id'        => $userId,
-        ':current_run_id' => 0,
-        ':last_status'    => 'running',
-        ':last_message'   => $runMessage,
-    ]);
-
     $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
     $postFields = [
         'file'      => $curlFile,
@@ -186,11 +168,57 @@ try {
         $forwardResponse = $webhookResponse;
     }
 
+    if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
+        throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
+    }
+
+    $runId = null;
+    $runMessage = 'Workflow gestartet';
+
+    $pdo->beginTransaction();
+    try {
+        $insertRun = $pdo->prepare(
+            "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
+            "VALUES (:user_id, NOW(), 'running', :last_message)"
+        );
+        $insertRun->execute([
+            ':user_id'      => $userId,
+            ':last_message' => $runMessage,
+        ]);
+
+        $runId = (int) $pdo->lastInsertId();
+
+        $stateStmt = $pdo->prepare(
+            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at)
+             VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())
+             ON DUPLICATE KEY UPDATE
+                 current_run_id = VALUES(current_run_id),
+                 last_status = VALUES(last_status),
+                 last_message = VALUES(last_message),
+                 updated_at = NOW()'
+        );
+        $stateStmt->execute([
+            ':user_id'        => $userId,
+            ':current_run_id' => $runId,
+            ':last_status'    => 'running',
+            ':last_message'   => $runMessage,
+        ]);
+
+        $pdo->commit();
+    } catch (Throwable $databaseException) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $databaseException;
+    }
+
     $respond([
         'success'          => true,
         'status'           => 'ok',
         'message'          => 'Upload erfolgreich gespeichert und Workflow gestartet.',
         'file'             => $publicPath,
+        'run_id'           => $runId,
         'timestamp'        => $timestamp(),
         'webhook_status'   => $webhookStatus,
         'webhook_response' => $forwardResponse,
