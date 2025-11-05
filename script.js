@@ -260,6 +260,78 @@ const applyLatestItemData = (payload) => {
     }
 };
 
+const normalizeLatestImagesObject = (input) => {
+    const result = {};
+
+    if (!input) {
+        return result;
+    }
+
+    const assignToKey = (key, url) => {
+        if (!key || typeof key !== 'string') {
+            return;
+        }
+
+        const normalizedKey = key.trim().toLowerCase();
+        if (!/^image_?[1-3]$/.test(normalizedKey)) {
+            return;
+        }
+
+        const normalizedUrl = typeof url === 'string' ? url.trim() : '';
+        if (normalizedUrl === '') {
+            return;
+        }
+
+        const slotKey = `image_${normalizedKey.replace(/[^1-3]/g, '')}`;
+        if (!Object.prototype.hasOwnProperty.call(result, slotKey)) {
+            result[slotKey] = normalizedUrl;
+        }
+    };
+
+    if (Array.isArray(input)) {
+        input.forEach((entry) => {
+            if (!entry || typeof entry !== 'object') {
+                return;
+            }
+
+            const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+            if (url === '') {
+                return;
+            }
+
+            if (Number.isFinite(Number(entry.position))) {
+                const numeric = Number(entry.position);
+                if (numeric >= 1 && numeric <= 3) {
+                    const key = `image_${numeric}`;
+                    if (!Object.prototype.hasOwnProperty.call(result, key)) {
+                        result[key] = url;
+                    }
+                    return;
+                }
+            }
+
+            if (typeof entry.slot === 'string') {
+                assignToKey(entry.slot, url);
+                return;
+            }
+
+            if (typeof entry.key === 'string') {
+                assignToKey(entry.key, url);
+            }
+        });
+
+        return result;
+    }
+
+    if (typeof input === 'object') {
+        Object.entries(input).forEach(([key, value]) => {
+            assignToKey(key, value);
+        });
+    }
+
+    return result;
+};
+
 const mapLatestItemPayloadToLegacy = (payload) => {
     const normalized = payload && typeof payload === 'object' ? { ...payload } : {};
 
@@ -280,23 +352,26 @@ const mapLatestItemPayloadToLegacy = (payload) => {
         normalized.isrunning = false;
     }
 
-    if (payload && typeof payload === 'object' && payload.images && typeof payload.images === 'object') {
-        gallerySlotKeys.forEach((key) => {
-            const value = payload.images[key];
-            if (typeof value === 'string') {
-                const trimmed = value.trim();
-                if (trimmed !== '') {
-                    normalized[key] = trimmed;
-                }
+    const imageMap = normalizeLatestImagesObject(payload && typeof payload === 'object' ? payload.images : null);
+    normalized.images = imageMap;
+
+    gallerySlotKeys.forEach((key) => {
+        const value = imageMap[key];
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed !== '') {
+                normalized[key] = trimmed;
             }
-        });
-    }
+        }
+    });
 
     return normalized;
 };
 
 const updateUiWithData = (payload) => {
-    const data = payload && typeof payload === 'object' ? payload : {};
+    const data = payload && typeof payload === 'object' ? { ...payload } : {};
+    const imageMap = normalizeLatestImagesObject(payload && typeof payload === 'object' ? payload.images : null);
+    data.images = imageMap;
 
     applyLatestItemData(data);
     const normalized = mapLatestItemPayloadToLegacy(data);
@@ -1506,12 +1581,7 @@ const closeHistory = () => {
 
 async function fetchLatestItem() {
     try {
-        const params = new URLSearchParams({ _: String(Date.now()) });
-        if (activeRunId !== null && Number.isFinite(activeRunId)) {
-            params.set('run_id', String(activeRunId));
-        }
-
-        const response = await fetch(`${DATA_ENDPOINT}?${params.toString()}`, {
+        const response = await fetch(DATA_ENDPOINT, {
             cache: 'no-store',
         });
 
@@ -1520,15 +1590,17 @@ async function fetchLatestItem() {
         }
 
         const raw = await response.json();
-        if (!raw || typeof raw !== 'object' || raw.ok !== true) {
-            return;
-        }
-
-        if (raw.has_data === false) {
+        if (!raw || typeof raw !== 'object' || raw.ok !== true || !raw.data) {
             return;
         }
 
         const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
+
+        if (payload.run_id !== undefined && payload.run_id !== null) {
+            const numericRunId = Number(payload.run_id);
+            activeRunId = Number.isFinite(numericRunId) && numericRunId > 0 ? numericRunId : null;
+        }
+
         const normalized = updateUiWithData(payload);
 
         const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
@@ -1729,8 +1801,8 @@ function startPolling() {
 
     isPolling = true;
     workflowIsRunning = true;
-    fetchLatestItem();
     pollInterval = setInterval(fetchLatestItem, POLLING_INTERVAL);
+    fetchLatestItem();
 }
 
 function stopPolling() {

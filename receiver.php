@@ -287,21 +287,40 @@ function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
     return $stmt->fetchColumn() !== false;
 }
 
-function fetchCurrentRunId(PDO $pdo, int $userId): ?int
+function fetchLatestRunId(PDO $pdo, int $userId): ?int
 {
-    $stmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user_id LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id FROM workflow_runs WHERE user_id = :user_id ORDER BY started_at DESC, id DESC LIMIT 1');
     $stmt->execute([':user_id' => $userId]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $value = $stmt->fetchColumn();
 
-    if ($row === false) {
+    if ($value === false || $value === null) {
         return null;
     }
 
-    if ($row['current_run_id'] === null) {
-        return null;
+    return (int) $value;
+}
+
+function resolveMessageFromPayload(array $payload, string $fallback): string
+{
+    $candidates = [
+        $payload['message'] ?? null,
+        $payload['status'] ?? null,
+        $payload['status_message'] ?? null,
+        $payload['statusMessage'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (!is_string($candidate)) {
+            continue;
+        }
+
+        $sanitized = sanitizeString($candidate, 255);
+        if ($sanitized !== null) {
+            return $sanitized;
+        }
     }
 
-    return (int) $row['current_run_id'];
+    return sanitizeString($fallback, 255) ?? 'aktualisiert';
 }
 
 function upsertUserState(PDO $pdo, int $userId, string $lastStatus, string $lastMessage, string $payloadSummary, ?int $currentRunId): void
@@ -421,36 +440,25 @@ try {
         }
 
         $payloadRunId = normalizeRunId($payload['run_id'] ?? null);
-        $currentRunId = fetchCurrentRunId($pdo, $userId);
-        $targetRunId = $payloadRunId ?? $currentRunId;
-        if ($targetRunId !== null && !runBelongsToUser($pdo, $userId, $targetRunId)) {
-            $targetRunId = null;
+        $runId = null;
+        if ($payloadRunId !== null && runBelongsToUser($pdo, $userId, $payloadRunId)) {
+            $runId = $payloadRunId;
         }
 
-        $message = $statusMessage ?? ($isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.');
-        $lastStatus = normalizeStatusLabel($isRunning ? 'running' : 'finished');
-
-        $shouldUpdateState = false;
-        $stateRunId = $currentRunId;
-
-        if ($payloadRunId !== null) {
-            if ($currentRunId === null || $currentRunId === $payloadRunId) {
-                $shouldUpdateState = true;
-                $stateRunId = $payloadRunId;
-            }
-        } elseif ($currentRunId !== null) {
-            $shouldUpdateState = true;
-            $stateRunId = $currentRunId;
+        if ($runId === null) {
+            $runId = fetchLatestRunId($pdo, $userId);
         }
 
-        if ($shouldUpdateState) {
-            $nextRunId = $isRunning ? $stateRunId : null;
-            upsertUserState($pdo, $userId, $lastStatus, $message, $raw, $nextRunId);
+        $messageDefault = $statusMessage ?? ($isRunning ? 'Workflow läuft…' : 'Workflow abgeschlossen.');
+        $message = resolveMessageFromPayload($payload, $messageDefault);
+        $lastStatus = $isRunning ? 'running' : 'finished';
+
+        if ($runId !== null) {
+            updateWorkflowRun($pdo, $userId, $runId, $isRunning ? 'running' : 'finished', $message, !$isRunning);
         }
 
-        if ($targetRunId !== null) {
-            updateWorkflowRun($pdo, $userId, $targetRunId, $isRunning ? 'running' : 'finished', $message, !$isRunning);
-        }
+        $payloadSummary = mb_substr($raw, 0, 65535);
+        upsertUserState($pdo, $userId, $lastStatus, $message, $payloadSummary, $runId);
 
         jsonResponse(200, [
             'ok'        => true,
@@ -467,15 +475,12 @@ try {
         $message = $statusMessage ?? 'Daten empfangen.';
         $payloadRunId = normalizeRunId($payload['run_id'] ?? null);
         $runId = $payloadRunId;
-        $createdNewRun = false;
-
         if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
             $runId = null;
         }
 
         if ($runId === null) {
             $runId = startWorkflowRun($pdo, $userId, $message);
-            $createdNewRun = true;
         } else {
             updateWorkflowRun($pdo, $userId, $runId, 'running', $message, false);
         }
@@ -507,11 +512,8 @@ try {
             ':source'          => 'receiver',
         ]);
 
-        $currentRunId = fetchCurrentRunId($pdo, $userId);
-        $shouldUpdateState = $createdNewRun || $currentRunId === null || $currentRunId === $runId;
-        if ($shouldUpdateState) {
-            upsertUserState($pdo, $userId, 'running', $message, $raw, $runId);
-        }
+        $stateMessage = resolveMessageFromPayload($payload, $message);
+        upsertUserState($pdo, $userId, 'running', $stateMessage, $raw, $runId);
 
         $pdo->commit();
 
