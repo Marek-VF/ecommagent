@@ -388,15 +388,24 @@ try {
         }
     }
 
-    $shouldUpdateState = $runId !== null && ($currentRunId === null || $currentRunId === $runId);
-
     $extension = $allowedMimeTypes[$mimeType];
-    $now = new DateTimeImmutable('now');
-    $year = $now->format('Y');
-    $month = $now->format('m');
+    if ($runId === null) {
+        jsonResponse(400, [
+            'ok'      => false,
+            'message' => 'run_id missing',
+        ]);
+    }
 
-    $baseUploadDir = rtrim(__DIR__ . '/uploads', '/');
-    $targetDirectory = sprintf('%s/%d/%s/%s', $baseUploadDir, $userId ?? 0, $year, $month);
+    $runId = (int) $runId;
+    $shouldUpdateState = $currentRunId === null || $currentRunId === $runId;
+
+    $uploadDirConfig = $config['upload_dir'] ?? (__DIR__ . '/uploads/');
+    $baseUploadDir = rtrim((string) $uploadDirConfig, " \\t\n\r\0\x0B/\\");
+    if ($baseUploadDir === '') {
+        $baseUploadDir = __DIR__ . '/uploads';
+    }
+
+    $targetDirectory = sprintf('%s/%d/%d', $baseUploadDir, $userId, $runId);
 
     if (!is_dir($targetDirectory)) {
         if (!mkdir($targetDirectory, 0755, true) && !is_dir($targetDirectory)) {
@@ -421,7 +430,7 @@ try {
 
     @chmod($targetPath, 0644);
 
-    $relativeUrl = sprintf('/uploads/%d/%s/%s/%s', $userId ?? 0, $year, $month, $filename);
+    $relativeUrl = sprintf('/uploads/%d/%d/%s', $userId, $runId, $filename);
 
     $positionInput = $_POST['position'] ?? null;
     $requestedPosition = null;
