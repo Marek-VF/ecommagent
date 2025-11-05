@@ -123,14 +123,25 @@ $runId = normalize_positive_int($payload['run_id'] ?? null);
 $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
-$hasNameField = array_key_exists('product_name', $payload);
-$hasDescField = array_key_exists('product_description', $payload);
-$name = $hasNameField ? trim((string) $payload['product_name']) : '';
-$desc = $hasDescField ? trim((string) $payload['product_description']) : '';
-$message = isset($payload['message']) ? trim((string) $payload['message']) : '';
-if ($message === '' && isset($payload['status'])) {
-    $message = trim((string) $payload['status']);
+
+$nameRaw = $payload['product_name'] ?? $payload['produktname'] ?? null;
+$descRaw = $payload['product_description'] ?? $payload['produktbeschreibung'] ?? null;
+$statusRaw = $payload['statusmessage'] ?? $payload['message'] ?? $payload['status'] ?? null;
+
+$hasNameField = array_key_exists('product_name', $payload) || array_key_exists('produktname', $payload);
+$hasDescField = array_key_exists('product_description', $payload) || array_key_exists('produktbeschreibung', $payload);
+
+$name = null;
+if ($hasNameField) {
+    $name = $nameRaw !== null ? trim((string) $nameRaw) : '';
 }
+
+$desc = null;
+if ($hasDescField) {
+    $desc = $descRaw !== null ? trim((string) $descRaw) : '';
+}
+
+$message = $statusRaw !== null ? trim((string) $statusRaw) : '';
 if ($message === '') {
     $message = 'aktualisiert';
 }
@@ -208,15 +219,17 @@ try {
         $existingNoteDescription = isset($noteRow['product_description']) ? (string) $noteRow['product_description'] : '';
     } else {
         $noteInsert = $pdo->prepare(
-            "INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, '', '', 'n8n')"
+            "INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:uid, :rid, COALESCE(:pname, ''), COALESCE(:pdesc, ''), 'n8n')"
         );
         $noteInsert->execute([
-            ':uid' => $userId,
-            ':rid' => $runId,
+            ':uid'   => $userId,
+            ':rid'   => $runId,
+            ':pname' => $name,
+            ':pdesc' => $desc,
         ]);
         $noteId = (int) $pdo->lastInsertId();
-        $existingNoteName = '';
-        $existingNoteDescription = '';
+        $existingNoteName = $name ?? '';
+        $existingNoteDescription = $desc ?? '';
     }
 
     if ($noteId <= 0) {
@@ -224,15 +237,26 @@ try {
     }
 
     if ($hasNameField || $hasDescField) {
-        $newName = $hasNameField ? $name : $existingNoteName;
-        $newDesc = $hasDescField ? $desc : $existingNoteDescription;
+        $updateParts = [];
+        $updateParams = [
+            ':nid' => $noteId,
+        ];
 
-        $updateNote = $pdo->prepare("UPDATE item_notes SET product_name = :pname, product_description = :pdesc, source = 'n8n' WHERE id = :nid");
-        $updateNote->execute([
-            ':pname' => $newName,
-            ':pdesc' => $newDesc,
-            ':nid'   => $noteId,
-        ]);
+        if ($hasNameField) {
+            $updateParts[] = 'product_name = :pname';
+            $updateParams[':pname'] = $name ?? '';
+        }
+
+        if ($hasDescField) {
+            $updateParts[] = 'product_description = :pdesc';
+            $updateParams[':pdesc'] = $desc ?? '';
+        }
+
+        if (!empty($updateParts)) {
+            $updateSql = 'UPDATE item_notes SET ' . implode(', ', $updateParts) . ", source = 'n8n' WHERE id = :nid";
+            $updateNote = $pdo->prepare($updateSql);
+            $updateNote->execute($updateParams);
+        }
     }
 
     $runSql = $isRunning
