@@ -27,6 +27,7 @@ if (is_file($placeholderFile)) {
 }
 
 $appConfig = [
+    'base_url' => $baseUrl !== '' ? $baseUrl : null,
     'assets' => [
         'base'        => $assetBaseUrl,
         'placeholder' => $placeholderSrc,
@@ -147,7 +148,7 @@ $appConfig = [
                     <textarea id="article-description" name="article-description" rows="6" placeholder="Beschreibung eingeben"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn--primary">Speichern</button>
+                    <button id="btn-new" type="button" class="btn btn--primary">Neu</button>
                 </div>
             </section>
         </main>
