@@ -109,23 +109,6 @@ $appConfig = [
                     </div>
                     <div id="upload-previews" class="preview-list" aria-live="polite"></div>
                 </div>
-                <div class="panel__section panel__section--status">
-                    <div class="status-panel" aria-live="polite">
-                        <div class="status-panel__header">
-                            <h3 class="status-panel__title">Status</h3>
-                            <p id="processing-indicator" class="status-panel__indicator">Bereit.</p>
-                        </div>
-                        <div id="status-message" class="status-bar" aria-live="polite">Bereit zum Upload</div>
-                        <div
-                            id="status-log"
-                            class="status-panel__log"
-                            role="log"
-                            aria-live="polite"
-                            aria-atomic="false"
-                            aria-label="Statusprotokoll"
-                        ></div>
-                    </div>
-                </div>
             </section>
             <section class="panel panel--details">
                 <div class="gallery" aria-label="Platzhalter-Bilder">

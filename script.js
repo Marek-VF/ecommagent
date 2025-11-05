@@ -5,10 +5,7 @@ const previewList = document.getElementById('upload-previews');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
-const processingIndicator = document.getElementById('processing-indicator');
 const newButton = document.getElementById('btn-new');
-const statusLogContainer = document.getElementById('status-log');
-const statusMessageElement = document.getElementById('status-message');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
@@ -26,7 +23,6 @@ const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
 
 const uploadEndpoint = 'upload.php';
 const initializationEndpoint = 'init.php';
-const STATUS_LOG_LIMIT = 60;
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
@@ -57,62 +53,6 @@ const toAbsoluteUrl = (path) => {
     return `/${raw.replace(/^\/+/, '')}`;
 };
 
-// zentrale Normalisierungstabelle
-const STATUS_NORMALIZER = [
-    {
-        key: 'workflow_started',
-        tests: [
-            /workflow was started/i,
-            /workflow gestartet/i,
-            /upload.*workflow.*gestartet/i,
-            /200/i,
-        ],
-        text: 'Workflow wurde gestartet.',
-        level: 'ok',
-    },
-    {
-        key: 'meta_saved',
-        tests: [
-            /name und beschreibung erfolgreich erstellt/i,
-            /produktname/i,
-            /beschreibung.*gespeichert/i,
-        ],
-        text: 'Name und Beschreibung erfolgreich erstellt.',
-        level: 'ok',
-    },
-    {
-        key: 'image_1_saved',
-        tests: [/bild 1/i, /image[_\s]?1/i],
-        text: 'Bild 1 erfolgreich gespeichert.',
-        level: 'ok',
-    },
-    {
-        key: 'image_2_saved',
-        tests: [/bild 2/i, /image[_\s]?2/i],
-        text: 'Bild 2 erfolgreich gespeichert.',
-        level: 'ok',
-    },
-    {
-        key: 'image_3_saved',
-        tests: [/bild 3/i, /image[_\s]?3/i],
-        text: 'Bild 3 erfolgreich gespeichert.',
-        level: 'ok',
-    },
-    {
-        key: 'workflow_finished',
-        tests: [
-            /workflow abgeschlossen/i,
-            /workflow finished/i,
-            /isrunning:? ?false/i,
-        ],
-        text: 'Workflow abgeschlossen.',
-        level: 'ok',
-    },
-];
-
-// schon ausgegebene Schlüssel
-const SHOWN_STATUS_KEYS = new Set();
-
 // merkt sich, welche Bild-URLs zuletzt im UI bekannt waren
 const lastKnownImages = {
     image_1: null,
@@ -121,91 +61,6 @@ const lastKnownImages = {
 };
 
 let selectedHistoryRunId = null;
-
-const normalizeStatusMessage = (rawMessage = '', httpStatus = null) => {
-    const msg = String(rawMessage || '').trim();
-
-    if (typeof httpStatus === 'number' && httpStatus >= 400) {
-        return {
-            key: `http_${httpStatus}`,
-            text: msg || `Fehler vom Server (${httpStatus})`,
-            level: 'error',
-        };
-    }
-
-    for (const def of STATUS_NORMALIZER) {
-        for (const re of def.tests) {
-            if (re.test(msg)) {
-                return {
-                    key: def.key,
-                    text: def.text,
-                    level: def.level,
-                };
-            }
-        }
-    }
-
-    return {
-        key: msg.toLowerCase(),
-        text: msg,
-        level: 'info',
-    };
-};
-
-const STATUS_LEVEL_CLASS_MAP = {
-    ok: 'log-ok',
-    error: 'log-err',
-    info: 'log-info',
-};
-
-const renderNormalizedStatus = (normalized) => {
-    if (!statusLogContainer || !normalized || !normalized.text) {
-        return;
-    }
-
-    if (SHOWN_STATUS_KEYS.has(normalized.key)) {
-        return;
-    }
-
-    SHOWN_STATUS_KEYS.add(normalized.key);
-
-    if (statusLogContainer.childElementCount === 0) {
-        const existingText = statusLogContainer.textContent;
-        if (typeof existingText === 'string' && existingText.trim() !== '') {
-            statusLogContainer.textContent = '';
-        }
-    }
-
-    const finalClass = STATUS_LEVEL_CLASS_MAP[normalized.level] || STATUS_LEVEL_CLASS_MAP.info;
-    const entry = document.createElement('p');
-    entry.className = `log-entry ${finalClass}`;
-    entry.textContent = normalized.text;
-
-    statusLogContainer.prepend(entry);
-    trimStatusLog();
-    scrollStatusLogToTop();
-};
-
-const applyLevelHint = (normalized, levelHint) => {
-    const mapped = mapTypeHint(levelHint);
-    if (!mapped) {
-        return normalized;
-    }
-
-    if (mapped === 'error') {
-        return { ...normalized, level: 'error' };
-    }
-
-    if (mapped === 'ok' && normalized.level !== 'error') {
-        return { ...normalized, level: 'ok' };
-    }
-
-    if (mapped === 'info' && normalized.level === undefined) {
-        return { ...normalized, level: 'info' };
-    }
-
-    return normalized;
-};
 
 const sanitizeLatestItemString = (value) => {
     if (typeof value === 'string') {
@@ -255,9 +110,6 @@ const applyLatestItemData = (payload) => {
         }
     }
 
-    if (statusLogContainer && statusLogContainer.childElementCount === 0) {
-        statusLogContainer.textContent = resolveLatestStatusMessage(data);
-    }
 };
 
 const normalizeLatestImagesObject = (input) => {
@@ -395,40 +247,8 @@ const updateUiWithData = (payload) => {
                     return;
                 }
 
-                const prevSrc = lastKnownImages[slotKey];
-
-                if (!prevSrc || prevSrc !== resolvedSrc) {
-                    setSlotImageSource(slot, resolvedSrc);
-
-                    let statusKey = '';
-                    if (slotKey === 'image_1') statusKey = 'image_1_saved';
-                    else if (slotKey === 'image_2') statusKey = 'image_2_saved';
-                    else if (slotKey === 'image_3') statusKey = 'image_3_saved';
-
-                    if (statusKey) {
-                        SHOWN_STATUS_KEYS.delete(statusKey);
-                    }
-
-                    if (statusKey && !SHOWN_STATUS_KEYS.has(statusKey)) {
-                        SHOWN_STATUS_KEYS.add(statusKey);
-
-                        if (statusLogContainer) {
-                            const entry = document.createElement('p');
-                            entry.className = 'log-entry log-ok';
-                            if (statusKey === 'image_1_saved') entry.textContent = 'Bild 1 erfolgreich gespeichert.';
-                            if (statusKey === 'image_2_saved') entry.textContent = 'Bild 2 erfolgreich gespeichert.';
-                            if (statusKey === 'image_3_saved') entry.textContent = 'Bild 3 erfolgreich gespeichert.';
-                            statusLogContainer.prepend(entry);
-                            trimStatusLog();
-                            scrollStatusLogToTop();
-                        }
-                    }
-
-                    lastKnownImages[slotKey] = resolvedSrc;
-                } else {
-                    setSlotImageSource(slot, resolvedSrc);
-                    lastKnownImages[slotKey] = resolvedSrc;
-                }
+                setSlotImageSource(slot, resolvedSrc);
+                lastKnownImages[slotKey] = resolvedSrc;
             }
         });
     }
@@ -459,13 +279,6 @@ const OVERLAY_SRC =
     assetConfig.pulse ||
     assetConfig.loading ||
     `${assetBase}/pulse.svg`;
-const INDICATOR_STATE_CLASSES = [
-    'status-panel__indicator--running',
-    'status-panel__indicator--success',
-    'status-panel__indicator--warning',
-    'status-panel__indicator--error',
-];
-
 const gallerySlotKeys = ['image_1', 'image_2', 'image_3'];
 
 const gallerySlots = gallerySlotKeys
@@ -624,52 +437,10 @@ gallerySlots.forEach((slot) => {
 });
 
 let isProcessing = false;
-let lastStatusText = '';
 let hasShownCompletion = false;
 let hasObservedActiveRun = false;
 let uploadHandlersInitialized = false;
 let historyHandlersInitialized = false;
-
-const TYPE_KEYWORDS = {
-    ok: ['success', 'ok', 'positive', 'completed'],
-    error: ['error', 'fail', 'failed', 'danger'],
-    info: ['info', 'warning', 'warn', 'caution'],
-};
-
-const UNAUTHORIZED_PATTERNS = [
-    /unauthorized/i,
-    /anmeldung erforderlich/i,
-    /ungültiger oder fehlender bearer-token/i,
-];
-
-const MESSAGE_PATHS = [
-    ['message'],
-    ['msg'],
-    ['statusmessage'],
-    ['status_message'],
-    ['error'],
-    ['errors', 0, 'message'],
-    ['status', 'text'],
-];
-
-const CODE_PATHS = [
-    ['statuscode'],
-    ['status_code'],
-    ['code'],
-    ['status', 'code'],
-    ['status', 'status_code'],
-    ['httpstatus'],
-    ['http_status'],
-    ['httpcode'],
-    ['http_code'],
-];
-
-const TYPE_PATHS = [
-    ['type'],
-    ['status', 'type'],
-    ['status', 'status'],
-    ['status', 'state'],
-];
 
 const toBoolean = (value) => {
     if (typeof value === 'boolean') {
@@ -701,316 +472,17 @@ const sanitizeLogMessage = (value) => {
     return String(value).replace(/\s+/g, ' ').trim();
 };
 
-const mapTypeHint = (value) => {
-    if (typeof value !== 'string') {
-        return null;
-    }
-
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) {
-        return null;
-    }
-
-    if (TYPE_KEYWORDS.ok.includes(normalized)) {
-        return 'ok';
-    }
-
-    if (TYPE_KEYWORDS.error.includes(normalized)) {
-        return 'error';
-    }
-
-    if (TYPE_KEYWORDS.info.includes(normalized)) {
-        return 'info';
-    }
-
-    return null;
-};
-
-const getCaseInsensitive = (object, key) => {
-    if (!object || typeof object !== 'object') {
-        return undefined;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(object, key)) {
-        return object[key];
-    }
-
-    const lowerKey = key.toLowerCase();
-    const matchingKey = Object.keys(object).find((candidate) => candidate.toLowerCase() === lowerKey);
-
-    if (matchingKey) {
-        return object[matchingKey];
-    }
-
-    return undefined;
-};
-
-const getValueByPath = (object, path) => {
-    if (!object || typeof object !== 'object') {
-        return undefined;
-    }
-
-    let current = object;
-
-    for (const segment of path) {
-        if (current === null || current === undefined) {
-            return undefined;
-        }
-
-        if (typeof segment === 'number') {
-            if (!Array.isArray(current) || current.length <= segment) {
-                return undefined;
-            }
-
-            current = current[segment];
-            continue;
-        }
-
-        current = getCaseInsensitive(current, segment);
-    }
-
-    return current;
-};
-
-const extractMessageAndCode = (input) => {
-    if (input === null || input === undefined) {
-        return { message: null, code: null, type: null };
-    }
-
-    if (['string', 'number', 'boolean'].includes(typeof input)) {
-        const message = sanitizeLogMessage(input);
-        return {
-            message: message || null,
-            code: null,
-            type: null,
-        };
-    }
-
-    const result = {
-        message: null,
-        code: null,
-        type: null,
-    };
-
-    const visited = new Set();
-
-    const traverse = (value) => {
-        if (!value || typeof value !== 'object' || visited.has(value)) {
-            return;
-        }
-
-        visited.add(value);
-
-        if (result.message === null) {
-            for (const path of MESSAGE_PATHS) {
-                const candidate = getValueByPath(value, path);
-
-                if (candidate === undefined || candidate === null) {
-                    continue;
-                }
-
-                if (['string', 'number', 'boolean'].includes(typeof candidate)) {
-                    const sanitized = sanitizeLogMessage(candidate);
-                    if (sanitized) {
-                        result.message = sanitized;
-                        break;
-                    }
-                } else if (typeof candidate === 'object') {
-                    traverse(candidate);
-                    if (result.message !== null) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (result.code === null) {
-            for (const path of CODE_PATHS) {
-                const candidate = getValueByPath(value, path);
-
-                if (candidate === undefined || candidate === null || candidate === '') {
-                    continue;
-                }
-
-                if (typeof candidate === 'string' || typeof candidate === 'number') {
-                    const sanitized = String(candidate).trim();
-                    if (sanitized) {
-                        result.code = sanitized;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (result.type === null) {
-            for (const path of TYPE_PATHS) {
-                const candidate = getValueByPath(value, path);
-
-                if (typeof candidate === 'string' && candidate.trim() !== '') {
-                    const mapped = mapTypeHint(candidate);
-                    if (mapped) {
-                        result.type = mapped;
-                        break;
-                    }
-                }
-            }
-        }
-
-        Object.keys(value).forEach((key) => {
-            if (result.message !== null && result.code !== null && result.type !== null) {
-                return;
-            }
-
-            const child = value[key];
-
-            if (Array.isArray(child)) {
-                child.forEach((item) => traverse(item));
-            } else if (child && typeof child === 'object') {
-                traverse(child);
-            } else if (result.message === null && (typeof child === 'string' || typeof child === 'number')) {
-                const sanitized = sanitizeLogMessage(child);
-                if (sanitized) {
-                    result.message = sanitized;
-                }
-            }
-        });
-    };
-
-    traverse(input);
-
-    return result;
-};
-
-const isUnauthorized = (status, message) => {
-    if (status === 401) {
-        return true;
-    }
-
-    if (typeof message !== 'string') {
-        return false;
-    }
-
-    return UNAUTHORIZED_PATTERNS.some((pattern) => pattern.test(message));
-};
-
-const buildUnauthorizedMessage = (message) => {
-    const sanitized = sanitizeLogMessage(message) || 'Zugriff verweigert.';
-
-    if (/^nicht autorisiert/i.test(sanitized)) {
-        return sanitized;
-    }
-
-    return `Nicht autorisiert: ${sanitized}`;
-};
-
-const trimStatusLog = () => {
-    if (!statusLogContainer) {
-        return;
-    }
-
-    while (statusLogContainer.children.length > STATUS_LOG_LIMIT) {
-        statusLogContainer.removeChild(statusLogContainer.lastElementChild);
-    }
-};
-
-const scrollStatusLogToTop = () => {
-    if (!statusLogContainer) {
-        return;
-    }
-
-    if (typeof statusLogContainer.scrollTo === 'function') {
-        statusLogContainer.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        statusLogContainer.scrollTop = 0;
-    }
-};
-
-const logMessage = (message, type = 'info') => {
-    const normalizedMessage = sanitizeLogMessage(message);
-    if (!normalizedMessage) {
-        return;
-    }
-
-    const normalized = applyLevelHint(normalizeStatusMessage(normalizedMessage), type);
-    renderNormalizedStatus(normalized);
-};
-
-const renderLog = (level, message, statusCode) => {
-    const sanitizedMessage = sanitizeLogMessage(message);
-    if (!sanitizedMessage) {
-        return;
-    }
-
-    const numericStatus = Number(statusCode);
-    const httpStatus = Number.isFinite(numericStatus) ? numericStatus : null;
-    const normalized = normalizeStatusMessage(sanitizedMessage, httpStatus);
-    const adjusted = applyLevelHint(normalized, level);
-    renderNormalizedStatus(adjusted);
-};
-
-const logResponse = ({ httpStatus, payload, fallbackMessage, fallbackType }) => {
-    const { message, type } = extractMessageAndCode(payload);
-    const fallback = sanitizeLogMessage(fallbackMessage);
-    const fromPayload = sanitizeLogMessage(message);
-    const httpCode = Number.isFinite(httpStatus) ? httpStatus : Number(httpStatus);
-    const effectiveStatus = Number.isFinite(httpCode) ? httpCode : null;
-
-    if (isUnauthorized(effectiveStatus, fromPayload || fallback)) {
-        const unauthorizedMessage = buildUnauthorizedMessage(message || fallbackMessage);
-        const normalized = normalizeStatusMessage(unauthorizedMessage, effectiveStatus || 401);
-        renderNormalizedStatus({ ...normalized, level: 'error' });
-        return;
-    }
-
-    const baseMessage = fromPayload || fallback || '';
-    const normalized = normalizeStatusMessage(baseMessage, effectiveStatus);
-    const levelHint = type || fallbackType || (effectiveStatus && effectiveStatus >= 200 && effectiveStatus < 300
-        ? 'ok'
-        : null);
-    const adjusted = applyLevelHint(normalized, levelHint);
-    renderNormalizedStatus(adjusted);
-};
-
-const updateStatusLog = (entries) => {
-    if (!statusLogContainer || !Array.isArray(entries)) {
-        return;
-    }
-
-    entries.forEach((rawEntry) => {
-        if (!rawEntry || typeof rawEntry !== 'object') {
-            return;
-        }
-
-        const { message, type } = extractMessageAndCode(rawEntry);
-        const fallbackMessage = typeof rawEntry.message === 'string' ? rawEntry.message : '';
-        const sanitizedMessage = sanitizeLogMessage(message) || sanitizeLogMessage(fallbackMessage) || '';
-        const httpStatus = Number.isFinite(rawEntry.status)
-            ? rawEntry.status
-            : Number(rawEntry.status);
-        const effectiveStatus = Number.isFinite(httpStatus) ? httpStatus : null;
-
-        const normalized = normalizeStatusMessage(sanitizedMessage, effectiveStatus);
-        const adjusted = applyLevelHint(
-            normalized,
-            type || rawEntry.type || rawEntry.level || (effectiveStatus && effectiveStatus >= 200 && effectiveStatus < 300
-                ? 'ok'
-                : null),
-        );
-
-        renderNormalizedStatus(adjusted);
-    });
-};
-
 const updateProcessingIndicator = (text, state = 'idle') => {
-    if (!processingIndicator) {
-        return;
-    }
-
-    processingIndicator.textContent = text;
-    INDICATOR_STATE_CLASSES.forEach((className) => processingIndicator.classList.remove(className));
-
-    if (state && state !== 'idle') {
-        processingIndicator.classList.add(`status-panel__indicator--${state}`);
+    if (text) {
+        const normalizedState = state || 'idle';
+        const message = `[Indicator:${normalizedState}] ${sanitizeLogMessage(text) || text}`;
+        if (normalizedState === 'error') {
+            console.error(message);
+        } else if (normalizedState === 'success') {
+            console.info(message);
+        } else {
+            console.log(message);
+        }
     }
 };
 
@@ -1120,7 +592,7 @@ const uploadFiles = async (files) => {
         const formData = new FormData();
         formData.append('image', file);
 
-        logMessage(`Starte Upload: ${file.name}`, 'info');
+        console.log(`Starte Upload: ${file.name}`);
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -1144,11 +616,9 @@ const uploadFiles = async (files) => {
                     ? payload.message
                     : `Upload fehlgeschlagen: ${file.name}`;
                 setStatus('error', errorMessage);
-                logResponse({
-                    httpStatus: response.status,
+                console.error('Upload fehlgeschlagen', {
+                    status: response.status,
                     payload,
-                    fallbackMessage: `Upload fehlgeschlagen: ${file.name}`,
-                    fallbackType: 'error',
                 });
                 setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
                 return;
@@ -1161,15 +631,9 @@ const uploadFiles = async (files) => {
             }
 
             const isSuccessful = result.success !== false;
-            const fallbackMessage = isSuccessful
-                ? `Upload abgeschlossen: ${result.name || file.name}`
-                : `Upload fehlgeschlagen: ${file.name}`;
-
-            logResponse({
-                httpStatus: response.status,
+            console.log('Upload-Antwort', {
+                status: response.status,
                 payload,
-                fallbackMessage,
-                fallbackType: isSuccessful ? 'ok' : 'error',
             });
 
             if (!isSuccessful) {
@@ -1197,32 +661,27 @@ const uploadFiles = async (files) => {
                 const webhookStatus = Number.isFinite(result.webhook_status)
                     ? result.webhook_status
                     : Number(result.webhook_status);
-                const { message: webhookMessage, type: webhookType } = extractMessageAndCode(webhookPayload);
-                const fallbackWebhookMessage = typeof result.webhook_response === 'string'
-                    ? result.webhook_response
-                    : webhookStatus
-                        ? `Webhook ${String(webhookStatus).trim()}`
-                        : 'Webhook-Antwort';
-                const sanitizedWebhookMessage = sanitizeLogMessage(webhookMessage)
-                    || sanitizeLogMessage(fallbackWebhookMessage)
-                    || '';
-
-                const normalizedWebhook = normalizeStatusMessage(
-                    sanitizedWebhookMessage,
-                    Number.isFinite(webhookStatus) ? webhookStatus : null,
-                );
-                const adjustedWebhook = applyLevelHint(
-                    normalizedWebhook,
-                    webhookType || (Number.isFinite(webhookStatus) && webhookStatus >= 200 && webhookStatus < 300 ? 'ok' : null),
+                const sanitizedWebhookMessage = sanitizeLogMessage(
+                    typeof webhookPayload === 'object' && webhookPayload !== null && typeof webhookPayload.message === 'string'
+                        ? webhookPayload.message
+                        : webhookPayload,
                 );
 
-                renderNormalizedStatus(adjustedWebhook);
+                if (sanitizedWebhookMessage) {
+                    const statusLabel = Number.isFinite(webhookStatus) ? webhookStatus : 'unbekannt';
+                    console.log(`[Webhook:${statusLabel}] ${sanitizedWebhookMessage}`);
+                } else {
+                    console.log('Webhook-Antwort erhalten', {
+                        status: Number.isFinite(webhookStatus) ? webhookStatus : null,
+                        payload: webhookPayload,
+                    });
+                }
             }
         } catch (error) {
             console.error(error);
             const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
             const message = sanitizeLogMessage(error?.message) || fallback;
-            logMessage(message, 'error');
+            console.error(message);
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
             setStatus('error', 'Uploadfehler – bitte erneut versuchen.');
         }
@@ -1272,7 +731,6 @@ const updateInterfaceFromData = (data) => {
     }
 
     if (!isRunning && hasObservedActiveRun && !hasShownCompletion) {
-        logMessage('Workflow abgeschlossen.', 'ok');
         hasShownCompletion = true;
         updateProcessingIndicator('Workflow abgeschlossen', 'success');
         hasObservedActiveRun = false;
@@ -1282,20 +740,7 @@ const updateInterfaceFromData = (data) => {
     }
 
     if (!isRunning && !hasShownCompletion && data.updated_at) {
-        logMessage('Verarbeitung abgeschlossen.', 'ok');
         hasShownCompletion = true;
-    }
-
-    if (typeof data.status_message === 'string') {
-        const trimmed = data.status_message.trim();
-        if (trimmed && trimmed !== lastStatusText) {
-            logMessage(trimmed, 'info');
-            lastStatusText = trimmed;
-        }
-    }
-
-    if (Array.isArray(data.statuslog)) {
-        updateStatusLog(data.statuslog);
     }
 
     const nameValue = data.produktname ?? data.product_name ?? data.title;
@@ -1327,7 +772,6 @@ const applyRunDataToUI = (payload) => {
     const data = payload && typeof payload === 'object' ? payload : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
-    const logs = Array.isArray(data.logs) ? data.logs : [];
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();
@@ -1375,32 +819,6 @@ const applyRunDataToUI = (payload) => {
             lastKnownImages[slotKey] = null;
         }
     });
-
-    if (statusLogContainer) {
-        statusLogContainer.textContent = '';
-    }
-    if (typeof SHOWN_STATUS_KEYS.clear === 'function') {
-        SHOWN_STATUS_KEYS.clear();
-    }
-    lastStatusText = '';
-
-    if (logs.length > 0) {
-        logs
-            .slice()
-            .reverse()
-            .forEach((entry) => {
-                if (!entry || typeof entry !== 'object') {
-                    return;
-                }
-
-                const message = entry.message ?? '';
-                const statusCode = entry.status_code ?? entry.code ?? null;
-                const level = entry.level || 'info';
-                renderLog(level, message, statusCode);
-            });
-    } else if (data.run && data.run.last_message) {
-        renderLog('info', data.run.last_message, data.run.status_code ?? null);
-    }
 
     if (data.run) {
         const statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
@@ -1738,21 +1156,6 @@ gallerySlots.forEach((slot) => {
     });
 });
 
-function clearLogDisplay() {
-    if (!statusLogContainer) {
-        return;
-    }
-
-    statusLogContainer.innerHTML = '';
-    statusLogContainer.textContent = '';
-
-    if (typeof SHOWN_STATUS_KEYS.clear === 'function') {
-        SHOWN_STATUS_KEYS.clear();
-    }
-
-    lastStatusText = '';
-}
-
 function clearProductFields() {
     if (articleNameInput) {
         articleNameInput.value = '';
@@ -1779,19 +1182,21 @@ function showPlaceholderImages() {
 }
 
 function setStatus(level, message) {
-    if (!statusMessageElement) {
+    const normalizedMessage = sanitizeLogMessage(message);
+    if (!normalizedMessage) {
         return;
     }
 
-    let color = 'blue';
-    if (level === 'success') {
-        color = 'green';
-    } else if (level === 'error') {
-        color = 'red';
-    }
+    const label = typeof level === 'string' && level.trim() !== '' ? level.trim().toLowerCase() : 'info';
+    const logEntry = `[Status:${label}] ${normalizedMessage}`;
 
-    statusMessageElement.textContent = message;
-    statusMessageElement.style.color = color;
+    if (label === 'error') {
+        console.error(logEntry);
+    } else if (label === 'success') {
+        console.info(logEntry);
+    } else {
+        console.log(logEntry);
+    }
 }
 
 function startPolling() {
@@ -1821,7 +1226,6 @@ function resetFrontendState() {
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields();
     showPlaceholderImages();
-    clearLogDisplay();
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
     hasShownCompletion = false;
     hasObservedActiveRun = false;
@@ -1854,8 +1258,7 @@ const initializeBackendState = async () => {
     } catch (error) {
         console.error('Backend-Initialisierung fehlgeschlagen:', error);
         const sanitized = sanitizeLogMessage(error?.message) || 'Backend-Initialisierung fehlgeschlagen.';
-        const normalized = normalizeStatusMessage(sanitized, 500);
-        renderNormalizedStatus({ ...normalized, level: 'error' });
+        console.error(`[Backend] ${sanitized}`);
         setStatus('error', sanitized);
     }
 };
