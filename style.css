@@ -290,14 +290,6 @@ body {
     gap: 24px;
 }
 
-.panel__section--status {
-    padding-top: 24px;
-    padding-bottom: 28px;
-    background: linear-gradient(180deg, rgba(18, 21, 28, 0.68), rgba(12, 14, 19, 0.78));
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
 .drop-zone {
     border: 2px dashed var(--border);
     border-radius: var(--radius-md);
@@ -383,104 +375,6 @@ body {
 .preview-item:hover {
     transform: translateY(-4px) scale(1.01);
     box-shadow: 0 18px 30px rgba(0, 0, 0, 0.25);
-}
-
-.status-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
-
-.status-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.status-panel__title {
-    margin: 0;
-    font-size: 1.08rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-.status-panel__indicator {
-    margin: 0;
-    font-size: 0.92rem;
-    font-weight: 600;
-    color: var(--status-info);
-    transition: color var(--transition);
-    white-space: nowrap;
-}
-
-.status-panel__indicator--running {
-    color: var(--accent);
-}
-
-.status-panel__indicator--success {
-    color: var(--status-success);
-}
-
-.status-panel__indicator--warning {
-    color: var(--status-warning);
-}
-
-.status-panel__indicator--error {
-    color: var(--status-error);
-}
-
-.status-panel__log {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 240px;
-    overflow-y: auto;
-    padding-right: 4px;
-    font-size: 0.9rem;
-    color: var(--text);
-}
-
-.status-panel__log::-webkit-scrollbar {
-    width: 6px;
-}
-
-.status-panel__log::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 999px;
-}
-
-.status-panel__log::-webkit-scrollbar-thumb {
-    background: rgba(126, 144, 255, 0.35);
-    border-radius: 999px;
-}
-
-.status-panel__log:empty::before {
-    content: 'Noch keine Statusmeldungen.';
-    color: var(--text-muted);
-    opacity: 0.7;
-}
-
-.log-entry {
-    margin: 0;
-    padding: 0;
-    line-height: 1.4;
-    font-weight: 500;
-    color: var(--text);
-}
-
-.log-ok {
-    color: #23c55e;
-}
-
-.log-err {
-    color: #ef4444;
-}
-
-.log-info {
-    color: #4f8cff;
 }
 
 .gallery {
@@ -796,10 +690,6 @@ textarea {
 
     .grid {
         padding: 20px;
-    }
-
-    .status-panel__log {
-        max-height: 240px;
     }
 
     .gallery {
