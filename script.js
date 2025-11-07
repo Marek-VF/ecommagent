@@ -35,6 +35,60 @@ const initializationEndpoint = 'init.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
+function resolveImageUrl(path) {
+    if (path === undefined || path === null) {
+        return '';
+    }
+
+    const raw = String(path).trim();
+    if (raw === '') {
+        return '';
+    }
+
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        return raw;
+    }
+
+    const baseCandidates = [];
+
+    if (typeof window !== 'undefined') {
+        if (typeof window.APP_BASE_URL === 'string' && window.APP_BASE_URL.trim() !== '') {
+            baseCandidates.push(window.APP_BASE_URL.trim());
+        }
+
+        if (typeof window.UPLOAD_BASE_URL === 'string' && window.UPLOAD_BASE_URL.trim() !== '') {
+            baseCandidates.push(window.UPLOAD_BASE_URL.trim());
+        }
+
+        if (
+            window.APP_CONFIG &&
+            typeof window.APP_CONFIG.base_url === 'string' &&
+            window.APP_CONFIG.base_url.trim() !== ''
+        ) {
+            baseCandidates.push(window.APP_CONFIG.base_url.trim());
+        }
+    }
+
+    if (typeof window !== 'undefined' && typeof window.location === 'object' && window.location.origin) {
+        baseCandidates.push(window.location.origin);
+    }
+
+    for (const candidate of baseCandidates) {
+        if (typeof candidate !== 'string' || candidate.trim() === '') {
+            continue;
+        }
+
+        const normalizedBase = candidate.replace(/\/+$/, '');
+        if (normalizedBase === '') {
+            continue;
+        }
+
+        return `${normalizedBase}/${raw.replace(/^\/+/, '')}`;
+    }
+
+    return raw;
+}
+
 const toAbsoluteUrl = (path) => {
     if (path === undefined || path === null) {
         return '';
@@ -53,13 +107,21 @@ const toAbsoluteUrl = (path) => {
         window.APP_CONFIG && typeof window.APP_CONFIG.base_url === 'string'
             ? window.APP_CONFIG.base_url.trim()
             : '';
-    const base = configBase || (typeof window.location === 'object' ? window.location.origin : '');
+    const base =
+        (typeof window.APP_BASE_URL === 'string' && window.APP_BASE_URL.trim() !== ''
+            ? window.APP_BASE_URL.trim()
+            : '') ||
+        (typeof window.UPLOAD_BASE_URL === 'string' && window.UPLOAD_BASE_URL.trim() !== ''
+            ? window.UPLOAD_BASE_URL.trim()
+            : '') ||
+        configBase ||
+        (typeof window.location === 'object' ? window.location.origin : '');
 
     if (base) {
         return `${base.replace(/\/+$/, '')}/${raw.replace(/^\/+/, '')}`;
     }
 
-    return `/${raw.replace(/^\/+/, '')}`;
+    return raw;
 };
 
 const pad2 = (value) => String(value).padStart(2, '0');
@@ -207,7 +269,7 @@ const normalizeOriginalImageSources = (input) => {
     const normalized = candidates
         .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter((value) => value !== '')
-        .map((value) => toAbsoluteUrl(value))
+        .map((value) => resolveImageUrl(value))
         .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter((value) => value !== '');
 
@@ -279,7 +341,8 @@ const renderOriginalImagesFromRun = (run, options = {}) => {
         }
 
         const img = document.createElement('img');
-        img.src = url;
+        const resolvedOriginal = resolveImageUrl(url);
+        img.src = resolvedOriginal;
         img.alt = 'Originalbild';
         img.loading = 'lazy';
         img.decoding = 'async';
@@ -292,7 +355,7 @@ const renderOriginalImagesFromRun = (run, options = {}) => {
         }
 
         if (typeof openLightbox === 'function') {
-            img.addEventListener('click', () => openLightbox(url, 'Originalbild'));
+            img.addEventListener('click', () => openLightbox(resolvedOriginal || url, 'Originalbild'));
         }
 
         container.appendChild(img);
@@ -478,7 +541,7 @@ const updateUiWithData = (payload) => {
             const src = data.images[slotKey];
 
             if (typeof src === 'string' && src.trim() !== '') {
-                const resolvedSrc = toAbsoluteUrl(src);
+                const resolvedSrc = resolveImageUrl(src);
                 if (!resolvedSrc) {
                     clearSlotContent(slot);
                     setSlotLoadingState(slot, false);
@@ -650,7 +713,7 @@ const setSlotImageSource = (slot, src) => {
         return;
     }
 
-    const resolved = toAbsoluteUrl(sanitized);
+    const resolved = resolveImageUrl(sanitized);
     if (!resolved) {
         return;
     }
@@ -799,7 +862,7 @@ const getDataField = (data, key) => {
 };
 
 const createPreviewItem = (url, name) => {
-    const resolvedUrl = toAbsoluteUrl(url) || String(url || '').trim();
+    const resolvedUrl = resolveImageUrl(url) || String(url || '').trim();
 
     if (!resolvedUrl) {
         return null;
@@ -1079,7 +1142,7 @@ const applyRunDataToUI = (payload) => {
 
         const image = normalizedImages.find((entry) => Number.isFinite(entry.position) && entry.position === expectedPosition);
         if (image && image.url) {
-            const resolvedImageUrl = toAbsoluteUrl(image.url);
+            const resolvedImageUrl = resolveImageUrl(image.url);
             if (resolvedImageUrl) {
                 setSlotImageSource(slot, resolvedImageUrl);
                 setSlotLoadingState(slot, false);

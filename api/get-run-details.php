@@ -8,76 +8,50 @@ $config = require __DIR__ . '/../config.php';
 session_start();
 require_once __DIR__ . '/../db.php';
 
-/**
- * @param array<string,mixed> $config
- */
-function resolveUploadBaseUrl(array $config): string
+function make_abs_url(?string $path): string
 {
-    $candidates = [];
+    global $config;
 
-    if (defined('UPLOAD_BASE_URL')) {
-        $candidate = trim((string) UPLOAD_BASE_URL);
-        if ($candidate !== '') {
-            $candidates[] = $candidate;
-        }
+    if ($path === null) {
+        return '';
     }
 
-    if (defined('BASE_URL')) {
-        $candidate = trim((string) BASE_URL);
-        if ($candidate !== '') {
-            $candidates[] = $candidate;
-        }
-    }
-
-    if (defined('APP_URL')) {
-        $candidate = trim((string) APP_URL);
-        if ($candidate !== '') {
-            $candidates[] = $candidate;
-        }
-    }
-
-    foreach (['upload_base_url', 'upload_base', 'base_url', 'app_url', 'asset_base_url'] as $key) {
-        if (isset($config[$key]) && is_string($config[$key])) {
-            $candidate = trim($config[$key]);
-            if ($candidate !== '') {
-                $candidates[] = $candidate;
-            }
-        }
-    }
-
-    foreach ($candidates as $candidate) {
-        $normalized = rtrim($candidate, '/');
-        if ($normalized !== '') {
-            return $normalized;
-        }
-    }
-
-    return '';
-}
-
-function buildAbsoluteImageUrl(string $path, string $baseUrl): string
-{
     $trimmed = trim($path);
     if ($trimmed === '') {
         return '';
     }
 
-    if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $trimmed)) {
+    if (str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
         return $trimmed;
     }
 
-    if (strpos($trimmed, '/') === 0) {
-        return $trimmed;
+    if (defined('UPLOAD_BASE_URL')) {
+        $base = (string) UPLOAD_BASE_URL;
+    } elseif (defined('BASE_URL')) {
+        $base = (string) BASE_URL;
+    } elseif (defined('APP_URL')) {
+        $base = (string) APP_URL;
+    } else {
+        $base = '';
+        if (is_array($config)) {
+            if (isset($config['upload_base_url']) && is_string($config['upload_base_url'])) {
+                $base = $config['upload_base_url'];
+            } elseif (isset($config['asset_base_url']) && is_string($config['asset_base_url'])) {
+                $base = $config['asset_base_url'];
+            } elseif (isset($config['base_url']) && is_string($config['base_url'])) {
+                $base = $config['base_url'];
+            }
+        }
     }
 
-    if ($baseUrl !== '') {
-        return $baseUrl . '/' . ltrim($trimmed, '/');
+    $base = trim($base);
+
+    if ($base !== '') {
+        return rtrim($base, '/') . '/' . ltrim($trimmed, '/');
     }
 
-    return '/' . ltrim($trimmed, '/');
+    return $trimmed;
 }
-
-$baseUrl = resolveUploadBaseUrl(is_array($config) ? $config : []);
 
 $userId = $_SESSION['user']['id'] ?? null;
 if (!$userId) {
@@ -133,14 +107,14 @@ $originalStmt->execute(['run_id' => $runId]);
 $originalImages = $originalStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $images = array_map(
-    static function ($row) use ($baseUrl) {
+    static function ($row) {
         if (!is_array($row)) {
             return $row;
         }
 
         $url = isset($row['url']) ? (string) $row['url'] : '';
         if ($url !== '') {
-            $absolute = buildAbsoluteImageUrl($url, $baseUrl);
+            $absolute = make_abs_url($url);
             if ($absolute !== '') {
                 $row['url'] = $absolute;
             }
@@ -154,13 +128,13 @@ $images = array_map(
 $originalImages = array_values(
     array_filter(
         array_map(
-            static function ($row) use ($baseUrl) {
+            static function ($row) {
                 if (!is_array($row)) {
                     return null;
                 }
 
                 $path = isset($row['file_path']) ? (string) $row['file_path'] : '';
-                $absolute = buildAbsoluteImageUrl($path, $baseUrl);
+                $absolute = make_abs_url($path);
 
                 return $absolute !== '' ? $absolute : null;
             },
@@ -180,7 +154,7 @@ $logStmt = $pdo->prepare('
 $logStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $logs = $logStmt->fetchAll(PDO::FETCH_ASSOC);
 
-echo json_encode([
+$response = [
     'ok' => true,
     'data' => [
         'run' => $run,
@@ -189,4 +163,22 @@ echo json_encode([
         'original_images' => $originalImages,
         'logs' => $logs,
     ],
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+];
+
+if (isset($response['data']['images']) && is_array($response['data']['images'])) {
+    foreach ($response['data']['images'] as $index => $imageRow) {
+        if (is_array($imageRow) && isset($imageRow['url'])) {
+            $response['data']['images'][$index]['url'] = make_abs_url($imageRow['url']);
+        } elseif (is_string($imageRow)) {
+            $response['data']['images'][$index] = make_abs_url($imageRow);
+        }
+    }
+}
+
+if (isset($response['data']['original_images']) && is_array($response['data']['original_images'])) {
+    foreach ($response['data']['original_images'] as $index => $imagePath) {
+        $response['data']['original_images'][$index] = make_abs_url(is_string($imagePath) ? $imagePath : '');
+    }
+}
+
+echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

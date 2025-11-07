@@ -15,6 +15,49 @@ set_error_handler(static function (int $severity, string $message, string $file,
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
+function webhook_make_abs_url(?string $path): string
+{
+    if ($path === null) {
+        return '';
+    }
+
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    if (str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
+        return $trimmed;
+    }
+
+    if (defined('UPLOAD_BASE_URL')) {
+        $base = (string) UPLOAD_BASE_URL;
+    } elseif (defined('BASE_URL')) {
+        $base = (string) BASE_URL;
+    } elseif (defined('APP_URL')) {
+        $base = (string) APP_URL;
+    } else {
+        $config = auth_config();
+        $base = '';
+
+        if (isset($config['upload_base_url']) && is_string($config['upload_base_url'])) {
+            $base = $config['upload_base_url'];
+        } elseif (isset($config['asset_base_url']) && is_string($config['asset_base_url'])) {
+            $base = $config['asset_base_url'];
+        } elseif (isset($config['base_url']) && is_string($config['base_url'])) {
+            $base = $config['base_url'];
+        }
+    }
+
+    $base = trim($base);
+
+    if ($base !== '') {
+        return rtrim($base, '/') . '/' . ltrim($trimmed, '/');
+    }
+
+    return $trimmed;
+}
+
 function jsonResponse(int $statusCode, array $payload): never
 {
     http_response_code($statusCode);
@@ -493,7 +536,7 @@ SQL;
 
     jsonResponse(200, [
         'ok'       => true,
-        'url'      => $relativeUrl,
+        'url'      => webhook_make_abs_url($relativeUrl),
         'note_id'  => $noteId,
         'position' => $requestedPosition ?? $position ?? null,
         'run_id'   => $runId,
