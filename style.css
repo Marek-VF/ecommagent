@@ -450,6 +450,25 @@ body {
     transition: border-color var(--transition), background var(--transition), transform var(--transition);
 }
 
+.original-image-preview {
+    margin-top: 1rem;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: none;
+}
+
+.original-image-preview.has-original-image {
+    display: block;
+}
+
+.original-image-preview img.original-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
 .drop-zone:hover,
 .drop-zone:focus {
     border-color: var(--accent);
