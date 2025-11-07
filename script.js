@@ -214,6 +214,22 @@ const normalizeOriginalImageSources = (input) => {
     return Array.from(new Set(normalized));
 };
 
+// restore missing function so init code does not break
+function renderOriginalImages(run, options) {
+    if (typeof renderOriginalImagesFromRun === 'function') {
+        renderOriginalImagesFromRun(run, options);
+        return;
+    }
+
+    const container =
+        document.getElementById('history-original-image') ||
+        document.getElementById('original-image-preview');
+
+    if (container) {
+        container.innerHTML = '';
+    }
+}
+
 const renderOriginalImagesFromRun = (run, options = {}) => {
     const container =
         document.getElementById('history-original-image') ||
