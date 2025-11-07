@@ -12,11 +12,18 @@ const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
 const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
 const HISTORY_CLOSE = document.getElementById('history-close');
+const SIDEBAR_PROFILE = document.getElementById('sidebar-profile');
+const SIDEBAR_PROFILE_MENU = document.getElementById('sidebar-profile-menu');
+const SIDEBAR_PROFILE_TRIGGER =
+    SIDEBAR_PROFILE && SIDEBAR_PROFILE instanceof HTMLElement
+        ? SIDEBAR_PROFILE.querySelector('[data-profile-trigger]')
+        : null;
 
 let isPolling = false;
 let pollInterval = null;
 let workflowIsRunning = false;
 let activeRunId = null;
+let profileMenuInitialized = false;
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -1151,6 +1158,78 @@ const fetchRuns = async () => {
     }
 };
 
+const closeSidebarProfileMenu = () => {
+    if (!SIDEBAR_PROFILE) {
+        return;
+    }
+
+    SIDEBAR_PROFILE.classList.remove('open');
+
+    if (SIDEBAR_PROFILE_TRIGGER instanceof HTMLElement) {
+        SIDEBAR_PROFILE_TRIGGER.setAttribute('aria-expanded', 'false');
+    }
+
+    if (SIDEBAR_PROFILE_MENU instanceof HTMLElement) {
+        SIDEBAR_PROFILE_MENU.setAttribute('aria-hidden', 'true');
+    }
+};
+
+const openSidebarProfileMenu = () => {
+    if (!SIDEBAR_PROFILE) {
+        return;
+    }
+
+    if (!(SIDEBAR_PROFILE_TRIGGER instanceof HTMLElement) || !(SIDEBAR_PROFILE_MENU instanceof HTMLElement)) {
+        return;
+    }
+
+    SIDEBAR_PROFILE.classList.add('open');
+    SIDEBAR_PROFILE_TRIGGER.setAttribute('aria-expanded', 'true');
+    SIDEBAR_PROFILE_MENU.setAttribute('aria-hidden', 'false');
+};
+
+const toggleSidebarProfileMenu = () => {
+    if (!SIDEBAR_PROFILE) {
+        return;
+    }
+
+    if (SIDEBAR_PROFILE.classList.contains('open')) {
+        closeSidebarProfileMenu();
+    } else {
+        openSidebarProfileMenu();
+    }
+};
+
+const setupSidebarProfileMenu = () => {
+    if (profileMenuInitialized) {
+        return;
+    }
+
+    if (!SIDEBAR_PROFILE || !(SIDEBAR_PROFILE_TRIGGER instanceof HTMLElement) || !(SIDEBAR_PROFILE_MENU instanceof HTMLElement)) {
+        return;
+    }
+
+    profileMenuInitialized = true;
+
+    SIDEBAR_PROFILE_TRIGGER.addEventListener('click', (event) => {
+        event.preventDefault();
+        toggleSidebarProfileMenu();
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!SIDEBAR_PROFILE.classList.contains('open')) {
+            return;
+        }
+
+        const target = event.target;
+        if (target instanceof Node && SIDEBAR_PROFILE.contains(target)) {
+            return;
+        }
+
+        closeSidebarProfileMenu();
+    });
+};
+
 const openHistory = () => {
     if (!HISTORY_SIDEBAR) {
         return;
@@ -1175,6 +1254,8 @@ const closeHistory = () => {
     if (HISTORY_TOGGLE) {
         HISTORY_TOGGLE.setAttribute('aria-expanded', 'false');
     }
+
+    closeSidebarProfileMenu();
 };
 
 async function fetchLatestItem() {
@@ -1315,6 +1396,10 @@ document.addEventListener('keydown', (event) => {
     if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
         closeHistory();
     }
+
+    if (SIDEBAR_PROFILE && SIDEBAR_PROFILE.classList.contains('open')) {
+        closeSidebarProfileMenu();
+    }
 });
 
 gallerySlots.forEach((slot) => {
@@ -1448,6 +1533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInitialUiState();
     setupUploadHandler();
     setupHistoryHandler();
+    setupSidebarProfileMenu();
     initializeBackendState();
 
     if (newButton) {

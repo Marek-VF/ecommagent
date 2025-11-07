@@ -7,6 +7,32 @@ $config = auth_config();
 $flashes = auth_get_flashes();
 $currentUser = auth_user();
 
+$userDisplayName = 'Benutzer';
+if ($currentUser !== null) {
+    $candidate = $currentUser['name'] ?? $currentUser['email'] ?? null;
+    if (is_string($candidate)) {
+        $trimmedCandidate = trim($candidate);
+        if ($trimmedCandidate !== '') {
+            $userDisplayName = $trimmedCandidate;
+        }
+    }
+}
+
+$userInitial = $userDisplayName !== '' ? $userDisplayName : 'B';
+if (function_exists('mb_substr')) {
+    $initial = mb_substr($userInitial, 0, 1, 'UTF-8');
+} else {
+    $initial = substr($userInitial, 0, 1);
+}
+if ($initial === false || $initial === '') {
+    $initial = 'B';
+}
+if (function_exists('mb_strtoupper')) {
+    $userInitial = mb_strtoupper($initial, 'UTF-8');
+} else {
+    $userInitial = strtoupper($initial);
+}
+
 $baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
 $assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/assets' : '');
 $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string)$assetBaseUrl, '/') : '/assets';
@@ -66,6 +92,40 @@ $appConfig = [
             <button id="history-close" class="history-sidebar__close" type="button" aria-label="Schließen">&times;</button>
         </div>
         <ul id="history-list" class="history-list"></ul>
+        <?php if ($currentUser !== null): ?>
+        <div id="sidebar-profile" class="sidebar-profile" data-profile>
+            <button
+                type="button"
+                class="sidebar-profile__trigger"
+                data-profile-trigger
+                aria-haspopup="true"
+                aria-expanded="false"
+            >
+                <span class="sidebar-profile__avatar" aria-hidden="true">
+                    <?php echo htmlspecialchars((string) $userInitial, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                </span>
+                <span class="sidebar-profile__info">
+                    <span class="sidebar-profile__name">
+                        <?php echo htmlspecialchars((string) $userDisplayName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                    </span>
+                </span>
+                <span class="sidebar-profile__caret" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </span>
+            </button>
+            <div
+                id="sidebar-profile-menu"
+                class="sidebar-profile-menu"
+                role="menu"
+                aria-hidden="true"
+            >
+                <a class="profile-item" href="#" role="menuitem">Einstellungen</a>
+                <a class="profile-item profile-item--danger" href="auth/logout.php" role="menuitem">Abmelden</a>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     <div class="app">
         <header class="app__header">
@@ -80,12 +140,6 @@ $appConfig = [
                 >&#9776;</button>
                 <h1>Ecomm Agent</h1>
             </div>
-            <?php if ($currentUser !== null): ?>
-            <div class="app__user">
-                <span class="app__user-name">Angemeldet als <?php echo htmlspecialchars((string) ($currentUser['name'] ?? $currentUser['email']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
-                <a class="app__logout" href="auth/logout.php">Abmelden</a>
-            </div>
-            <?php endif; ?>
         </header>
         <?php if ($flashes !== []): ?>
         <div class="app__messages" aria-live="polite">
