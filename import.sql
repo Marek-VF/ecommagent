@@ -53,6 +53,20 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
+-- RUN IMAGES (Original-Uploads je Lauf)
+-- =========================================
+CREATE TABLE IF NOT EXISTS `run_images` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `run_id` INT UNSIGNED NOT NULL,
+  `file_path` VARCHAR(255) NOT NULL,
+  `original_name` VARCHAR(255) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_run_images_run` (`run_id`),
+  CONSTRAINT `fk_run_images_run`
+    FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================
 -- STATUS LOGS (Historie von Events)
 -- =========================================
 CREATE TABLE IF NOT EXISTS `status_logs` (

@@ -2,6 +2,7 @@ const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const selectFileButton = document.getElementById('select-file');
 const previewList = document.getElementById('upload-previews');
+const originalImagePreview = document.getElementById('original-image-preview');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
@@ -24,6 +25,7 @@ let pollInterval = null;
 let workflowIsRunning = false;
 let activeRunId = null;
 let profileMenuInitialized = false;
+let lastKnownOriginalImages = [];
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -191,6 +193,83 @@ const applyFadeInAnimation = (element) => {
 
     img.addEventListener('load', handleLoadOrError);
     img.addEventListener('error', handleLoadOrError);
+};
+
+const normalizeOriginalImageSources = (input) => {
+    let candidates = [];
+
+    if (Array.isArray(input)) {
+        candidates = input;
+    } else if (typeof input === 'string' && input.trim() !== '') {
+        candidates = [input];
+    }
+
+    const normalized = candidates
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value !== '')
+        .map((value) => toAbsoluteUrl(value))
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value !== '');
+
+    return Array.from(new Set(normalized));
+};
+
+const renderOriginalImages = (input, options = {}) => {
+    if (!originalImagePreview) {
+        return;
+    }
+
+    const force = Boolean(options.force);
+    const normalized = normalizeOriginalImageSources(input);
+
+    const isSameLength = normalized.length === lastKnownOriginalImages.length;
+    const hasSameValues =
+        isSameLength && normalized.every((value, index) => value === lastKnownOriginalImages[index]);
+
+    if (!force && hasSameValues) {
+        return;
+    }
+
+    lastKnownOriginalImages = normalized;
+    originalImagePreview.innerHTML = '';
+
+    if (normalized.length === 0) {
+        originalImagePreview.classList.remove('has-original-image');
+        return;
+    }
+
+    originalImagePreview.classList.add('has-original-image');
+
+    normalized.forEach((src) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Hochgeladenes Originalbild';
+        img.loading = 'lazy';
+        img.classList.add('original-image');
+        originalImagePreview.appendChild(img);
+        applyFadeInAnimation(img);
+    });
+};
+
+const updateOriginalImageFromData = (data, options = {}) => {
+    if (!data || typeof data !== 'object') {
+        return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(data, 'original_images')) {
+        const value = data.original_images;
+        renderOriginalImages(value ?? [], { force: Boolean(options.force) });
+        return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(data, 'original_image_url')) {
+        const value = data.original_image_url;
+        if (typeof value === 'string' && value.trim() !== '') {
+            renderOriginalImages([value], { force: Boolean(options.force) });
+        } else {
+            renderOriginalImages([], { force: Boolean(options.force) });
+        }
+    }
 };
 
 let selectedHistoryRunId = null;
@@ -783,6 +862,13 @@ const uploadFiles = async (files) => {
                 addPreviews([{ url: result.file, name: result.name || file.name }]);
             }
 
+            if (
+                Object.prototype.hasOwnProperty.call(result, 'original_images') ||
+                Object.prototype.hasOwnProperty.call(result, 'original_image_url')
+            ) {
+                updateOriginalImageFromData(result, { force: true });
+            }
+
             const isSuccessful = result.success !== false;
             console.log('Upload-Antwort', {
                 status: response.status,
@@ -875,6 +961,8 @@ const updateInterfaceFromData = (data) => {
         return;
     }
 
+    updateOriginalImageFromData(data);
+
     const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
     const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
 
@@ -930,6 +1018,8 @@ const applyRunDataToUI = (payload) => {
     const data = payload && typeof payload === 'object' ? payload : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
+
+    updateOriginalImageFromData(data, { force: true });
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();
@@ -1493,6 +1583,7 @@ function resetFrontendState(options = {}) {
     clearProductFields();
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
     showPlaceholderImages(withPulse);
+    renderOriginalImages([], { force: true });
     hasShownCompletion = false;
     hasObservedActiveRun = false;
     workflowIsRunning = false;

@@ -41,6 +41,39 @@ $runsStmt->execute(['user_id' => $userId]);
 $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $items = [];
+$runImageMap = [];
+
+if (!empty($runs)) {
+    $runIds = array_map(static fn ($row) => isset($row['id']) ? (int) $row['id'] : 0, $runs);
+    $runIds = array_values(array_filter($runIds, static fn ($value) => $value > 0));
+
+    if ($runIds !== []) {
+        $placeholderList = implode(',', array_fill(0, count($runIds), '?'));
+        $imageStmt = $pdo->prepare(
+            "SELECT run_id, file_path FROM run_images WHERE run_id IN ($placeholderList) ORDER BY created_at ASC, id ASC"
+        );
+        $imageStmt->execute($runIds);
+
+        while ($row = $imageStmt->fetch(PDO::FETCH_ASSOC)) {
+            $runId = isset($row['run_id']) ? (int) $row['run_id'] : 0;
+            if ($runId <= 0) {
+                continue;
+            }
+
+            $filePath = isset($row['file_path']) ? trim((string) $row['file_path']) : '';
+            if ($filePath === '') {
+                continue;
+            }
+
+            if (!isset($runImageMap[$runId])) {
+                $runImageMap[$runId] = [];
+            }
+
+            $runImageMap[$runId][] = $filePath;
+        }
+    }
+}
+
 foreach ($runs as $run) {
     $runId = isset($run['id']) ? (int) $run['id'] : 0;
 
@@ -97,6 +130,7 @@ foreach ($runs as $run) {
         'started_at_iso'  => $startedAtIso,
         'finished_at'     => $finishedAtRaw,
         'finished_at_iso' => $finishedAtIso,
+        'original_images' => $runImageMap[$runId] ?? [],
     ];
 }
 
