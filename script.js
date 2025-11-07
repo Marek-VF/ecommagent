@@ -245,7 +245,11 @@ const renderOriginalImages = (input, options = {}) => {
         img.src = src;
         img.alt = 'Hochgeladenes Originalbild';
         img.loading = 'lazy';
+        img.decoding = 'async';
         img.classList.add('original-image');
+        img.addEventListener('click', () => {
+            openLightbox(img.src, img.alt || 'Hochgeladenes Originalbild');
+        });
         originalImagePreview.appendChild(img);
         applyFadeInAnimation(img);
     });
