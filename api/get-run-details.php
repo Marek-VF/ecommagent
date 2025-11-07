@@ -52,6 +52,15 @@ $imgStmt = $pdo->prepare('
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $images = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
 
+$originalStmt = $pdo->prepare('
+    SELECT file_path, original_name
+    FROM run_images
+    WHERE run_id = :run_id
+    ORDER BY created_at ASC, id ASC
+');
+$originalStmt->execute(['run_id' => $runId]);
+$originalImages = $originalStmt->fetchAll(PDO::FETCH_ASSOC);
+
 $baseUrlConfig = $config['base_url'] ?? '';
 $baseUrl = '';
 if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
@@ -82,6 +91,28 @@ $images = array_map(function ($row) use ($baseUrl) {
     return $row;
 }, $images);
 
+$originalImages = array_values(array_filter(array_map(function ($row) use ($baseUrl) {
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $path = isset($row['file_path']) ? (string) $row['file_path'] : '';
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    if ($baseUrl !== '' && !preg_match('#^https?://#i', $trimmed) && strpos($trimmed, '/') !== 0) {
+        return $baseUrl . '/' . ltrim($trimmed, '/');
+    }
+
+    if ($baseUrl === '' && !preg_match('#^https?://#i', $trimmed) && strpos($trimmed, '/') !== 0) {
+        return '/' . ltrim($trimmed, '/');
+    }
+
+    return $trimmed;
+}, $originalImages), static fn ($value) => $value !== null));
+
 $logStmt = $pdo->prepare('
     SELECT level, status_code, message, created_at
     FROM status_logs
@@ -98,6 +129,7 @@ echo json_encode([
         'run' => $run,
         'note' => $note,
         'images' => $images,
+        'original_images' => $originalImages,
         'logs' => $logs,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

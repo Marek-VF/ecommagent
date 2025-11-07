@@ -91,6 +91,23 @@ try {
     }
 
     $originalName = $file['name'] ?? 'upload';
+    $originalNameForStorage = null;
+    if (is_string($originalName)) {
+        $originalNameForStorage = trim($originalName);
+        if ($originalNameForStorage !== '') {
+            $originalNameForStorage = preg_replace('/[\\\\\/\x00-\x1F\x7F]+/u', '_', $originalNameForStorage);
+            if (!is_string($originalNameForStorage) || $originalNameForStorage === '') {
+                $originalNameForStorage = null;
+            } elseif (function_exists('mb_substr')) {
+                $originalNameForStorage = mb_substr($originalNameForStorage, 0, 255, 'UTF-8');
+            } else {
+                $originalNameForStorage = substr($originalNameForStorage, 0, 255);
+            }
+        } else {
+            $originalNameForStorage = null;
+        }
+    }
+
     $sanitized = preg_replace('/[\\\\\/\x00-\x1F\x7F]+/u', '_', (string) $originalName);
     $sanitized = trim($sanitized) === '' ? 'upload_' . date('Ymd_His') : trim($sanitized);
     $storedName = basename($sanitized);
@@ -149,6 +166,15 @@ try {
         if ($runId <= 0) {
             throw new RuntimeException('run_id konnte nicht erzeugt werden.');
         }
+
+        $insertRunImage = $pdo->prepare(
+            'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
+        );
+        $insertRunImage->execute([
+            ':run_id'        => $runId,
+            ':file_path'     => $publicPath,
+            ':original_name' => $originalNameForStorage,
+        ]);
 
         $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
         $postFields = [
@@ -223,6 +249,8 @@ try {
         'message'          => 'Upload erfolgreich gespeichert und Workflow gestartet.',
         'file'             => $publicPath,
         'run_id'           => $runId,
+        'original_image_url' => $publicPath,
+        'original_images'  => [$publicPath],
         'timestamp'        => $timestamp(),
         'webhook_status'   => $webhookStatus,
         'webhook_response' => $forwardResponse,
