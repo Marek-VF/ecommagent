@@ -8,6 +8,77 @@ $config = require __DIR__ . '/../config.php';
 session_start();
 require_once __DIR__ . '/../db.php';
 
+/**
+ * @param array<string,mixed> $config
+ */
+function resolveUploadBaseUrl(array $config): string
+{
+    $candidates = [];
+
+    if (defined('UPLOAD_BASE_URL')) {
+        $candidate = trim((string) UPLOAD_BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('BASE_URL')) {
+        $candidate = trim((string) BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('APP_URL')) {
+        $candidate = trim((string) APP_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    foreach (['upload_base_url', 'upload_base', 'base_url', 'app_url', 'asset_base_url'] as $key) {
+        if (isset($config[$key]) && is_string($config[$key])) {
+            $candidate = trim($config[$key]);
+            if ($candidate !== '') {
+                $candidates[] = $candidate;
+            }
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        $normalized = rtrim($candidate, '/');
+        if ($normalized !== '') {
+            return $normalized;
+        }
+    }
+
+    return '';
+}
+
+function buildAbsoluteImageUrl(string $path, string $baseUrl): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $trimmed)) {
+        return $trimmed;
+    }
+
+    if (strpos($trimmed, '/') === 0) {
+        return $trimmed;
+    }
+
+    if ($baseUrl !== '') {
+        return $baseUrl . '/' . ltrim($trimmed, '/');
+    }
+
+    return '/' . ltrim($trimmed, '/');
+}
+
+$baseUrl = resolveUploadBaseUrl(is_array($config) ? $config : []);
+
 $userId = $_SESSION['user']['id'] ?? null;
 if (!$userId) {
     http_response_code(401);
@@ -61,57 +132,43 @@ $originalStmt = $pdo->prepare('
 $originalStmt->execute(['run_id' => $runId]);
 $originalImages = $originalStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$baseUrlConfig = $config['base_url'] ?? '';
-$baseUrl = '';
-if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
-    $baseUrl = rtrim($baseUrlConfig, '/');
-}
+$images = array_map(
+    static function ($row) use ($baseUrl) {
+        if (!is_array($row)) {
+            return $row;
+        }
 
-$images = array_map(function ($row) use ($baseUrl) {
-    if (!is_array($row)) {
-        return $row;
-    }
-
-    $url = isset($row['url']) ? (string) $row['url'] : '';
-
-    if ($url !== '') {
-        $trimmed = trim($url);
-
-        if ($trimmed !== '') {
-            if ($baseUrl !== '' && !preg_match('#^https?://#i', $trimmed)) {
-                $trimmed = $baseUrl . '/' . ltrim($trimmed, '/');
-            } elseif ($baseUrl === '' && !preg_match('#^https?://#i', $trimmed)) {
-                $trimmed = '/' . ltrim($trimmed, '/');
+        $url = isset($row['url']) ? (string) $row['url'] : '';
+        if ($url !== '') {
+            $absolute = buildAbsoluteImageUrl($url, $baseUrl);
+            if ($absolute !== '') {
+                $row['url'] = $absolute;
             }
         }
 
-        $row['url'] = $trimmed;
-    }
+        return $row;
+    },
+    $images
+);
 
-    return $row;
-}, $images);
+$originalImages = array_values(
+    array_filter(
+        array_map(
+            static function ($row) use ($baseUrl) {
+                if (!is_array($row)) {
+                    return null;
+                }
 
-$originalImages = array_values(array_filter(array_map(function ($row) use ($baseUrl) {
-    if (!is_array($row)) {
-        return null;
-    }
+                $path = isset($row['file_path']) ? (string) $row['file_path'] : '';
+                $absolute = buildAbsoluteImageUrl($path, $baseUrl);
 
-    $path = isset($row['file_path']) ? (string) $row['file_path'] : '';
-    $trimmed = trim($path);
-    if ($trimmed === '') {
-        return null;
-    }
-
-    if ($baseUrl !== '' && !preg_match('#^https?://#i', $trimmed) && strpos($trimmed, '/') !== 0) {
-        return $baseUrl . '/' . ltrim($trimmed, '/');
-    }
-
-    if ($baseUrl === '' && !preg_match('#^https?://#i', $trimmed) && strpos($trimmed, '/') !== 0) {
-        return '/' . ltrim($trimmed, '/');
-    }
-
-    return $trimmed;
-}, $originalImages), static fn ($value) => $value !== null));
+                return $absolute !== '' ? $absolute : null;
+            },
+            $originalImages
+        ),
+        static fn ($value) => $value !== null
+    )
+);
 
 $logStmt = $pdo->prepare('
     SELECT level, status_code, message, created_at

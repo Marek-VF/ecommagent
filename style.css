@@ -468,6 +468,7 @@ body {
     border-radius: 12px;
     object-fit: cover;
     cursor: pointer;
+    margin-top: 1rem;
 }
 
 .drop-zone:hover,

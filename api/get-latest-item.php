@@ -6,6 +6,102 @@ header('Content-Type: application/json; charset=utf-8');
 $config = require __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
+/**
+ * @param array<string,mixed> $config
+ */
+function resolveUploadBaseUrl(array $config): string
+{
+    $candidates = [];
+
+    if (defined('UPLOAD_BASE_URL')) {
+        $candidate = trim((string) UPLOAD_BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('BASE_URL')) {
+        $candidate = trim((string) BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('APP_URL')) {
+        $candidate = trim((string) APP_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    foreach (['upload_base_url', 'upload_base', 'base_url', 'app_url', 'asset_base_url'] as $key) {
+        if (isset($config[$key]) && is_string($config[$key])) {
+            $candidate = trim($config[$key]);
+            if ($candidate !== '') {
+                $candidates[] = $candidate;
+            }
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        $normalized = rtrim($candidate, '/');
+        if ($normalized !== '') {
+            return $normalized;
+        }
+    }
+
+    return '';
+}
+
+function buildAbsoluteImageUrl(string $path, string $baseUrl): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $trimmed)) {
+        return $trimmed;
+    }
+
+    if (strpos($trimmed, '/') === 0) {
+        return $trimmed;
+    }
+
+    if ($baseUrl !== '') {
+        return $baseUrl . '/' . ltrim($trimmed, '/');
+    }
+
+    return '/' . ltrim($trimmed, '/');
+}
+
+function fetchOriginalImageUrls(PDO $pdo, int $runId, string $baseUrl): array
+{
+    if ($runId <= 0) {
+        return [];
+    }
+
+    $statement = $pdo->prepare(
+        'SELECT file_path
+         FROM run_images
+         WHERE run_id = :run_id
+         ORDER BY created_at ASC, id ASC'
+    );
+    $statement->execute([':run_id' => $runId]);
+    $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+    $images = [];
+    foreach ($rows as $row) {
+        $filePath = isset($row['file_path']) ? (string) $row['file_path'] : '';
+        $absolute = buildAbsoluteImageUrl($filePath, $baseUrl);
+        if ($absolute !== '') {
+            $images[] = $absolute;
+        }
+    }
+
+    return $images;
+}
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
@@ -44,11 +140,7 @@ try {
     exit;
 }
 
-$baseUrlConfig = $config['base_url'] ?? '';
-$baseUrl = '';
-if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
-    $baseUrl = rtrim($baseUrlConfig, '/');
-}
+$baseUrl = resolveUploadBaseUrl(is_array($config) ? $config : []);
 
 try {
     $stateStatement = $pdo->prepare(
@@ -115,6 +207,7 @@ try {
                     'product_name'        => '',
                     'product_description' => '',
                     'images'              => [],
+                    'original_images'     => [],
                 ],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
@@ -132,6 +225,8 @@ try {
         ':user_id' => $userId,
     ]);
     $run = $runStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    $originalImages = fetchOriginalImageUrls($pdo, (int) $runId, $baseUrl);
 
     if ($run === null) {
         if ($requestedRunId !== null) {
@@ -166,13 +261,9 @@ try {
                 continue;
             }
 
-            if ($baseUrl !== '' && !preg_match('#^https?://#i', $url)) {
-                $url = $baseUrl . '/' . ltrim($url, '/');
-            }
-
             $position = isset($row['position']) ? (int) $row['position'] : 0;
             $images[] = [
-                'url'      => $url,
+                'url'      => buildAbsoluteImageUrl($url, $baseUrl),
                 'position' => $position,
             ];
         }
@@ -193,6 +284,7 @@ try {
                     ],
                     $images
                 ),
+                'original_images'     => $originalImages,
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
@@ -239,13 +331,9 @@ try {
                 continue;
             }
 
-            if ($baseUrl !== '' && !preg_match('#^https?://#i', $url)) {
-                $url = $baseUrl . '/' . ltrim($url, '/');
-            }
-
             $position = isset($row['position']) ? (int) $row['position'] : 0;
             $images[] = [
-                'url'      => $url,
+                'url'      => buildAbsoluteImageUrl($url, $baseUrl),
                 'position' => $position,
             ];
         }
@@ -279,6 +367,7 @@ try {
                 ],
                 $images
             ),
+            'original_images'     => $originalImages,
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (PDOException $exception) {
