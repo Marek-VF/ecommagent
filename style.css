@@ -45,14 +45,12 @@ body {
 .fade-in {
     opacity: 0;
     transform: translateY(4px);
-    animation: imgFadeIn 240ms ease-out forwards;
+    transition: opacity 0.25s ease-out, transform 0.25s ease-out;
 }
 
-@keyframes imgFadeIn {
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.fade-in.is-visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .app { 

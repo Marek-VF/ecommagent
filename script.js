@@ -125,25 +125,65 @@ const lastKnownImages = {
 };
 
 const FADE_IN_CLASS = 'fade-in';
+const FADE_IN_VISIBLE_CLASS = 'is-visible';
+const FADE_IN_HANDLER_KEY = '__fadeInHandler';
+
+const runOnNextFrame = (callback) => {
+    if (typeof callback !== 'function') {
+        return;
+    }
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(callback);
+        return;
+    }
+
+    setTimeout(callback, 16);
+};
 
 const applyFadeInAnimation = (element) => {
     if (!(element instanceof HTMLElement)) {
         return;
     }
 
-    element.classList.remove(FADE_IN_CLASS);
-    // Force a reflow so the animation can restart even if it was applied before.
-    // eslint-disable-next-line no-unused-expressions
-    void element.offsetWidth;
+    const revealElement = () => {
+        runOnNextFrame(() => {
+            element.classList.add(FADE_IN_VISIBLE_CLASS);
+        });
+    };
 
     element.classList.add(FADE_IN_CLASS);
-    element.addEventListener(
-        'animationend',
-        () => {
-            element.classList.remove(FADE_IN_CLASS);
-        },
-        { once: true },
-    );
+    element.classList.remove(FADE_IN_VISIBLE_CLASS);
+
+    if (element.tagName !== 'IMG') {
+        revealElement();
+        return;
+    }
+
+    const img = element;
+    const previousHandler = img[FADE_IN_HANDLER_KEY];
+
+    if (typeof previousHandler === 'function') {
+        img.removeEventListener('load', previousHandler);
+        img.removeEventListener('error', previousHandler);
+    }
+
+    const handleLoadOrError = () => {
+        img.removeEventListener('load', handleLoadOrError);
+        img.removeEventListener('error', handleLoadOrError);
+        img[FADE_IN_HANDLER_KEY] = null;
+        revealElement();
+    };
+
+    img[FADE_IN_HANDLER_KEY] = handleLoadOrError;
+
+    if (img.complete) {
+        handleLoadOrError();
+        return;
+    }
+
+    img.addEventListener('load', handleLoadOrError);
+    img.addEventListener('error', handleLoadOrError);
 };
 
 let selectedHistoryRunId = null;
@@ -804,7 +844,12 @@ const handleFiles = (files) => {
 };
 
 const openLightbox = (src, alt) => {
+    if (!lightbox || !lightboxImage) {
+        return;
+    }
+
     lightboxImage.src = src;
+    applyFadeInAnimation(lightboxImage);
     lightboxImage.alt = alt || 'Großansicht';
     lightbox.setAttribute('aria-hidden', 'false');
     lightbox.classList.add('open');
