@@ -124,6 +124,28 @@ const lastKnownImages = {
     image_3: null,
 };
 
+const FADE_IN_CLASS = 'fade-in';
+
+const applyFadeInAnimation = (element) => {
+    if (!(element instanceof HTMLElement)) {
+        return;
+    }
+
+    element.classList.remove(FADE_IN_CLASS);
+    // Force a reflow so the animation can restart even if it was applied before.
+    // eslint-disable-next-line no-unused-expressions
+    void element.offsetWidth;
+
+    element.classList.add(FADE_IN_CLASS);
+    element.addEventListener(
+        'animationend',
+        () => {
+            element.classList.remove(FADE_IN_CLASS);
+        },
+        { once: true },
+    );
+};
+
 let selectedHistoryRunId = null;
 
 const sanitizeLatestItemString = (value) => {
@@ -492,6 +514,7 @@ const setSlotImageSource = (slot, src) => {
 
     if (slot.content) {
         slot.content.src = resolved;
+        applyFadeInAnimation(slot.content);
     }
 };
 
@@ -632,7 +655,12 @@ const createPreviewItem = (url, name) => {
     const item = document.createElement('figure');
     item.className = 'preview-item';
     item.tabIndex = 0;
-    item.innerHTML = `<img src="${resolvedUrl}" alt="${name}">`;
+
+    const image = document.createElement('img');
+    image.src = resolvedUrl;
+    image.alt = name || '';
+    item.appendChild(image);
+    applyFadeInAnimation(image);
 
     const openPreview = () => openLightbox(resolvedUrl, name);
 

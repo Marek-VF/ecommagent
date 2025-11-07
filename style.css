@@ -42,6 +42,19 @@ body {
     padding: 40px;
 }
 
+.fade-in {
+    opacity: 0;
+    transform: translateY(4px);
+    animation: imgFadeIn 240ms ease-out forwards;
+}
+
+@keyframes imgFadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .app { 
     width: min(1200px, 100%);
     background: rgba(15, 17, 22, 0.8);
