@@ -214,71 +214,73 @@ const normalizeOriginalImageSources = (input) => {
     return Array.from(new Set(normalized));
 };
 
-const renderOriginalImages = (input, options = {}) => {
-    if (!originalImagePreview) {
+const renderOriginalImagesFromRun = (run, options = {}) => {
+    const container =
+        document.getElementById('history-original-image') ||
+        document.getElementById('original-image-preview');
+
+    if (!container) {
+        lastKnownOriginalImages = [];
         return;
     }
 
     const force = Boolean(options.force);
-    const normalized = normalizeOriginalImageSources(input);
+
+    let sources = [];
+    if (run && typeof run === 'object') {
+        if (Array.isArray(run.original_images)) {
+            sources = run.original_images;
+        } else if (run.original_images) {
+            sources = [run.original_images];
+        } else if (typeof run.original_image_url === 'string' && run.original_image_url.trim() !== '') {
+            sources = [run.original_image_url];
+        }
+    }
+
+    const normalized = normalizeOriginalImageSources(sources);
 
     const isSameLength = normalized.length === lastKnownOriginalImages.length;
-    const hasSameValues =
-        isSameLength && normalized.every((value, index) => value === lastKnownOriginalImages[index]);
+    const hasSameValues = isSameLength && normalized.every((value, index) => value === lastKnownOriginalImages[index]);
 
     if (!force && hasSameValues) {
         return;
     }
 
     lastKnownOriginalImages = normalized;
-    originalImagePreview.innerHTML = '';
+    container.innerHTML = '';
+
+    if (container.id === 'original-image-preview') {
+        container.classList.toggle('has-original-image', normalized.length > 0);
+    }
 
     if (normalized.length === 0) {
-        originalImagePreview.classList.remove('has-original-image');
         return;
     }
 
-    originalImagePreview.classList.add('has-original-image');
+    normalized.forEach((url) => {
+        if (!url) {
+            return;
+        }
 
-    normalized.forEach((src) => {
         const img = document.createElement('img');
-        img.src = src;
-        img.alt = 'Hochgeladenes Originalbild';
+        img.src = url;
+        img.alt = 'Originalbild';
         img.loading = 'lazy';
         img.decoding = 'async';
         img.classList.add('original-image', 'fade-in');
-        img.addEventListener('click', () => {
-            openLightbox(img.src, img.alt || 'Hochgeladenes Originalbild');
-        });
-        originalImagePreview.appendChild(img);
 
         if (typeof attachFadeIn === 'function') {
             attachFadeIn(img);
         } else {
             applyFadeInAnimation(img);
         }
-    });
-};
 
-const updateOriginalImageFromData = (data, options = {}) => {
-    if (!data || typeof data !== 'object') {
-        return;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(data, 'original_images')) {
-        const value = data.original_images;
-        renderOriginalImages(value ?? [], { force: Boolean(options.force) });
-        return;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(data, 'original_image_url')) {
-        const value = data.original_image_url;
-        if (typeof value === 'string' && value.trim() !== '') {
-            renderOriginalImages([value], { force: Boolean(options.force) });
-        } else {
-            renderOriginalImages([], { force: Boolean(options.force) });
+        if (typeof openLightbox === 'function') {
+            img.addEventListener('click', () => openLightbox(url, 'Originalbild'));
         }
-    }
+
+        container.appendChild(img);
+    });
 };
 
 let selectedHistoryRunId = null;
@@ -871,35 +873,11 @@ const uploadFiles = async (files) => {
                 Object.prototype.hasOwnProperty.call(result, 'original_images') ||
                 Object.prototype.hasOwnProperty.call(result, 'original_image_url')
             ) {
-                updateOriginalImageFromData(result, { force: true });
-            } else if (result.file && originalImagePreview) {
+                renderOriginalImagesFromRun(result, { force: true });
+            } else if (result.file) {
                 const normalized = normalizeOriginalImageSources([result.file]);
-                const [originalSrc] = normalized;
-
-                if (originalSrc) {
-                    originalImagePreview.innerHTML = '';
-                    originalImagePreview.classList.add('has-original-image');
-
-                    const img = document.createElement('img');
-                    img.src = originalSrc;
-                    img.alt = result.name || file.name || 'Hochgeladenes Originalbild';
-                    img.loading = 'lazy';
-                    img.decoding = 'async';
-                    img.classList.add('original-image', 'fade-in');
-
-                    img.addEventListener('click', () => {
-                        openLightbox(img.src, img.alt || 'Hochgeladenes Originalbild');
-                    });
-
-                    originalImagePreview.appendChild(img);
-
-                    if (typeof attachFadeIn === 'function') {
-                        attachFadeIn(img);
-                    } else {
-                        applyFadeInAnimation(img);
-                    }
-
-                    lastKnownOriginalImages = [originalSrc];
+                if (normalized.length > 0) {
+                    renderOriginalImagesFromRun({ original_images: normalized }, { force: true });
                 }
             }
 
@@ -995,7 +973,7 @@ const updateInterfaceFromData = (data) => {
         return;
     }
 
-    updateOriginalImageFromData(data);
+    renderOriginalImagesFromRun(data);
 
     const hasIsRunning = Object.prototype.hasOwnProperty.call(data, 'isrunning');
     const isRunning = hasIsRunning ? toBoolean(data.isrunning) : false;
@@ -1053,7 +1031,7 @@ const applyRunDataToUI = (payload) => {
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
 
-    updateOriginalImageFromData(data, { force: true });
+    renderOriginalImagesFromRun(data, { force: true });
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();

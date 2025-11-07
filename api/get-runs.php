@@ -3,8 +3,81 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
+$config = require __DIR__ . '/../config.php';
+
 session_start();
 require_once __DIR__ . '/../db.php';
+
+/**
+ * @param array<string,mixed> $config
+ */
+function resolveUploadBaseUrl(array $config): string
+{
+    $candidates = [];
+
+    if (defined('UPLOAD_BASE_URL')) {
+        $candidate = trim((string) UPLOAD_BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('BASE_URL')) {
+        $candidate = trim((string) BASE_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    if (defined('APP_URL')) {
+        $candidate = trim((string) APP_URL);
+        if ($candidate !== '') {
+            $candidates[] = $candidate;
+        }
+    }
+
+    foreach (['upload_base_url', 'upload_base', 'base_url', 'app_url', 'asset_base_url'] as $key) {
+        if (isset($config[$key]) && is_string($config[$key])) {
+            $candidate = trim($config[$key]);
+            if ($candidate !== '') {
+                $candidates[] = $candidate;
+            }
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        $normalized = rtrim($candidate, '/');
+        if ($normalized !== '') {
+            return $normalized;
+        }
+    }
+
+    return '';
+}
+
+function buildAbsoluteImageUrl(string $path, string $baseUrl): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    if (preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $trimmed)) {
+        return $trimmed;
+    }
+
+    if (strpos($trimmed, '/') === 0) {
+        return $trimmed;
+    }
+
+    if ($baseUrl !== '') {
+        return $baseUrl . '/' . ltrim($trimmed, '/');
+    }
+
+    return '/' . ltrim($trimmed, '/');
+}
+
+$baseUrl = resolveUploadBaseUrl(is_array($config) ? $config : []);
 
 $userId = $_SESSION['user']['id'] ?? null;
 if (!$userId) {
@@ -65,11 +138,16 @@ if (!empty($runs)) {
                 continue;
             }
 
+            $absolutePath = buildAbsoluteImageUrl($filePath, $baseUrl);
+            if ($absolutePath === '') {
+                continue;
+            }
+
             if (!isset($runImageMap[$runId])) {
                 $runImageMap[$runId] = [];
             }
 
-            $runImageMap[$runId][] = $filePath;
+            $runImageMap[$runId][] = $absolutePath;
         }
     }
 }
@@ -130,7 +208,7 @@ foreach ($runs as $run) {
         'started_at_iso'  => $startedAtIso,
         'finished_at'     => $finishedAtRaw,
         'finished_at_iso' => $finishedAtIso,
-        'original_images' => $runImageMap[$runId] ?? [],
+        'original_images' => array_values($runImageMap[$runId] ?? []),
     ];
 }
 
