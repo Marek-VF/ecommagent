@@ -246,12 +246,17 @@ const renderOriginalImages = (input, options = {}) => {
         img.alt = 'Hochgeladenes Originalbild';
         img.loading = 'lazy';
         img.decoding = 'async';
-        img.classList.add('original-image');
+        img.classList.add('original-image', 'fade-in');
         img.addEventListener('click', () => {
             openLightbox(img.src, img.alt || 'Hochgeladenes Originalbild');
         });
         originalImagePreview.appendChild(img);
-        applyFadeInAnimation(img);
+
+        if (typeof attachFadeIn === 'function') {
+            attachFadeIn(img);
+        } else {
+            applyFadeInAnimation(img);
+        }
     });
 };
 
@@ -862,15 +867,40 @@ const uploadFiles = async (files) => {
 
             const result = typeof payload === 'object' && payload !== null ? payload : {};
 
-            if (result.file) {
-                addPreviews([{ url: result.file, name: result.name || file.name }]);
-            }
-
             if (
                 Object.prototype.hasOwnProperty.call(result, 'original_images') ||
                 Object.prototype.hasOwnProperty.call(result, 'original_image_url')
             ) {
                 updateOriginalImageFromData(result, { force: true });
+            } else if (result.file && originalImagePreview) {
+                const normalized = normalizeOriginalImageSources([result.file]);
+                const [originalSrc] = normalized;
+
+                if (originalSrc) {
+                    originalImagePreview.innerHTML = '';
+                    originalImagePreview.classList.add('has-original-image');
+
+                    const img = document.createElement('img');
+                    img.src = originalSrc;
+                    img.alt = result.name || file.name || 'Hochgeladenes Originalbild';
+                    img.loading = 'lazy';
+                    img.decoding = 'async';
+                    img.classList.add('original-image', 'fade-in');
+
+                    img.addEventListener('click', () => {
+                        openLightbox(img.src, img.alt || 'Hochgeladenes Originalbild');
+                    });
+
+                    originalImagePreview.appendChild(img);
+
+                    if (typeof attachFadeIn === 'function') {
+                        attachFadeIn(img);
+                    } else {
+                        applyFadeInAnimation(img);
+                    }
+
+                    lastKnownOriginalImages = [originalSrc];
+                }
             }
 
             const isSuccessful = result.success !== false;
