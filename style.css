@@ -461,12 +461,13 @@ body {
     display: block;
 }
 
-.original-image-preview img.original-image {
+.original-image {
     width: 100%;
     height: auto;
     display: block;
-    border-radius: inherit;
+    border-radius: 12px;
     object-fit: cover;
+    cursor: pointer;
 }
 
 .drop-zone:hover,
