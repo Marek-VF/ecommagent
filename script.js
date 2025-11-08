@@ -929,6 +929,7 @@ const applyRunDataToUI = (payload) => {
     const data = payload && typeof payload === 'object' ? payload : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
+    const originalImage = typeof data.original_image === 'string' ? data.original_image.trim() : '';
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();
@@ -976,6 +977,17 @@ const applyRunDataToUI = (payload) => {
             lastKnownImages[slotKey] = null;
         }
     });
+
+    if (previewList) {
+        previewList.innerHTML = '';
+
+        if (originalImage) {
+            const previewItem = createPreviewItem(originalImage, note.product_name || '');
+            if (previewItem) {
+                previewList.appendChild(previewItem);
+            }
+        }
+    }
 
     if (data.run) {
         const statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';

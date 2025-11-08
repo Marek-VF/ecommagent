@@ -155,6 +155,13 @@ try {
         $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
         $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
 
+        $updateOriginal = $pdo->prepare('UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id');
+        $updateOriginal->execute([
+            ':original' => $publicPath,
+            ':run_id'   => $runId,
+            ':user_id'  => $userId,
+        ]);
+
         $curlFile = new CURLFile($storedFilePath, $mimeType ?: 'application/octet-stream', $storedName);
         $postFields = [
             'file'      => $curlFile,
