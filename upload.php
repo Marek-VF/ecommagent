@@ -58,12 +58,16 @@ try {
 
     $config = require __DIR__ . '/config.php';
 
-    $uploadDir = rtrim($config['upload_dir'] ?? (__DIR__ . '/uploads/'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    $dataFile  = $config['data_file'] ?? (__DIR__ . '/data.json');
-    $webhook   = $config['workflow_webhook'] ?? null;
-    $baseUrl   = rtrim($config['base_url'] ?? '', '/');
+    $baseUploadDir = $config['upload_dir'] ?? (__DIR__ . '/uploads');
+    $baseUploadDir = rtrim((string) $baseUploadDir, " \\t\n\r\0\x0B/\\");
+    if ($baseUploadDir === '') {
+        $baseUploadDir = __DIR__ . '/uploads';
+    }
 
-    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
+    $webhook = $config['workflow_webhook'] ?? null;
+    $baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
+
+    if (!is_dir($baseUploadDir) && !mkdir($baseUploadDir, 0775, true) && !is_dir($baseUploadDir)) {
         throw new RuntimeException('Upload-Verzeichnis konnte nicht erstellt werden.');
     }
 
@@ -95,34 +99,6 @@ try {
     $sanitized = trim($sanitized) === '' ? 'upload_' . date('Ymd_His') : trim($sanitized);
     $storedName = basename($sanitized);
 
-    $destination = $uploadDir . $storedName;
-    $nameWithoutExtension = pathinfo($storedName, PATHINFO_FILENAME);
-    $extension = pathinfo($storedName, PATHINFO_EXTENSION);
-    $extensionWithDot = $extension !== '' ? '.' . $extension : '';
-
-    $counter = 1;
-    while (file_exists($destination)) {
-        $storedName = sprintf('%s_%d%s', $nameWithoutExtension, $counter, $extensionWithDot);
-        $destination = $uploadDir . $storedName;
-        $counter++;
-    }
-
-    if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        throw new RuntimeException('Datei konnte nicht gespeichert werden.');
-    }
-
-    $publicPath = 'uploads/' . $storedName;
-    $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
-
-    $initialData = [
-        'isrunning' => true,
-    ];
-
-    $encodedData = json_encode($initialData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if ($encodedData === false || file_put_contents($dataFile, $encodedData) === false) {
-        throw new RuntimeException('Statusdatei konnte nicht aktualisiert werden.');
-    }
-
     if ($webhook === null || $webhook === '') {
         throw new RuntimeException('Workflow-Webhook ist nicht konfiguriert.');
     }
@@ -133,6 +109,8 @@ try {
     $runMessage = 'Workflow gestartet';
     $forwardResponse = null;
     $webhookStatus = null;
+    $storedFilePath = null;
+    $publicPath = null;
 
     $pdo->beginTransaction();
     try {
@@ -150,7 +128,34 @@ try {
             throw new RuntimeException('run_id konnte nicht erzeugt werden.');
         }
 
-        $curlFile = new CURLFile($destination, $mimeType ?: 'application/octet-stream', $storedName);
+        $targetDirectory = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId;
+        if (!is_dir($targetDirectory) && !mkdir($targetDirectory, 0775, true) && !is_dir($targetDirectory)) {
+            throw new RuntimeException('Upload-Verzeichnis konnte nicht erstellt werden.');
+        }
+
+        $destination = $targetDirectory . DIRECTORY_SEPARATOR . $storedName;
+        $nameWithoutExtension = pathinfo($storedName, PATHINFO_FILENAME);
+        $extension = pathinfo($storedName, PATHINFO_EXTENSION);
+        $extensionWithDot = $extension !== '' ? '.' . $extension : '';
+
+        $counter = 1;
+        while (file_exists($destination)) {
+            $storedName = sprintf('%s_%d%s', $nameWithoutExtension, $counter, $extensionWithDot);
+            $destination = $targetDirectory . DIRECTORY_SEPARATOR . $storedName;
+            $counter++;
+        }
+
+        if (!move_uploaded_file($file['tmp_name'], $destination)) {
+            throw new RuntimeException('Datei konnte nicht gespeichert werden.');
+        }
+
+        $storedFilePath = $destination;
+        @chmod($storedFilePath, 0644);
+
+        $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
+        $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
+
+        $curlFile = new CURLFile($storedFilePath, $mimeType ?: 'application/octet-stream', $storedName);
         $postFields = [
             'file'      => $curlFile,
             'user_id'   => $userId,
@@ -212,6 +217,10 @@ try {
     } catch (Throwable $databaseException) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
+        }
+
+        if (is_string($storedFilePath) && $storedFilePath !== '' && file_exists($storedFilePath)) {
+            @unlink($storedFilePath);
         }
 
         throw $databaseException;

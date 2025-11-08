@@ -1,9 +1,9 @@
-# Technische Spezifikation – Ecomm Agent
+# Technische Spezifikation – Ecomm Agent (v6)
 
 ## 1. Überblick
 
-**Ecomm Agent** ist eine PHP-basierte Webanwendung, die Benutzern ermöglicht, Bilder an einen externen **n8n-Workflow** zu senden und die daraus resultierenden, zeitversetzt eintreffenden Ergebnisse (Artikeldaten und generierte Bilder) zu empfangen, zu speichern und darzustellen.  
-Die Anwendung ist **multi-user-fähig**, nutzt **MySQL** für Persistenz, **Vanilla JavaScript** für das Frontend, **PHPMailer** für Benachrichtigungen und kommuniziert mit n8n über zwei dedizierte Webhook-Endpunkte.
+**Ecomm Agent** ist eine PHP-basierte Webanwendung, die Benutzern ermöglicht, Bilder an einen externen **n8n-Workflow** zu senden und die daraus resultierenden, zeitversetzt eintreffenden Ergebnisse (Artikeldaten und generierte Bilder) zu empfangen, zu speichern und darzustellen.
+Die Anwendung ist **multi-user-fähig**, nutzt **MySQL 8.4** für Persistenz, **Vanilla JavaScript** für das Frontend, **PHPMailer** für Benachrichtigungen und kommuniziert mit n8n über zwei dedizierte Webhook-Endpunkte.
 
 ---
 
@@ -16,14 +16,14 @@ Die Anwendung ist **multi-user-fähig**, nutzt **MySQL** für Persistenz, **Vani
        ↓                     ↑
     [n8n Workflow Server] ⇄ receiver.php / webhook_image.php
        ↓
-  Datenbank (MySQL)
+  Datenbank (MySQL 8.4)
 
 Hauptkomponenten
 Komponente	Beschreibung
 Frontend	Index-Seite mit Upload, Status-Panel, History und Live-Status-Polling
 Backend (PHP)	Zuständig für Upload, Auth, DB-Handling, API-Endpunkte und n8n-Kommunikation
 n8n-Integration	Entgegennahme und Rückgabe von Webhook-Aufrufen (Receiver und Image-Webhook)
-Datenbank (MySQL)	Speicherung von Benutzern, Workflows, Artikeldaten, Bildern, Logs und Status
+Datenbank (MySQL 8.4)	Speicherung von Benutzern, Workflows, Artikeldaten, Bildern, Logs und Status
 3. Ablaufdiagramm (vereinfacht)
 
 ┌────────────┐
@@ -91,9 +91,7 @@ Pfad	Aufgabe
 
         Authorization: Bearer {receiver_api_token}
 
-        optional: IP-Whitelist (receiver_api_allowed_ips)
-
-    Beide Prüfungen erfolgen in receiver.php und webhook_image.php.
+    Die Prüfung erfolgt ausschließlich über den Bearer-Token in receiver.php und webhook_image.php.
 
 6. API-Endpunkte
 
@@ -113,8 +111,8 @@ Beispielantwort get-latest-item.php
     "product_name": "Dachschraube M8",
     "product_description": "Automatisch erkannter Artikel",
     "images": [
-      "/uploads/5/2025/11/image_1.png",
-      "/uploads/5/2025/11/image_2.png"
+      "/uploads/5/123/image_1.png",
+      "/uploads/5/123/image_2.png"
     ]
   }
 }
@@ -128,7 +126,6 @@ user_state	Aktueller Status des letzten Runs
 item_notes	Artikeldaten (Name + Beschreibung)
 item_images	Bilder zu den Artikeln
 status_logs	Ereignisprotokoll
-(veraltet) data_file	ehemals JSON-Speicher, aktuell nicht genutzt
 7.2 Beziehungen
 
 users ───< workflow_runs ───< item_notes ───< item_images
@@ -204,6 +201,7 @@ Authorization: Bearer supersecrettoken
 Content-Type: application/json
 {
   "user_id": 5,
+  "run_id": 123,
   "product_name": "Beispielartikel",
   "product_description": "Generiert aus OCR",
   "isrunning": true
@@ -215,28 +213,33 @@ POST https://example.com/webhook_image.php
 Authorization: Bearer supersecrettoken
 Content-Type: multipart/form-data
 user_id=5
+run_id=123
 file=@/tmp/image.png
 
 c) Abschlussmeldung
 
 {
   "user_id": 5,
+  "run_id": 123,
   "isrunning": false,
   "status": "done",
   "message": "Workflow abgeschlossen"
 }
 
+Hinweis: Sowohl receiver.php als auch webhook_image.php verlangen `run_id`; fehlt der Wert, antworten die Endpunkte mit HTTP 400.
+
+
 9. Fehlerbehandlung
 Fehlerquelle	Rückgabe	Beschreibung
 Upload ohne Login	401 Unauthorized	Session fehlt
-Ungültiger Token bei Webhook	403 Forbidden	Token oder IP nicht erlaubt
+Ungültiger Token bei Webhook	401 Unauthorized	Bearer-Token fehlt oder ist ungültig
 DB-Fehler	500 Internal Error	PDO-Ausnahme
 Fehlender user_id in Payload	400 Bad Request	Webhook unvollständig
 10. Sicherheit
 
     Alle Benutzer-Endpunkte erfordern aktive Session.
 
-    Alle n8n-Endpunkte erfordern Token/IP-Check.
+    Alle n8n-Endpunkte prüfen ausschließlich den Bearer-Token.
 
     Passwort-Hashing über password_hash() (bcrypt).
 
@@ -244,7 +247,7 @@ Fehlender user_id in Payload	400 Bad Request	Webhook unvollständig
 
     .htaccess erzwingt Authorization-Header-Persistenz.
 
-    Uploads in /uploads/{user_id}/{YYYY}/{MM}/ mit 755-Rechten.
+    Uploads liegen in /uploads/{user_id}/{run_id}/ mit 775-Verzeichnissen und 644-Dateirechten.
 
 11. Erweiterungspunkte
 Modul	Erweiterungsidee
@@ -279,4 +282,4 @@ Auth	Zwei-Faktor-Authentifizierung via Mailcode
 
 Ecomm Agent stellt eine solide, erweiterbare Basis für KI-gestützte Bild- und Artikeldatenverarbeitung bereit.
 Die klare Trennung zwischen Benutzerinteraktion, API-Kommunikation und n8n-Webhooks erlaubt einfache Wartung, Skalierung und Automatisierung.
-Durch die persistente Speicherung aller Läufe, Logs und Bilder bietet das System vollständige Rückverfolgbarkeit und eignet sich für den produktiven Einsatz auf Apache-Servern.
+Mit MySQL 8.4 als alleiniger Persistenzschicht und dem einheitlichen Upload-Pfad pro Benutzer/Run bleibt jeder Workflow vollständig nachvollziehbar und produktionsreif betreibbar.

@@ -81,29 +81,42 @@ function normalize_positive_int(mixed $value): ?int
     return null;
 }
 
-function check_authorization(array $config): ?string
+function check_authorization(array $config): array
 {
     $token = trim((string)($config['receiver_api_token'] ?? ''));
     if ($token === '') {
-        return null;
+        return ['error' => 'Receiver token not configured', 'status' => 500];
     }
 
-    $header = '';
+    $headerValue = null;
+
     if (isset($_SERVER['HTTP_AUTHORIZATION']) && is_string($_SERVER['HTTP_AUTHORIZATION'])) {
-        $header = trim($_SERVER['HTTP_AUTHORIZATION']);
-    } elseif (isset($_SERVER['HTTP_X_API_TOKEN']) && is_string($_SERVER['HTTP_X_API_TOKEN'])) {
-        $header = trim($_SERVER['HTTP_X_API_TOKEN']);
+        $headerValue = trim($_SERVER['HTTP_AUTHORIZATION']);
     }
 
-    if ($header !== '' && stripos($header, 'Bearer ') === 0) {
-        $header = substr($header, 7);
+    if ($headerValue === null && function_exists('getallheaders')) {
+        foreach (getallheaders() as $key => $value) {
+            if (!is_string($key) || strcasecmp($key, 'Authorization') !== 0) {
+                continue;
+            }
+
+            if (is_string($value) && $value !== '') {
+                $headerValue = trim($value);
+                break;
+            }
+        }
     }
 
-    if ($header === '' || !hash_equals($token, $header)) {
-        return 'Unauthorized';
+    if (!is_string($headerValue) || stripos($headerValue, 'Bearer ') !== 0) {
+        return ['error' => 'Unauthorized', 'status' => 401];
     }
 
-    return null;
+    $providedToken = trim(substr($headerValue, 7));
+    if ($providedToken === '' || !hash_equals($token, $providedToken)) {
+        return ['error' => 'Unauthorized', 'status' => 401];
+    }
+
+    return ['error' => null, 'status' => 200];
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -112,8 +125,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 
 $config = auth_config();
-if ($error = check_authorization($config)) {
-    json_response(false, $error, [], 401);
+$authCheck = check_authorization($config);
+if ($authCheck['error'] !== null) {
+    json_response(false, $authCheck['error'], [], $authCheck['status']);
     return;
 }
 
@@ -152,29 +166,7 @@ if ($userId <= 0) {
 }
 
 if ($runId === null) {
-    $errorMessage = 'run_id missing';
-
-    try {
-        $pdo = auth_pdo();
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        $stateStmt = $pdo->prepare(
-            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:uid, NULL, :status, :message, NOW())'
-            . ' ON DUPLICATE KEY UPDATE'
-            . '     last_status = VALUES(last_status),'
-            . '     last_message = VALUES(last_message),'
-            . '     updated_at = NOW()'
-        );
-        $stateStmt->execute([
-            ':uid'     => $userId,
-            ':status'  => 'error',
-            ':message' => $errorMessage,
-        ]);
-    } catch (Throwable $stateException) {
-        error_log('[receiver] failed to persist missing run_id state: ' . $stateException->getMessage());
-    }
-
-    json_response(false, $errorMessage, ['run_id' => null], 400);
+    json_response(false, 'run_id required', ['run_id' => null], 400);
     return;
 }
 

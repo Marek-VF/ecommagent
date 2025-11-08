@@ -24,26 +24,18 @@ function jsonResponse(int $statusCode, array $payload): never
 
 function ensureAuthorized(array $config): void
 {
-    $apiToken = $config['receiver_api_token'] ?? '';
-    if (!is_string($apiToken) || $apiToken === '') {
+    $apiToken = trim((string)($config['receiver_api_token'] ?? ''));
+    if ($apiToken === '') {
         jsonResponse(500, [
             'ok'      => false,
             'message' => 'API-Token ist nicht konfiguriert.',
         ]);
     }
 
-    $headerCandidates = [
-        $_SERVER['HTTP_AUTHORIZATION'] ?? null,
-        $_SERVER['Authorization'] ?? null,
-        $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null,
-    ];
-
     $authorizationHeader = null;
-    foreach ($headerCandidates as $candidate) {
-        if (is_string($candidate) && $candidate !== '') {
-            $authorizationHeader = trim($candidate);
-            break;
-        }
+
+    if (isset($_SERVER['HTTP_AUTHORIZATION']) && is_string($_SERVER['HTTP_AUTHORIZATION'])) {
+        $authorizationHeader = trim($_SERVER['HTTP_AUTHORIZATION']);
     }
 
     if ($authorizationHeader === null && function_exists('getallheaders')) {
@@ -51,6 +43,7 @@ function ensureAuthorized(array $config): void
             if (!is_string($key) || strcasecmp($key, 'Authorization') !== 0) {
                 continue;
             }
+
             if (is_string($value) && $value !== '') {
                 $authorizationHeader = trim($value);
                 break;
@@ -58,38 +51,7 @@ function ensureAuthorized(array $config): void
         }
     }
 
-    $providedToken = null;
-    if (is_string($authorizationHeader) && stripos($authorizationHeader, 'Bearer ') === 0) {
-        $token = trim(substr($authorizationHeader, 7));
-        $providedToken = $token !== '' ? $token : null;
-    }
-
-    if ($providedToken === null) {
-        $alternativeHeaders = [
-            $_SERVER['HTTP_X_API_TOKEN'] ?? null,
-            $_SERVER['HTTP_X_AUTHORIZATION'] ?? null,
-        ];
-        foreach ($alternativeHeaders as $candidate) {
-            if (is_string($candidate) && $candidate !== '') {
-                $providedToken = trim($candidate);
-                break;
-            }
-        }
-    }
-
-    if ($providedToken === null && function_exists('getallheaders')) {
-        foreach (getallheaders() as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-            if (in_array(strtolower($key), ['x-api-token', 'x-authorization'], true) && is_string($value) && $value !== '') {
-                $providedToken = trim($value);
-                break;
-            }
-        }
-    }
-
-    if ($providedToken === null || !hash_equals($apiToken, $providedToken)) {
+    if (!is_string($authorizationHeader) || stripos($authorizationHeader, 'Bearer ') !== 0) {
         header('WWW-Authenticate: Bearer');
         jsonResponse(401, [
             'ok'      => false,
@@ -97,19 +59,13 @@ function ensureAuthorized(array $config): void
         ]);
     }
 
-    $allowedIps = $config['receiver_api_allowed_ips'] ?? [];
-    if (!is_array($allowedIps)) {
-        $allowedIps = [];
-    }
-
-    if ($allowedIps !== []) {
-        $remoteIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-        if ($remoteIp === '' || !in_array($remoteIp, array_map('strval', $allowedIps), true)) {
-            jsonResponse(403, [
-                'ok'      => false,
-                'message' => 'Zugriff für diese IP-Adresse nicht erlaubt.',
-            ]);
-        }
+    $providedToken = trim(substr($authorizationHeader, 7));
+    if ($providedToken === '' || !hash_equals($apiToken, $providedToken)) {
+        header('WWW-Authenticate: Bearer');
+        jsonResponse(401, [
+            'ok'      => false,
+            'message' => 'Ungültiger oder fehlender Bearer-Token.',
+        ]);
     }
 }
 
@@ -329,7 +285,7 @@ try {
     if ($runIdValue === null) {
         jsonResponse(400, [
             'ok'      => false,
-            'message' => 'run_id missing',
+            'message' => 'run_id required',
         ]);
     }
 
@@ -398,7 +354,7 @@ try {
     $targetDirectory = sprintf('%s/%d/%d', $baseUploadDir, $userId, $runId);
 
     if (!is_dir($targetDirectory)) {
-        if (!mkdir($targetDirectory, 0755, true) && !is_dir($targetDirectory)) {
+        if (!mkdir($targetDirectory, 0775, true) && !is_dir($targetDirectory)) {
             jsonResponse(500, [
                 'ok'      => false,
                 'message' => 'Upload-Verzeichnis konnte nicht erstellt werden.',
@@ -420,7 +376,7 @@ try {
 
     @chmod($targetPath, 0644);
 
-    $relativeUrl = sprintf('/uploads/%d/%d/%s', $userId, $runId, $filename);
+    $relativeUrl = sprintf('uploads/%d/%d/%s', $userId, $runId, $filename);
 
     $positionInput = $_POST['position'] ?? null;
     $requestedPosition = null;
