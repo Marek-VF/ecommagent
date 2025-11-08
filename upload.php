@@ -218,6 +218,7 @@ try {
 
         $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
         $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : '/' . ltrim($publicPath, '/');
+        $relativeUrl = '/' . ltrim(str_replace('\\', '/', $publicPath), '/');
 
         $insertImage = $pdo->prepare(
             'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
@@ -259,8 +260,9 @@ try {
         'status'      => 'ok',
         'message'     => 'Upload erfolgreich gespeichert.',
         'file'        => $publicPath,
-        'image_path'  => '/' . ltrim($publicPath, '/'),
-        'image_url'   => $publicUrl,
+        'image_path'  => $relativeUrl,
+        'image_url'   => $relativeUrl,
+        'image_url_absolute' => $publicUrl,
         'run_id'      => $runId,
         'user_id'     => $userId,
         'images'      => $normalizedImages,

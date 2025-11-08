@@ -25,6 +25,8 @@ const WORKFLOW_FEEDBACK_ERROR_CLASS = 'workflow-feedback--error';
 const WORKFLOW_FEEDBACK_SUCCESS_CLASS = 'workflow-feedback--success';
 const WORKFLOW_FEEDBACK_INFO_CLASS = 'workflow-feedback--info';
 
+const MAX_WORKFLOW_IMAGES = 2;
+
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
     ? Number(window.currentRunId)
     : null;
@@ -96,7 +98,12 @@ const ensureCurrentImages = () => {
         window.currentImages = [];
     }
 
-    return window.currentImages;
+    const state = window.currentImages;
+    if (state.length > MAX_WORKFLOW_IMAGES) {
+        state.length = MAX_WORKFLOW_IMAGES;
+    }
+
+    return state;
 };
 
 const getAppBaseUrl = () => {
@@ -159,21 +166,31 @@ const normalizeImagePath = (value) => {
     return normalized === '/' ? '' : normalized;
 };
 
-const getCurrentImages = () => ensureCurrentImages().slice();
+const getCurrentImages = () => ensureCurrentImages().slice(0, MAX_WORKFLOW_IMAGES);
 
 const setCurrentImages = (values) => {
     const state = ensureCurrentImages();
     state.length = 0;
 
     const entries = Array.isArray(values) ? Array.from(values) : [];
-    entries.forEach((entry) => {
+    entries.every((entry) => {
+        if (state.length >= MAX_WORKFLOW_IMAGES) {
+            return false;
+        }
+
         const normalized = normalizeImagePath(
             typeof entry === 'object' && entry !== null ? entry.path ?? entry.url ?? entry : entry,
         );
         if (normalized && !state.includes(normalized)) {
             state.push(normalized);
         }
+
+        return true;
     });
+
+    if (state.length > MAX_WORKFLOW_IMAGES) {
+        state.length = MAX_WORKFLOW_IMAGES;
+    }
 
     return getCurrentImages();
 };
@@ -185,8 +202,14 @@ const addImageToCurrentState = (value) => {
     }
 
     const state = ensureCurrentImages();
-    if (!state.includes(normalized)) {
+    if (state.includes(normalized)) {
+        return normalized;
+    }
+
+    if (state.length < MAX_WORKFLOW_IMAGES) {
         state.push(normalized);
+    } else {
+        state[MAX_WORKFLOW_IMAGES - 1] = normalized;
     }
 
     return normalized;
@@ -905,50 +928,86 @@ const getDataField = (data, key) => {
     return undefined;
 };
 
-const createPreviewItem = (entry, providedName) => {
-    const candidate = entry && typeof entry === 'object' ? entry : null;
-    const rawPath = candidate ? candidate.path ?? candidate.url ?? candidate.image ?? '' : entry;
-    const normalizedPath = normalizeImagePath(rawPath);
-
+const createOriginalPreviewFigure = (path) => {
+    const normalizedPath = normalizeImagePath(path);
     if (!normalizedPath) {
         return null;
     }
 
     const displayUrl = toAbsoluteUrl(normalizedPath) || normalizedPath;
-    const name = providedName
-        || (candidate && typeof candidate.name === 'string' ? candidate.name : '')
-        || (candidate && typeof candidate.original_name === 'string' ? candidate.original_name : '')
-        || normalizedPath.split('/').pop();
 
-    const item = document.createElement('figure');
-    item.className = 'preview-item';
-    item.tabIndex = 0;
-    item.dataset.imagePath = normalizedPath;
+    const figure = document.createElement('figure');
+    figure.className = 'preview-item';
+    figure.tabIndex = 0;
+    figure.dataset.imagePath = normalizedPath;
 
-    const image = document.createElement('img');
-    image.src = displayUrl;
-    image.alt = name || 'Originalbild';
-    image.decoding = 'async';
-    image.loading = 'lazy';
+    const img = document.createElement('img');
+    img.src = displayUrl;
+    img.alt = 'Originalbild';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    figure.appendChild(img);
 
     const overlay = document.createElement('div');
     overlay.className = 'scan-overlay';
+    figure.appendChild(overlay);
 
-    item.appendChild(image);
-    item.appendChild(overlay);
-    applyFadeInAnimation(image);
+    const openPreview = () => {
+        if (typeof openLightbox === 'function') {
+            openLightbox(displayUrl, 'Originalbild');
+        }
+    };
 
-    const openPreview = () => openLightbox(displayUrl, name);
-
-    item.addEventListener('click', openPreview);
-    item.addEventListener('keydown', (event) => {
+    figure.addEventListener('click', openPreview);
+    figure.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             openPreview();
         }
     });
 
-    return item;
+    applyFadeInAnimation(img);
+
+    return figure;
+};
+
+const updateOriginalImageSlot = (path, options = {}) => {
+    if (!previewList) {
+        return null;
+    }
+
+    const normalizedPath = normalizeImagePath(path);
+    if (!normalizedPath) {
+        return null;
+    }
+
+    const { index = 0, clearContainer = false } = options;
+    const slotIndex = Math.min(Math.max(index, 0), MAX_WORKFLOW_IMAGES - 1);
+
+    if (clearContainer) {
+        previewList.innerHTML = '';
+    }
+
+    const figure = createOriginalPreviewFigure(normalizedPath);
+    if (!figure) {
+        return null;
+    }
+
+    const currentItems = previewList.querySelectorAll('.preview-item');
+    if (currentItems[slotIndex]) {
+        previewList.replaceChild(figure, currentItems[slotIndex]);
+    } else {
+        previewList.appendChild(figure);
+    }
+
+    const items = Array.from(previewList.querySelectorAll('.preview-item'));
+    items.forEach((item, idx) => {
+        if (idx >= MAX_WORKFLOW_IMAGES) {
+            item.remove();
+        }
+    });
+
+    return figure;
 };
 
 const renderOriginalImages = (images, options = {}) => {
@@ -962,17 +1021,32 @@ const renderOriginalImages = (images, options = {}) => {
     items.forEach((entry) => {
         const candidate = typeof entry === 'object' && entry !== null ? entry.path ?? entry.url ?? entry : entry;
         const normalized = normalizeImagePath(candidate);
-        if (normalized && !normalizedItems.includes(normalized)) {
+        if (normalized && !normalizedItems.includes(normalized) && normalizedItems.length < MAX_WORKFLOW_IMAGES) {
             normalizedItems.push(normalized);
         }
     });
 
-    previewList.innerHTML = '';
+    const state = ensureCurrentImages();
+    state.length = 0;
+    normalizedItems.forEach((value, idx) => {
+        state[idx] = value;
+    });
+    state.length = normalizedItems.length;
 
-    normalizedItems.forEach((path) => {
-        const previewItem = createPreviewItem(path);
-        if (previewItem) {
-            previewList.appendChild(previewItem);
+    if (normalizedItems.length === 0) {
+        previewList.innerHTML = '';
+        setScanOverlayActive(false);
+        return [];
+    }
+
+    normalizedItems.forEach((path, index) => {
+        updateOriginalImageSlot(path, { index, clearContainer: index === 0 });
+    });
+
+    const domItems = Array.from(previewList.querySelectorAll('.preview-item'));
+    domItems.forEach((item, idx) => {
+        if (idx >= normalizedItems.length) {
+            item.remove();
         }
     });
 
@@ -980,6 +1054,45 @@ const renderOriginalImages = (images, options = {}) => {
     setScanOverlayActive(shouldActivate);
 
     return normalizedItems;
+};
+
+const appendUploadedOriginalImage = (imageUrl) => {
+    const normalized = normalizeImagePath(imageUrl);
+    if (!normalized) {
+        return;
+    }
+
+    window.currentImages = window.currentImages || [];
+
+    let slot = 0;
+    if (!window.currentImages[0]) {
+        slot = 0;
+    } else if (window.currentImages[0] === normalized) {
+        slot = 0;
+    } else if (!window.currentImages[1] || window.currentImages[1] === normalized) {
+        slot = 1;
+    } else {
+        slot = 1;
+    }
+
+    if (slot === 0) {
+        window.currentImages[0] = normalized;
+        window.currentImages.length = window.currentImages[1] ? 2 : 1;
+    } else {
+        window.currentImages[1] = normalized;
+        window.currentImages.length = 2;
+    }
+
+    const state = ensureCurrentImages();
+    state.length = 0;
+    window.currentImages.forEach((value) => {
+        const normalizedValue = normalizeImagePath(value);
+        if (normalizedValue && !state.includes(normalizedValue) && state.length < MAX_WORKFLOW_IMAGES) {
+            state.push(normalizedValue);
+        }
+    });
+
+    updateOriginalImageSlot(normalized, { index: slot, clearContainer: slot === 0 });
 };
 
 const uploadFiles = async (files) => {
@@ -1058,17 +1171,21 @@ const uploadFiles = async (files) => {
                 return;
             }
 
-            const serverImages = Array.isArray(result.images) ? result.images : null;
-            if (serverImages) {
-                setCurrentImages(serverImages);
-            } else {
-                const imagePath = result.image_path ?? result.file ?? null;
-                if (imagePath) {
-                    addImageToCurrentState(imagePath);
-                }
-            }
+            const uploadedImageUrl = typeof result.image_url === 'string' && result.image_url.trim() !== ''
+                ? result.image_url
+                : typeof result.image_path === 'string' && result.image_path.trim() !== ''
+                    ? result.image_path
+                    : typeof result.file === 'string' && String(result.file).trim() !== ''
+                        ? result.file
+                        : null;
 
-            renderOriginalImages();
+            if (uploadedImageUrl) {
+                appendUploadedOriginalImage(uploadedImageUrl);
+            } else if (Array.isArray(result.images) && result.images.length > 0) {
+                renderOriginalImages(result.images);
+            } else {
+                renderOriginalImages();
+            }
 
             setStatus('success', 'Upload erfolgreich – Workflow kann gestartet werden.');
             setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
@@ -1112,6 +1229,17 @@ async function startWorkflow() {
         return;
     }
 
+    const normalizedImages = getCurrentImages()
+        .map((path) => normalizeImagePath(path))
+        .filter((path) => path)
+        .slice(0, MAX_WORKFLOW_IMAGES);
+
+    if (normalizedImages.length === 0) {
+        showWorkflowFeedback('error', 'Bitte zuerst ein Bild hochladen.');
+        setStatus('error', 'Bitte zuerst ein Bild hochladen.');
+        return;
+    }
+
     if (isStartingWorkflow) {
         return;
     }
@@ -1133,9 +1261,11 @@ async function startWorkflow() {
             payload.user_id = window.currentUserId;
         }
 
-        const currentImages = getCurrentImages().map((path) => normalizeImagePath(path)).filter((path) => path);
-        if (currentImages.length > 0) {
-            payload.images = currentImages;
+        if (normalizedImages[0]) {
+            payload.image_url = normalizedImages[0];
+        }
+        if (normalizedImages[1]) {
+            payload.image_url_2 = normalizedImages[1];
         }
 
         const response = await fetch('start-workflow.php', {
