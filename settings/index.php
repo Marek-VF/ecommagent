@@ -46,7 +46,10 @@ $content = ob_get_clean();
                     class="settings-nav-item<?php echo $activePage === 'profile' ? ' active' : ''; ?>"
                     href="index.php"
                 >Profil</a>
-                <span class="settings-nav-item" aria-disabled="true">Weitere Einstellungen</span>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
+                    href="image.php"
+                >Bildeinstellungen</a>
             </nav>
             <div class="settings-content">
                 <?php echo $content; ?>
