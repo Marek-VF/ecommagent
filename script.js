@@ -852,7 +852,6 @@ const addPreviews = (files) => {
         const previewItem = createPreviewItem(url, name);
         if (previewItem && previewList) {
             previewList.prepend(previewItem);
-            setScanOverlayActive(true);
         }
     });
 };
@@ -1036,6 +1035,10 @@ async function startWorkflow() {
         showWorkflowFeedback('success', successMessage);
         setStatus('info', 'Verarbeitung läuft …');
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+        const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
+        if (hasPreviewImage) {
+            setScanOverlayActive(true);
+        }
         hasShownCompletion = false;
 
         startPolling();
