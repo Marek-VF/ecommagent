@@ -143,8 +143,18 @@ try {
             exit;
         }
 
-        $statusValue = $stateStatus !== '' ? $stateStatus : 'running';
-        $messageValue = $stateMessage !== '' ? $stateMessage : ($statusValue === 'finished' ? 'Workflow abgeschlossen' : 'Verarbeitung läuft …');
+        $statusValue = $stateStatus !== '' ? $stateStatus : 'pending';
+        $statusNormalized = strtolower($statusValue);
+
+        if ($stateMessage !== '') {
+            $messageValue = $stateMessage;
+        } elseif ($statusNormalized === 'finished') {
+            $messageValue = 'Workflow abgeschlossen';
+        } elseif ($statusNormalized === 'pending') {
+            $messageValue = 'Bereit für Workflow-Start';
+        } else {
+            $messageValue = 'Verarbeitung läuft …';
+        }
 
         $images = [];
 
@@ -181,7 +191,7 @@ try {
             'ok'   => true,
             'data' => [
                 'run_id'              => $runId,
-                'isrunning'           => strtolower($statusValue) === 'running',
+                'isrunning'           => $statusNormalized === 'running',
                 'status'              => $statusValue,
                 'message'             => $messageValue,
                 'product_name'        => '',
@@ -253,15 +263,25 @@ try {
 
     $statusValue = isset($run['status']) ? (string) $run['status'] : '';
     if ($statusValue === '') {
-        $statusValue = $stateStatus !== '' ? $stateStatus : 'running';
+        $statusValue = $stateStatus !== '' ? $stateStatus : 'pending';
     }
+
+    $statusNormalized = strtolower($statusValue);
 
     $messageValue = isset($run['last_message']) ? (string) $run['last_message'] : '';
     if ($messageValue === '') {
-        $messageValue = $stateMessage !== '' ? $stateMessage : ($statusValue === 'finished' ? 'Workflow abgeschlossen' : 'Verarbeitung läuft …');
+        if ($stateMessage !== '') {
+            $messageValue = $stateMessage;
+        } elseif ($statusNormalized === 'finished') {
+            $messageValue = 'Workflow abgeschlossen';
+        } elseif ($statusNormalized === 'pending') {
+            $messageValue = 'Bereit für Workflow-Start';
+        } else {
+            $messageValue = 'Verarbeitung läuft …';
+        }
     }
 
-    $isRunning = strtolower($statusValue) === 'running';
+    $isRunning = $statusNormalized === 'running';
 
     echo json_encode([
         'ok'   => true,

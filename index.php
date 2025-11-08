@@ -189,8 +189,9 @@ $appConfig = [
                     <textarea id="article-description" name="article-description" rows="6" placeholder="Beschreibung eingeben"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button id="btn-new" type="button" class="btn btn--primary">Neu</button>
+                    <button id="btn-new" type="button" class="btn btn--primary">Workflow starten</button>
                 </div>
+                <div id="workflow-feedback" class="workflow-feedback" role="alert" aria-live="polite"></div>
             </section>
         </main>
     </div>

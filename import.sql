@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- =========================================
 CREATE TABLE IF NOT EXISTS `user_state` (
   `user_id` INT UNSIGNED NOT NULL,
-  `last_status` ENUM('ok','warn','error','running','finished','idle') NULL,
+  `last_status` ENUM('ok','warn','error','running','finished','idle','pending') NULL,
   `last_message` VARCHAR(255) NULL,
   `last_image_url` TEXT NULL,
   `last_payload_summary` TEXT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `user_id` INT UNSIGNED NOT NULL,
   `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `finished_at` DATETIME NULL,
-  `status` ENUM('running','finished','error') NOT NULL DEFAULT 'running',
+  `status` ENUM('pending','running','finished','error') NOT NULL DEFAULT 'pending',
   `last_message` TEXT NULL,
   `original_image` VARCHAR(1024) NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
