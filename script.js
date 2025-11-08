@@ -29,7 +29,6 @@ const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
 
 const uploadEndpoint = 'upload.php';
-const initializationEndpoint = 'init.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
@@ -1512,29 +1511,11 @@ function setInitialUiState() {
     resetFrontendState();
 }
 
-const initializeBackendState = async () => {
-    try {
-        const response = await fetch(`${initializationEndpoint}?${Date.now()}`, {
-            cache: 'no-store',
-        });
-
-        if (!response.ok) {
-            throw new Error(`Serverantwort ${response.status}`);
-        }
-    } catch (error) {
-        console.error('Backend-Initialisierung fehlgeschlagen:', error);
-        const sanitized = sanitizeLogMessage(error?.message) || 'Backend-Initialisierung fehlgeschlagen.';
-        console.error(`[Backend] ${sanitized}`);
-        setStatus('error', sanitized);
-    }
-};
-
 document.addEventListener('DOMContentLoaded', () => {
     setInitialUiState();
     setupUploadHandler();
     setupHistoryHandler();
     setupSidebarProfileMenu();
-    initializeBackendState();
 
     if (newButton) {
         newButton.addEventListener('click', () => {
