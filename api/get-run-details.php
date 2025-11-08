@@ -24,7 +24,7 @@ if ($runId <= 0) {
 
 $pdo = getPDO();
 
-$stmt = $pdo->prepare('SELECT id, user_id, status, last_message FROM workflow_runs WHERE id = :id AND user_id = :user_id LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, user_id, status, last_message, original_image FROM workflow_runs WHERE id = :id AND user_id = :user_id LIMIT 1');
 $stmt->execute(['id' => $runId, 'user_id' => $userId]);
 $run = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$run) {
@@ -58,7 +58,35 @@ if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
     $baseUrl = rtrim($baseUrlConfig, '/');
 }
 
-$images = array_map(function ($row) use ($baseUrl) {
+$resolvePublicPath = static function (?string $path) use ($baseUrl): ?string {
+    if ($path === null) {
+        return null;
+    }
+
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    if (!preg_match('#^https?://#i', $trimmed) && !str_starts_with($trimmed, '/')) {
+        if ($baseUrl !== '') {
+            $trimmed = $baseUrl . '/' . ltrim($trimmed, '/');
+        } else {
+            $trimmed = '/' . ltrim($trimmed, '/');
+        }
+    }
+
+    return $trimmed;
+};
+
+$originalImage = null;
+if (isset($run['original_image'])) {
+    $originalImage = $resolvePublicPath(is_string($run['original_image']) ? $run['original_image'] : null);
+}
+
+$run['original_image'] = $originalImage;
+
+$images = array_map(function ($row) use ($resolvePublicPath) {
     if (!is_array($row)) {
         return $row;
     }
@@ -66,17 +94,10 @@ $images = array_map(function ($row) use ($baseUrl) {
     $url = isset($row['url']) ? (string) $row['url'] : '';
 
     if ($url !== '') {
-        $trimmed = trim($url);
-
-        if ($trimmed !== '') {
-            if ($baseUrl !== '' && !preg_match('#^https?://#i', $trimmed)) {
-                $trimmed = $baseUrl . '/' . ltrim($trimmed, '/');
-            } elseif ($baseUrl === '' && !preg_match('#^https?://#i', $trimmed)) {
-                $trimmed = '/' . ltrim($trimmed, '/');
-            }
+        $resolved = $resolvePublicPath($url);
+        if ($resolved !== null) {
+            $row['url'] = $resolved;
         }
-
-        $row['url'] = $trimmed;
     }
 
     return $row;
@@ -99,5 +120,6 @@ echo json_encode([
         'note' => $note,
         'images' => $images,
         'logs' => $logs,
+        'original_image' => $originalImage,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

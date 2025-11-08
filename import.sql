@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `finished_at` DATETIME NULL,
   `status` ENUM('running','finished','error') NOT NULL DEFAULT 'running',
   `last_message` TEXT NULL,
+  `original_image` VARCHAR(1024) NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_workflow_runs_user` (`user_id`),
@@ -140,3 +141,6 @@ ALTER TABLE `item_images`
 
 ALTER TABLE `status_logs`
   ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+
+ALTER TABLE `workflow_runs`
+  ADD COLUMN IF NOT EXISTS `original_image` VARCHAR(1024) NULL AFTER `last_message`;

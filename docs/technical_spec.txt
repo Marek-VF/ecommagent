@@ -100,6 +100,7 @@ Endpoint	Methode	Beschreibung
 /api/get-runs.php	GET	Gibt alle Workflow-Runs des eingeloggten Users zurück
 /api/get-run-details.php?id={id}	GET	Gibt Details zu einem bestimmten Run (Notizen, Bilder, Logs)
 /api/get-latest-item.php	GET	Gibt den aktuellen Status (aus user_state) zurück
+Der Run-Details-Endpunkt liefert zusätzlich das ursprüngliche Upload-Bild als `original_image`, damit das Frontend frühere Verläufe vollständig wiederherstellen kann.
 Beispielantwort get-latest-item.php
 
 {
@@ -149,6 +150,7 @@ started_at	DATETIME	Startzeit
 finished_at	DATETIME	Endzeit
 status	ENUM('running','finished','error')	Laufstatus
 last_message	VARCHAR(255)	letzte Meldung
+original_image	VARCHAR(1024)	Pfad zum ursprünglichen Upload-Bild
 user_state
 Spalte	Typ	Beschreibung
 user_id	BIGINT	1:1 zu users.id
