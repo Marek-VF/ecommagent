@@ -6,6 +6,7 @@ const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const newButton = document.getElementById('btn-new');
+const workflowFeedback = document.getElementById('workflow-feedback');
 const articleNameInput = document.getElementById('article-name');
 const articleDescriptionInput = document.getElementById('article-description');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
@@ -18,6 +19,18 @@ const SIDEBAR_PROFILE_TRIGGER =
     SIDEBAR_PROFILE && SIDEBAR_PROFILE instanceof HTMLElement
         ? SIDEBAR_PROFILE.querySelector('[data-profile-trigger]')
         : null;
+
+const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'workflow-feedback--visible';
+const WORKFLOW_FEEDBACK_ERROR_CLASS = 'workflow-feedback--error';
+const WORKFLOW_FEEDBACK_SUCCESS_CLASS = 'workflow-feedback--success';
+const WORKFLOW_FEEDBACK_INFO_CLASS = 'workflow-feedback--info';
+
+window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
+    ? Number(window.currentRunId)
+    : null;
+window.currentUserId = Number.isFinite(Number(window.currentUserId)) && Number(window.currentUserId) > 0
+    ? Number(window.currentUserId)
+    : null;
 
 let isPolling = false;
 let pollInterval = null;
@@ -609,6 +622,7 @@ gallerySlots.forEach((slot) => {
 });
 
 let isProcessing = false;
+let isStartingWorkflow = false;
 let hasShownCompletion = false;
 let hasObservedActiveRun = false;
 let uploadHandlersInitialized = false;
@@ -643,6 +657,82 @@ const sanitizeLogMessage = (value) => {
 
     return String(value).replace(/\s+/g, ' ').trim();
 };
+
+function updateWorkflowButtonState() {
+    if (!newButton) {
+        return;
+    }
+
+    const hasRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
+    const shouldDisable = !hasRun || isProcessing || isStartingWorkflow;
+
+    newButton.disabled = shouldDisable;
+
+    if (shouldDisable) {
+        newButton.setAttribute('aria-disabled', 'true');
+    } else {
+        newButton.removeAttribute('aria-disabled');
+    }
+}
+
+function clearWorkflowFeedback() {
+    if (!workflowFeedback) {
+        return;
+    }
+
+    workflowFeedback.textContent = '';
+    workflowFeedback.classList.remove(
+        WORKFLOW_FEEDBACK_VISIBLE_CLASS,
+        WORKFLOW_FEEDBACK_ERROR_CLASS,
+        WORKFLOW_FEEDBACK_SUCCESS_CLASS,
+        WORKFLOW_FEEDBACK_INFO_CLASS,
+    );
+    workflowFeedback.setAttribute('hidden', 'hidden');
+}
+
+function showWorkflowFeedback(level, message) {
+    if (!workflowFeedback) {
+        return;
+    }
+
+    const normalizedMessage = sanitizeLogMessage(message);
+
+    workflowFeedback.classList.remove(
+        WORKFLOW_FEEDBACK_ERROR_CLASS,
+        WORKFLOW_FEEDBACK_SUCCESS_CLASS,
+        WORKFLOW_FEEDBACK_INFO_CLASS,
+    );
+
+    if (!normalizedMessage) {
+        clearWorkflowFeedback();
+        return;
+    }
+
+    let className = WORKFLOW_FEEDBACK_INFO_CLASS;
+    const normalizedLevel = typeof level === 'string' ? level.trim().toLowerCase() : '';
+
+    if (normalizedLevel === 'error') {
+        className = WORKFLOW_FEEDBACK_ERROR_CLASS;
+    } else if (normalizedLevel === 'success') {
+        className = WORKFLOW_FEEDBACK_SUCCESS_CLASS;
+    }
+
+    workflowFeedback.textContent = normalizedMessage;
+    workflowFeedback.classList.add(WORKFLOW_FEEDBACK_VISIBLE_CLASS, className);
+    workflowFeedback.removeAttribute('hidden');
+}
+
+function setCurrentRun(runId, userId) {
+    const numericRunId = Number(runId);
+    window.currentRunId = Number.isFinite(numericRunId) && numericRunId > 0 ? numericRunId : null;
+
+    if (userId !== undefined) {
+        const numericUserId = Number(userId);
+        window.currentUserId = Number.isFinite(numericUserId) && numericUserId > 0 ? numericUserId : null;
+    }
+
+    updateWorkflowButtonState();
+}
 
 const updateProcessingIndicator = (text, state = 'idle') => {
     if (text) {
@@ -687,6 +777,8 @@ const setLoadingState = (loading, options = {}) => {
     if (options && options.indicatorText) {
         updateProcessingIndicator(options.indicatorText, options.indicatorState || 'idle');
     }
+
+    updateWorkflowButtonState();
 };
 
 const getDataField = (data, key) => {
@@ -832,38 +924,20 @@ const uploadFiles = async (files) => {
                 return;
             }
 
-            setStatus('info', 'Upload erfolgreich – Verarbeitung gestartet …');
-            setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+            setStatus('success', 'Upload erfolgreich – Workflow kann gestartet werden.');
+            setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
             hasShownCompletion = false;
 
             if (result.run_id !== undefined && result.run_id !== null) {
                 const parsedRunId = Number(result.run_id);
                 activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
+                setCurrentRun(parsedRunId, result.user_id);
+            } else {
+                setCurrentRun(null, result.user_id);
             }
 
-            startPolling();
-
-            if (result.webhook_response !== undefined && result.webhook_response !== null && result.webhook_response !== '') {
-                const webhookPayload = result.webhook_response;
-                const webhookStatus = Number.isFinite(result.webhook_status)
-                    ? result.webhook_status
-                    : Number(result.webhook_status);
-                const sanitizedWebhookMessage = sanitizeLogMessage(
-                    typeof webhookPayload === 'object' && webhookPayload !== null && typeof webhookPayload.message === 'string'
-                        ? webhookPayload.message
-                        : webhookPayload,
-                );
-
-                if (sanitizedWebhookMessage) {
-                    const statusLabel = Number.isFinite(webhookStatus) ? webhookStatus : 'unbekannt';
-                    console.log(`[Webhook:${statusLabel}] ${sanitizedWebhookMessage}`);
-                } else {
-                    console.log('Webhook-Antwort erhalten', {
-                        status: Number.isFinite(webhookStatus) ? webhookStatus : null,
-                        payload: webhookPayload,
-                    });
-                }
-            }
+            showWorkflowFeedback('info', 'Upload erfolgreich. Bitte Workflow starten.');
+            updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
         } catch (error) {
             console.error(error);
             const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
@@ -883,6 +957,103 @@ const handleFiles = (files) => {
     }
     uploadFiles(files);
 };
+
+async function startWorkflow() {
+    const runId = window.currentRunId;
+    const numericRunId = Number(runId);
+
+    if (!Number.isFinite(numericRunId) || numericRunId <= 0) {
+        showWorkflowFeedback('error', 'Bitte zuerst ein Bild hochladen.');
+        return;
+    }
+
+    if (isStartingWorkflow) {
+        return;
+    }
+
+    clearWorkflowFeedback();
+    isStartingWorkflow = true;
+    updateWorkflowButtonState();
+
+    if (newButton) {
+        newButton.setAttribute('aria-busy', 'true');
+    }
+
+    try {
+        const payload = {
+            run_id: numericRunId,
+        };
+
+        if (Number.isFinite(window.currentUserId) && window.currentUserId > 0) {
+            payload.user_id = window.currentUserId;
+        }
+
+        const response = await fetch('start-workflow.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const rawText = await response.text();
+        let parsed = {};
+
+        if (rawText) {
+            try {
+                parsed = JSON.parse(rawText);
+            } catch (parseError) {
+                parsed = rawText;
+            }
+        }
+
+        const result = typeof parsed === 'object' && parsed !== null ? parsed : {};
+
+        if (!response.ok || result.success === false) {
+            const message = typeof result.message === 'string' && result.message.trim() !== ''
+                ? result.message
+                : 'Workflow konnte nicht gestartet werden.';
+
+            showWorkflowFeedback('error', message);
+            setStatus('error', message);
+
+            if (result.logout) {
+                window.location.href = 'auth/logout.php';
+            }
+
+            return;
+        }
+
+        const successMessage = typeof result.message === 'string' && result.message.trim() !== ''
+            ? result.message
+            : 'Workflow gestartet.';
+
+        setCurrentRun(result.run_id ?? numericRunId, result.user_id ?? window.currentUserId);
+        const resolvedRunId = window.currentRunId ?? numericRunId;
+        activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
+
+        showWorkflowFeedback('success', successMessage);
+        setStatus('info', 'Verarbeitung läuft …');
+        setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+        hasShownCompletion = false;
+
+        startPolling();
+    } catch (error) {
+        const fallback = 'Workflow konnte nicht gestartet werden.';
+        const message = sanitizeLogMessage(error?.message) || fallback;
+
+        console.error('Workflow-Start fehlgeschlagen', error);
+        showWorkflowFeedback('error', message);
+        setStatus('error', message);
+    } finally {
+        isStartingWorkflow = false;
+        if (newButton) {
+            newButton.removeAttribute('aria-busy');
+        }
+        updateWorkflowButtonState();
+    }
+}
 
 const openLightbox = (src, alt) => {
     if (!lightbox || !lightboxImage) {
@@ -1034,6 +1205,9 @@ const applyRunDataToUI = (payload) => {
             indicatorState = 'running';
         } else if (['finished', 'success', 'completed'].includes(statusRaw)) {
             indicatorState = 'success';
+        } else if (statusRaw === 'pending') {
+            indicatorState = 'idle';
+            indicatorMessage = indicatorMessage || 'Bereit für Workflow-Start';
         } else if (['failed', 'error'].includes(statusRaw)) {
             indicatorState = 'error';
         }
@@ -1347,10 +1521,27 @@ async function fetchLatestItem() {
         const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
         const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : toBoolean(payload.isrunning);
 
+        const statusLabelRaw =
+            (normalized && typeof normalized.status === 'string' && normalized.status.trim() !== '')
+                ? normalized.status
+                : (typeof payload.status === 'string' ? payload.status : '');
+        const statusLabel = statusLabelRaw ? statusLabelRaw.trim().toLowerCase() : '';
+
         if (!isRunning) {
-            setStatus('success', 'Workflow abgeschlossen');
-            stopPolling();
-            activeRunId = null;
+            if (statusLabel === 'pending') {
+                setStatus('info', 'Bereit für Workflow-Start');
+                showWorkflowFeedback('info', 'Workflow bereit zum Start.');
+                updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
+                if (payload.run_id !== undefined && payload.run_id !== null) {
+                    setCurrentRun(payload.run_id);
+                }
+            } else {
+                setStatus('success', 'Workflow abgeschlossen');
+                showWorkflowFeedback('success', 'Workflow abgeschlossen.');
+                stopPolling();
+                activeRunId = null;
+                setCurrentRun(null);
+            }
         } else {
             setStatus('info', 'Verarbeitung läuft …');
         }
@@ -1560,6 +1751,8 @@ function resetFrontendState(options = {}) {
     hasShownCompletion = false;
     hasObservedActiveRun = false;
     workflowIsRunning = false;
+    setCurrentRun(null, null);
+    clearWorkflowFeedback();
 
     selectedHistoryRunId = null;
     if (HISTORY_LIST) {
@@ -1583,8 +1776,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSidebarProfileMenu();
 
     if (newButton) {
-        newButton.addEventListener('click', () => {
-            resetFrontendState();
-        });
+        newButton.addEventListener('click', startWorkflow);
     }
+
+    updateWorkflowButtonState();
 });

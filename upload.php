@@ -106,9 +106,7 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runMessage = 'Workflow gestartet';
-    $forwardResponse = null;
-    $webhookStatus = null;
+    $runMessage = 'Bereit für Workflow-Start';
     $storedFilePath = null;
     $publicPath = null;
 
@@ -116,10 +114,11 @@ try {
     try {
         $insertRun = $pdo->prepare(
             "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
-            "VALUES (:user_id, NOW(), 'running', :last_message)"
+            "VALUES (:user_id, NOW(), :status, :last_message)"
         );
         $insertRun->execute([
             ':user_id'      => $userId,
+            ':status'       => 'pending',
             ':last_message' => $runMessage,
         ]);
 
@@ -162,49 +161,6 @@ try {
             ':user_id'  => $userId,
         ]);
 
-        $curlFile = new CURLFile($storedFilePath, $mimeType ?: 'application/octet-stream', $storedName);
-        $postFields = [
-            'file'      => $curlFile,
-            'user_id'   => $userId,
-            'run_id'    => $runId,
-            'image_url' => $publicUrl,
-            'file_name' => $storedName,
-            'timestamp' => $timestamp(),
-        ];
-
-        $ch = curl_init($webhook);
-        if ($ch === false) {
-            throw new RuntimeException('Webhook konnte nicht initialisiert werden.');
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POSTFIELDS     => $postFields,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_HTTPHEADER     => ['Accept: application/json, */*;q=0.8'],
-        ]);
-
-        $webhookResponse = curl_exec($ch);
-        $webhookStatus   = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: null;
-        $curlError       = curl_error($ch);
-        curl_close($ch);
-
-        if ($webhookResponse === false) {
-            $errorMessage = $curlError !== '' ? $curlError : 'Unbekannter Fehler bei der Webhook-Ausführung.';
-            throw new RuntimeException('Webhook-Aufruf fehlgeschlagen: ' . $errorMessage);
-        }
-
-        $forwardResponse = json_decode($webhookResponse, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $forwardResponse = $webhookResponse;
-        }
-
-        if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
-            throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
-        }
-
         $stateStmt = $pdo->prepare(
             'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
             . ' ON DUPLICATE KEY UPDATE'
@@ -216,7 +172,7 @@ try {
         $stateStmt->execute([
             ':user_id'        => $userId,
             ':current_run_id' => $runId,
-            ':last_status'    => 'running',
+            ':last_status'    => 'pending',
             ':last_message'   => $runMessage,
         ]);
 
@@ -234,14 +190,13 @@ try {
     }
 
     $respond([
-        'success'          => true,
-        'status'           => 'ok',
-        'message'          => 'Upload erfolgreich gespeichert und Workflow gestartet.',
-        'file'             => $publicPath,
-        'run_id'           => $runId,
-        'timestamp'        => $timestamp(),
-        'webhook_status'   => $webhookStatus,
-        'webhook_response' => $forwardResponse,
+        'success'   => true,
+        'status'    => 'ok',
+        'message'   => 'Upload erfolgreich gespeichert.',
+        'file'      => $publicPath,
+        'run_id'    => $runId,
+        'user_id'   => $userId,
+        'timestamp' => $timestamp(),
     ]);
 } catch (Throwable $exception) {
     $respond([
