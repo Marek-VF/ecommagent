@@ -166,8 +166,149 @@ try {
         ], 409);
     }
 
-    $originalPath = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
-    if ($originalPath === '') {
+    $normalizeImagePath = static function (mixed $value) use ($baseUrl): ?string {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $normalized = str_replace('\\', '/', $trimmed);
+
+        if ($baseUrl !== '') {
+            $baseCandidates = [$baseUrl, rtrim($baseUrl, '/')];
+            foreach ($baseCandidates as $candidate) {
+                if ($candidate !== '' && str_starts_with($normalized, $candidate)) {
+                    $normalized = substr($normalized, strlen($candidate));
+                    break;
+                }
+            }
+        }
+
+        if (preg_match('#^https?://#i', $normalized)) {
+            $parsed = parse_url($normalized);
+            if ($parsed !== false && isset($parsed['path'])) {
+                $normalized = $parsed['path'];
+            }
+        }
+
+        $normalized = '/' . ltrim($normalized, '/');
+        return $normalized !== '/' ? $normalized : null;
+    };
+
+    $requestedImages = [];
+    if (isset($data['images'])) {
+        $rawImages = $data['images'];
+        if (is_string($rawImages)) {
+            $decoded = json_decode($rawImages, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $rawImages = $decoded;
+            }
+        }
+
+        if (is_array($rawImages)) {
+            foreach ($rawImages as $candidate) {
+                if (is_array($candidate) && isset($candidate['path'])) {
+                    $candidate = $candidate['path'];
+                } elseif (is_array($candidate) && isset($candidate['url'])) {
+                    $candidate = $candidate['url'];
+                }
+
+                $normalized = $normalizeImagePath($candidate);
+                if ($normalized !== null) {
+                    $requestedImages[] = $normalized;
+                }
+            }
+        }
+    }
+
+    $requestedImages = array_values(array_unique($requestedImages));
+
+    $imagesStmt = $pdo->prepare('SELECT file_path, original_name FROM run_images WHERE run_id = :run_id ORDER BY created_at ASC, id ASC');
+    $imagesStmt->execute([
+        ':run_id' => $runId,
+    ]);
+    $dbImages = $imagesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $dbImageMap = [];
+    foreach ($dbImages as $row) {
+        $path = isset($row['file_path']) ? trim((string) $row['file_path']) : '';
+        if ($path === '') {
+            continue;
+        }
+
+        $normalized = '/' . ltrim(str_replace('\\', '/', $path), '/');
+        $dbImageMap[$normalized] = [
+            'path'          => $normalized,
+            'stored_path'   => $path,
+            'original_name' => isset($row['original_name']) ? (string) $row['original_name'] : null,
+        ];
+    }
+
+    $legacyImage = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
+    $legacyNormalized = $legacyImage !== '' ? '/' . ltrim(str_replace('\\', '/', $legacyImage), '/') : null;
+
+    $selectedImages = [];
+    if ($requestedImages !== []) {
+        foreach ($requestedImages as $path) {
+            if (isset($dbImageMap[$path])) {
+                $selectedImages[] = $dbImageMap[$path];
+            } elseif ($legacyNormalized !== null && $path === $legacyNormalized) {
+                $selectedImages[] = [
+                    'path'        => $legacyNormalized,
+                    'stored_path' => ltrim($legacyNormalized, '/'),
+                    'original_name' => basename($legacyNormalized),
+                ];
+            }
+        }
+    }
+
+    if ($selectedImages === []) {
+        $selectedImages = array_values($dbImageMap);
+    }
+
+    if ($selectedImages === [] && $legacyNormalized !== null) {
+        $selectedImages[] = [
+            'path'        => $legacyNormalized,
+            'stored_path' => ltrim($legacyNormalized, '/'),
+            'original_name' => basename($legacyNormalized),
+        ];
+    }
+
+    $expectedPrefix = sprintf('uploads/%d/%d/', $userId, $runId);
+    $absoluteImages = [];
+    foreach ($selectedImages as $image) {
+        $path = isset($image['path']) ? (string) $image['path'] : '';
+        if ($path === '') {
+            continue;
+        }
+
+        $relativePath = ltrim(str_replace('\\', '/', $path), '/');
+        if (!str_starts_with($relativePath, $expectedPrefix)) {
+            continue;
+        }
+
+        $filename = basename($relativePath);
+        if ($filename === '') {
+            continue;
+        }
+
+        $absolutePath = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId . DIRECTORY_SEPARATOR . $filename;
+        if (!is_file($absolutePath)) {
+            continue;
+        }
+
+        $absoluteImages[] = [
+            'path'        => '/' . ltrim($relativePath, '/'),
+            'absolute'    => $absolutePath,
+            'original_name' => isset($image['original_name']) ? (string) $image['original_name'] : $filename,
+        ];
+    }
+
+    if ($absoluteImages === []) {
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -176,52 +317,35 @@ try {
         ], 400);
     }
 
-    $normalizedPath = str_replace('\\', '/', $originalPath);
-    $filename = basename($normalizedPath);
-    if ($filename === '') {
-        $respond([
-            'success'   => false,
-            'status'    => 'error',
-            'message'   => 'Dateiname des Originalbildes konnte nicht ermittelt werden.',
-            'timestamp' => $timestamp(),
-        ], 400);
-    }
+    $publicImagePaths = array_values(array_unique(array_map(
+        static fn (array $image): string => $image['path'],
+        $absoluteImages
+    )));
 
-    $storedFilePath = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId . DIRECTORY_SEPARATOR . $filename;
-    if (!is_file($storedFilePath)) {
-        $respond([
-            'success'   => false,
-            'status'    => 'error',
-            'message'   => 'Originalbild wurde nicht gefunden.',
-            'timestamp' => $timestamp(),
-        ], 404);
-    }
+    $publicImageUrls = array_map(
+        static function (string $path) use ($baseUrl): string {
+            $normalized = '/' . ltrim($path, '/');
+            if ($baseUrl !== '' && !preg_match('#^https?://#i', $normalized)) {
+                return rtrim($baseUrl, '/') . $normalized;
+            }
 
-    $publicPath = ltrim($normalizedPath, '/');
-    $publicUrl = $originalPath;
-    if ($publicPath !== '') {
-        if ($baseUrl !== '' && !preg_match('#^https?://#i', $publicPath) && !str_starts_with($publicPath, '/')) {
-            $publicUrl = $baseUrl . '/' . $publicPath;
-        } elseif ($baseUrl === '' && !preg_match('#^https?://#i', $publicPath) && !str_starts_with($publicPath, '/')) {
-            $publicUrl = '/' . $publicPath;
-        }
-    }
+            return $normalized;
+        },
+        $publicImagePaths
+    );
 
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = $finfo !== false ? finfo_file($finfo, $storedFilePath) : null;
-    if ($finfo !== false) {
-        finfo_close($finfo);
-    }
-
-    $curlFile = new CURLFile($storedFilePath, $mimeType ?: 'application/octet-stream', $filename);
-    $postFields = [
-        'file'      => $curlFile,
-        'user_id'   => $userId,
-        'run_id'    => $runId,
-        'image_url' => $publicUrl,
-        'file_name' => $filename,
-        'timestamp' => $timestamp(),
+    $postPayload = [
+        'user_id'    => $userId,
+        'run_id'     => $runId,
+        'images'     => $publicImagePaths,
+        'image_urls' => $publicImageUrls,
+        'timestamp'  => $timestamp(),
     ];
+
+    $postBody = json_encode($postPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($postBody === false) {
+        throw new RuntimeException('Webhook-Payload konnte nicht serialisiert werden.');
+    }
 
     $ch = curl_init($webhook);
     if ($ch === false) {
@@ -231,10 +355,13 @@ try {
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS     => $postFields,
+        CURLOPT_POSTFIELDS     => $postBody,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT        => 30,
-        CURLOPT_HTTPHEADER     => ['Accept: application/json, */*;q=0.8'],
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json, */*;q=0.8',
+            'Content-Type: application/json',
+        ],
     ]);
 
     $webhookResponse = curl_exec($ch);
@@ -299,6 +426,8 @@ try {
         'message'          => 'Workflow gestartet.',
         'run_id'           => $runId,
         'user_id'          => $userId,
+        'images'           => $publicImagePaths,
+        'image_urls'       => $publicImageUrls,
         'timestamp'        => $timestamp(),
         'webhook_status'   => $webhookStatus,
         'webhook_response' => $forwardResponse,

@@ -43,14 +43,17 @@ $noteStmt = $pdo->prepare('
 $noteStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $note = $noteStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-$imgStmt = $pdo->prepare('
-    SELECT url, position
-    FROM item_images
-    WHERE user_id = :user_id AND run_id = :run_id
-    ORDER BY position ASC, created_at ASC
-');
+$imgStmt = $pdo->prepare(
+    'SELECT url, position FROM item_images WHERE user_id = :user_id AND run_id = :run_id ORDER BY position ASC, created_at ASC'
+);
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $images = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$originalStmt = $pdo->prepare(
+    'SELECT file_path, original_name FROM run_images WHERE run_id = :run_id ORDER BY created_at ASC, id ASC'
+);
+$originalStmt->execute(['run_id' => $runId]);
+$originalRows = $originalStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $baseUrlConfig = $config['base_url'] ?? '';
 $baseUrl = '';
@@ -79,12 +82,63 @@ $resolvePublicPath = static function (?string $path) use ($baseUrl): ?string {
     return $trimmed;
 };
 
-$originalImage = null;
-if (isset($run['original_image'])) {
-    $originalImage = $resolvePublicPath(is_string($run['original_image']) ? $run['original_image'] : null);
+$normalizeOriginalPath = static function (?string $path) use ($baseUrl): ?string {
+    if ($path === null) {
+        return null;
+    }
+
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if ($baseUrl !== '') {
+        $baseCandidates = [$baseUrl, rtrim($baseUrl, '/')];
+        foreach ($baseCandidates as $candidate) {
+            if ($candidate !== '' && str_starts_with($normalized, $candidate)) {
+                $normalized = substr($normalized, strlen($candidate));
+                break;
+            }
+        }
+    }
+
+    if (preg_match('#^https?://#i', $normalized)) {
+        $parsed = parse_url($normalized);
+        if ($parsed !== false && isset($parsed['path'])) {
+            $normalized = $parsed['path'];
+        }
+    }
+
+    $normalized = '/' . ltrim($normalized, '/');
+    return $normalized !== '/' ? $normalized : null;
+};
+
+$originalImages = [];
+foreach ($originalRows as $row) {
+    $path = isset($row['file_path']) ? (string) $row['file_path'] : '';
+    $normalized = $normalizeOriginalPath($path);
+    if ($normalized === null) {
+        continue;
+    }
+
+    $originalImages[] = $normalized;
 }
 
-$run['original_image'] = $originalImage;
+$legacyOriginal = isset($run['original_image']) ? $normalizeOriginalPath(is_string($run['original_image']) ? $run['original_image'] : null) : null;
+if ($originalImages === [] && $legacyOriginal !== null) {
+    $originalImages[] = $legacyOriginal;
+} elseif ($legacyOriginal !== null && !in_array($legacyOriginal, $originalImages, true)) {
+    $originalImages[] = $legacyOriginal;
+}
+
+if ($originalImages !== []) {
+    $originalImages = array_values(array_unique($originalImages));
+}
+
+$firstOriginal = $originalImages[0] ?? null;
+$run['original_image'] = $firstOriginal;
 $statusValue = isset($run['status']) ? (string) $run['status'] : '';
 $statusNormalized = strtolower(trim($statusValue));
 $isRunning = $statusNormalized === 'running';
@@ -120,11 +174,12 @@ $logs = $logStmt->fetchAll(PDO::FETCH_ASSOC);
 echo json_encode([
     'ok' => true,
     'data' => [
-        'run' => $run,
-        'note' => $note,
-        'images' => $images,
-        'logs' => $logs,
-        'original_image' => $originalImage,
-        'isrunning' => $isRunning,
+        'run'             => $run,
+        'note'            => $note,
+        'images'          => $images,
+        'logs'            => $logs,
+        'original_image'  => $firstOriginal,
+        'original_images' => $originalImages,
+        'isrunning'       => $isRunning,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
