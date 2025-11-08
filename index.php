@@ -121,7 +121,11 @@ $appConfig = [
                 role="menu"
                 aria-hidden="true"
             >
-                <a class="profile-item" href="#" role="menuitem">Einstellungen</a>
+                <a
+                    class="profile-item"
+                    href="<?php echo htmlspecialchars(auth_url('/settings/index.php'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                    role="menuitem"
+                >Einstellungen</a>
                 <a class="profile-item profile-item--danger" href="auth/logout.php" role="menuitem">Abmelden</a>
             </div>
         </div>
