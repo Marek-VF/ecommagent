@@ -58,14 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $passwordHash = auth_hash_password($password);
 
         $insert = $pdo->prepare(
-            'INSERT INTO users (name, email, password_hash, verification_token, verified, created_at, updated_at)
-             VALUES (:name, :email, :password_hash, :verification_token, 0, NOW(), NOW())'
+            'INSERT INTO users (name, email, password_hash, image_ratio_preference, verification_token, verified, created_at, updated_at)
+             VALUES (:name, :email, :password_hash, :image_ratio_preference, :verification_token, 0, NOW(), NOW())'
         );
 
         $insert->execute([
             'name'               => $name,
             'email'              => $email,
             'password_hash'      => $passwordHash,
+            'image_ratio_preference' => 'original',
             'verification_token' => $verificationToken,
         ]);
 

@@ -112,8 +112,204 @@
     font-size: 0.95rem;
 }
 
+.settings-message--error {
+    border-color: rgba(var(--status-error-rgb), 0.45);
+    background: rgba(var(--status-error-rgb), 0.16);
+}
+
 .settings-form .form-actions {
     justify-content: flex-start;
+}
+
+.image-settings-description {
+    margin: -8px 0 8px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.image-settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ratio-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.ratio-grid-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 0 18px;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+}
+
+.ratio-grid-header span {
+    display: flex;
+    align-items: center;
+}
+
+.ratio-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    position: relative;
+    transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+.ratio-row:hover,
+.ratio-row:focus-within {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ratio-row.selected {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(59, 130, 246, 0.14);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.ratio-row input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ratio-row-cell {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ratio-row-choice {
+    font-weight: 600;
+}
+
+.ratio-row-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ratio-row-indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.ratio-row-indicator::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #3b82f6;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity var(--transition), transform var(--transition);
+}
+
+.ratio-row.selected .ratio-row-indicator {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.2);
+}
+
+.ratio-row.selected .ratio-row-indicator::after {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.ratio-row-ratio-text {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.95rem;
+}
+
+.ratio-row-resolution {
+    color: var(--text-muted);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.ratio-icon {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin: 4px 0;
+    border-radius: 6px;
+    flex: 0 0 auto;
+}
+
+.ratio-1-1 {
+    width: 60px;
+    height: 60px;
+}
+
+.ratio-2-3 {
+    width: 40px;
+    height: 60px;
+}
+
+.ratio-3-2 {
+    width: 60px;
+    height: 40px;
+}
+
+.ratio-3-4 {
+    width: 45px;
+    height: 60px;
+}
+
+.ratio-4-3 {
+    width: 64px;
+    height: 48px;
+}
+
+.ratio-4-5 {
+    width: 48px;
+    height: 60px;
+}
+
+.ratio-5-4 {
+    width: 60px;
+    height: 48px;
+}
+
+.ratio-9-16 {
+    width: 36px;
+    height: 64px;
+}
+
+.ratio-16-9 {
+    width: 80px;
+    height: 45px;
+}
+
+.ratio-21-9 {
+    width: 88px;
+    height: 38px;
+}
+
+.image-settings-message {
+    display: none;
+    margin-top: -8px;
+}
+
+.image-settings-message.is-visible {
+    display: block;
 }
 
 @media (max-width: 900px) {
@@ -151,5 +347,25 @@
 
     .settings-card {
         padding: 22px;
+    }
+}
+
+@media (max-width: 720px) {
+    .ratio-grid-header {
+        display: none;
+    }
+
+    .ratio-row {
+        grid-template-columns: 1fr;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .ratio-row-cell {
+        justify-content: flex-start;
+    }
+
+    .ratio-row-resolution {
+        font-size: 0.85rem;
     }
 }

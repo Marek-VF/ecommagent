@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `name` VARCHAR(100) NOT NULL,
   `email` VARCHAR(255) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
+  `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original',
   `verification_token` VARCHAR(64) DEFAULT NULL,
   `verified` TINYINT(1) NOT NULL DEFAULT 0,
   `reset_token` VARCHAR(64) DEFAULT NULL,
@@ -144,3 +145,6 @@ ALTER TABLE `status_logs`
 
 ALTER TABLE `workflow_runs`
   ADD COLUMN IF NOT EXISTS `original_image` VARCHAR(1024) NULL AFTER `last_message`;
+
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original' AFTER `password_hash`;
