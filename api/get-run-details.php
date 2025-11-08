@@ -85,6 +85,10 @@ if (isset($run['original_image'])) {
 }
 
 $run['original_image'] = $originalImage;
+$statusValue = isset($run['status']) ? (string) $run['status'] : '';
+$statusNormalized = strtolower(trim($statusValue));
+$isRunning = $statusNormalized === 'running';
+$run['isrunning'] = $isRunning;
 
 $images = array_map(function ($row) use ($resolvePublicPath) {
     if (!is_array($row)) {
@@ -121,5 +125,6 @@ echo json_encode([
         'images' => $images,
         'logs' => $logs,
         'original_image' => $originalImage,
+        'isrunning' => $isRunning,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
