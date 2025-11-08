@@ -32,6 +32,31 @@ const uploadEndpoint = 'upload.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
+const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
+const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
+
+const setScanOverlayActive = (isActive) => {
+    if (!previewList) {
+        return;
+    }
+
+    const overlays = previewList.querySelectorAll(SCAN_OVERLAY_SELECTOR);
+    let activated = false;
+
+    overlays.forEach((overlay) => {
+        if (!(overlay instanceof HTMLElement)) {
+            return;
+        }
+
+        const shouldActivate = Boolean(isActive) && !activated;
+        overlay.classList.toggle(SCAN_OVERLAY_ACTIVE_CLASS, shouldActivate);
+
+        if (shouldActivate) {
+            activated = true;
+        }
+    });
+};
+
 const toAbsoluteUrl = (path) => {
     if (path === undefined || path === null) {
         return '';
@@ -702,10 +727,19 @@ const createPreviewItem = (url, name) => {
     item.className = 'preview-item';
     item.tabIndex = 0;
 
+    const wrapper = document.createElement('div');
+    wrapper.className = 'original-image-wrapper';
+
     const image = document.createElement('img');
     image.src = resolvedUrl;
     image.alt = name || '';
-    item.appendChild(image);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'scan-overlay';
+
+    wrapper.appendChild(image);
+    wrapper.appendChild(overlay);
+    item.appendChild(wrapper);
     applyFadeInAnimation(image);
 
     const openPreview = () => openLightbox(resolvedUrl, name);
@@ -726,6 +760,7 @@ const addPreviews = (files) => {
         const previewItem = createPreviewItem(url, name);
         if (previewItem && previewList) {
             previewList.prepend(previewItem);
+            setScanOverlayActive(true);
         }
     });
 };
@@ -879,6 +914,9 @@ const updateInterfaceFromData = (data) => {
 
     workflowIsRunning = isRunning;
 
+    const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
+    setScanOverlayActive(isRunning && hasPreviewImage);
+
     if (isRunning && !isProcessing) {
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
     } else if (!isRunning && isProcessing) {
@@ -930,6 +968,10 @@ const applyRunDataToUI = (payload) => {
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
     const originalImage = typeof data.original_image === 'string' ? data.original_image.trim() : '';
+    let runIsRunning = false;
+    let statusRaw = '';
+    let indicatorMessage = '';
+    let indicatorState = 'idle';
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();
@@ -978,21 +1020,15 @@ const applyRunDataToUI = (payload) => {
         }
     });
 
-    if (previewList) {
-        previewList.innerHTML = '';
-
-        if (originalImage) {
-            const previewItem = createPreviewItem(originalImage, note.product_name || '');
-            if (previewItem) {
-                previewList.appendChild(previewItem);
-            }
-        }
-    }
-
     if (data.run) {
-        const statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
-        const indicatorMessage = sanitizeLogMessage(data.run.last_message) || sanitizeLogMessage(data.run.status) || 'Bereit.';
-        let indicatorState = 'idle';
+        statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
+        indicatorMessage = sanitizeLogMessage(data.run.last_message) || sanitizeLogMessage(data.run.status) || 'Bereit.';
+
+        if (Object.prototype.hasOwnProperty.call(data.run, 'isrunning')) {
+            runIsRunning = toBoolean(data.run.isrunning);
+        } else {
+            runIsRunning = statusRaw === 'running';
+        }
 
         if (statusRaw === 'running') {
             indicatorState = 'running';
@@ -1003,6 +1039,21 @@ const applyRunDataToUI = (payload) => {
         }
 
         updateProcessingIndicator(indicatorMessage || 'Bereit.', indicatorState);
+    } else if (Object.prototype.hasOwnProperty.call(data, 'isrunning')) {
+        runIsRunning = toBoolean(data.isrunning);
+    }
+
+    if (previewList) {
+        previewList.innerHTML = '';
+
+        if (originalImage) {
+            const previewItem = createPreviewItem(originalImage, note.product_name || '');
+            if (previewItem) {
+                previewList.appendChild(previewItem);
+            }
+        }
+
+        setScanOverlayActive(Boolean(originalImage) && runIsRunning);
     }
 };
 
@@ -1446,6 +1497,8 @@ function showPlaceholderImages(withPulse = false) {
     if (previewList) {
         previewList.innerHTML = '';
     }
+
+    setScanOverlayActive(false);
 
     gallerySlots.forEach((slot) => {
         clearSlotContent(slot);
