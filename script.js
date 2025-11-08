@@ -31,6 +31,9 @@ window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(win
 window.currentUserId = Number.isFinite(Number(window.currentUserId)) && Number(window.currentUserId) > 0
     ? Number(window.currentUserId)
     : null;
+window.currentImages = Array.isArray(window.currentImages)
+    ? window.currentImages.slice()
+    : [];
 
 let isPolling = false;
 let pollInterval = null;
@@ -54,18 +57,9 @@ const setScanOverlayActive = (isActive) => {
     }
 
     const overlays = previewList.querySelectorAll(SCAN_OVERLAY_SELECTOR);
-    let activated = false;
-
     overlays.forEach((overlay) => {
-        if (!(overlay instanceof HTMLElement)) {
-            return;
-        }
-
-        const shouldActivate = Boolean(isActive) && !activated;
-        overlay.classList.toggle(SCAN_OVERLAY_ACTIVE_CLASS, shouldActivate);
-
-        if (shouldActivate) {
-            activated = true;
+        if (overlay instanceof HTMLElement) {
+            overlay.classList.toggle(SCAN_OVERLAY_ACTIVE_CLASS, Boolean(isActive));
         }
     });
 };
@@ -96,6 +90,109 @@ const toAbsoluteUrl = (path) => {
 
     return `/${raw.replace(/^\/+/, '')}`;
 };
+
+const ensureCurrentImages = () => {
+    if (!Array.isArray(window.currentImages)) {
+        window.currentImages = [];
+    }
+
+    return window.currentImages;
+};
+
+const getAppBaseUrl = () => {
+    const configBase =
+        window.APP_CONFIG && typeof window.APP_CONFIG.base_url === 'string'
+            ? window.APP_CONFIG.base_url.trim()
+            : '';
+
+    return configBase !== '' ? configBase.replace(/\/+$/, '') : '';
+};
+
+const getLocationOrigin = () => {
+    if (typeof window !== 'undefined' && window.location) {
+        const { protocol, host } = window.location;
+        if (protocol && host) {
+            return `${protocol}//${host}`;
+        }
+    }
+
+    return '';
+};
+
+const normalizeImagePath = (value) => {
+    if (typeof value !== 'string') {
+        return '';
+    }
+
+    let normalized = value.trim();
+    if (normalized === '') {
+        return '';
+    }
+
+    const appBase = getAppBaseUrl();
+    if (appBase && normalized.startsWith(appBase)) {
+        normalized = normalized.slice(appBase.length);
+    }
+
+    const origin = getLocationOrigin();
+    if (origin && normalized.startsWith(origin)) {
+        normalized = normalized.slice(origin.length);
+    }
+
+    if (/^https?:\/\//i.test(normalized)) {
+        try {
+            const url = new URL(normalized);
+            normalized = url.pathname || '';
+        } catch (error) {
+            // ignore malformed URLs
+        }
+    }
+
+    normalized = normalized.replace(/^[.\\/]+/, '').replace(/\\+/g, '/').replace(/\/{2,}/g, '/');
+
+    if (!normalized.startsWith('/')) {
+        normalized = `/${normalized.replace(/^\/+/, '')}`;
+    }
+
+    normalized = normalized.split('?')[0].split('#')[0];
+
+    return normalized === '/' ? '' : normalized;
+};
+
+const getCurrentImages = () => ensureCurrentImages().slice();
+
+const setCurrentImages = (values) => {
+    const state = ensureCurrentImages();
+    state.length = 0;
+
+    const entries = Array.isArray(values) ? Array.from(values) : [];
+    entries.forEach((entry) => {
+        const normalized = normalizeImagePath(
+            typeof entry === 'object' && entry !== null ? entry.path ?? entry.url ?? entry : entry,
+        );
+        if (normalized && !state.includes(normalized)) {
+            state.push(normalized);
+        }
+    });
+
+    return getCurrentImages();
+};
+
+const addImageToCurrentState = (value) => {
+    const normalized = normalizeImagePath(value);
+    if (!normalized) {
+        return null;
+    }
+
+    const state = ensureCurrentImages();
+    if (!state.includes(normalized)) {
+        state.push(normalized);
+    }
+
+    return normalized;
+};
+
+setCurrentImages(window.currentImages);
 
 const pad2 = (value) => String(value).padStart(2, '0');
 
@@ -808,33 +905,40 @@ const getDataField = (data, key) => {
     return undefined;
 };
 
-const createPreviewItem = (url, name) => {
-    const resolvedUrl = toAbsoluteUrl(url) || String(url || '').trim();
+const createPreviewItem = (entry, providedName) => {
+    const candidate = entry && typeof entry === 'object' ? entry : null;
+    const rawPath = candidate ? candidate.path ?? candidate.url ?? candidate.image ?? '' : entry;
+    const normalizedPath = normalizeImagePath(rawPath);
 
-    if (!resolvedUrl) {
+    if (!normalizedPath) {
         return null;
     }
+
+    const displayUrl = toAbsoluteUrl(normalizedPath) || normalizedPath;
+    const name = providedName
+        || (candidate && typeof candidate.name === 'string' ? candidate.name : '')
+        || (candidate && typeof candidate.original_name === 'string' ? candidate.original_name : '')
+        || normalizedPath.split('/').pop();
 
     const item = document.createElement('figure');
     item.className = 'preview-item';
     item.tabIndex = 0;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'original-image-wrapper';
+    item.dataset.imagePath = normalizedPath;
 
     const image = document.createElement('img');
-    image.src = resolvedUrl;
-    image.alt = name || '';
+    image.src = displayUrl;
+    image.alt = name || 'Originalbild';
+    image.decoding = 'async';
+    image.loading = 'lazy';
 
     const overlay = document.createElement('div');
     overlay.className = 'scan-overlay';
 
-    wrapper.appendChild(image);
-    wrapper.appendChild(overlay);
-    item.appendChild(wrapper);
+    item.appendChild(image);
+    item.appendChild(overlay);
     applyFadeInAnimation(image);
 
-    const openPreview = () => openLightbox(resolvedUrl, name);
+    const openPreview = () => openLightbox(displayUrl, name);
 
     item.addEventListener('click', openPreview);
     item.addEventListener('keydown', (event) => {
@@ -847,30 +951,65 @@ const createPreviewItem = (url, name) => {
     return item;
 };
 
-const addPreviews = (files) => {
-    files.forEach(({ url, name }) => {
-        const previewItem = createPreviewItem(url, name);
-        if (previewItem && previewList) {
-            previewList.prepend(previewItem);
+const renderOriginalImages = (images, options = {}) => {
+    if (!previewList) {
+        return [];
+    }
+
+    const items = Array.isArray(images) ? images : getCurrentImages();
+    const normalizedItems = [];
+
+    items.forEach((entry) => {
+        const candidate = typeof entry === 'object' && entry !== null ? entry.path ?? entry.url ?? entry : entry;
+        const normalized = normalizeImagePath(candidate);
+        if (normalized && !normalizedItems.includes(normalized)) {
+            normalizedItems.push(normalized);
         }
     });
+
+    previewList.innerHTML = '';
+
+    normalizedItems.forEach((path) => {
+        const previewItem = createPreviewItem(path);
+        if (previewItem) {
+            previewList.appendChild(previewItem);
+        }
+    });
+
+    const shouldActivate = Boolean(options.isRunning) && normalizedItems.length > 0;
+    setScanOverlayActive(shouldActivate);
+
+    return normalizedItems;
 };
 
 const uploadFiles = async (files) => {
-    const fileList = Array.from(files || []);
+    const fileList = Array.from(files || []).filter((item) => item && typeof item === 'object');
     if (fileList.length === 0) {
         return;
     }
 
-    resetFrontendState({ withPulse: true });
+    const hasExistingRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
+
+    if (!hasExistingRun) {
+        resetFrontendState({ withPulse: true });
+    } else {
+        setScanOverlayActive(false);
+    }
+
     setStatus('info', 'Bild wird hochgeladen …');
     updateProcessingIndicator('Bild wird hochgeladen …', 'running');
 
-    const uploads = fileList.map(async (file) => {
+    for (const file of fileList) {
         const formData = new FormData();
         formData.append('image', file);
 
-        console.log(`Starte Upload: ${file.name}`);
+        const currentRunId = Number.isFinite(window.currentRunId) && window.currentRunId > 0 ? window.currentRunId : null;
+        if (currentRunId) {
+            formData.append('run_id', String(currentRunId));
+        }
+
+        const fileName = typeof file.name === 'string' ? file.name : 'Upload';
+        console.log(`Starte Upload: ${fileName}`);
 
         try {
             const response = await fetch(uploadEndpoint, {
@@ -892,7 +1031,7 @@ const uploadFiles = async (files) => {
             if (!response.ok) {
                 const errorMessage = typeof payload === 'object' && payload !== null && typeof payload.message === 'string'
                     ? payload.message
-                    : `Upload fehlgeschlagen: ${file.name}`;
+                    : `Upload fehlgeschlagen: ${fileName}`;
                 setStatus('error', errorMessage);
                 console.error('Upload fehlgeschlagen', {
                     status: response.status,
@@ -903,12 +1042,8 @@ const uploadFiles = async (files) => {
             }
 
             const result = typeof payload === 'object' && payload !== null ? payload : {};
-
-            if (result.file) {
-                addPreviews([{ url: result.file, name: result.name || file.name }]);
-            }
-
             const isSuccessful = result.success !== false;
+
             console.log('Upload-Antwort', {
                 status: response.status,
                 payload,
@@ -917,11 +1052,23 @@ const uploadFiles = async (files) => {
             if (!isSuccessful) {
                 const errorMessage = typeof result.message === 'string'
                     ? result.message
-                    : `Upload fehlgeschlagen: ${file.name}`;
+                    : `Upload fehlgeschlagen: ${fileName}`;
                 setStatus('error', errorMessage);
                 setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
                 return;
             }
+
+            const serverImages = Array.isArray(result.images) ? result.images : null;
+            if (serverImages) {
+                setCurrentImages(serverImages);
+            } else {
+                const imagePath = result.image_path ?? result.file ?? null;
+                if (imagePath) {
+                    addImageToCurrentState(imagePath);
+                }
+            }
+
+            renderOriginalImages();
 
             setStatus('success', 'Upload erfolgreich – Workflow kann gestartet werden.');
             setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
@@ -939,15 +1086,14 @@ const uploadFiles = async (files) => {
             updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
         } catch (error) {
             console.error(error);
-            const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
+            const fallback = `Beim Upload ist ein Fehler aufgetreten (${fileName}).`;
             const message = sanitizeLogMessage(error?.message) || fallback;
             console.error(message);
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
             setStatus('error', 'Uploadfehler – bitte erneut versuchen.');
+            return;
         }
-    });
-
-    await Promise.all(uploads);
+    }
 };
 
 const handleFiles = (files) => {
@@ -985,6 +1131,11 @@ async function startWorkflow() {
 
         if (Number.isFinite(window.currentUserId) && window.currentUserId > 0) {
             payload.user_id = window.currentUserId;
+        }
+
+        const currentImages = getCurrentImages().map((path) => normalizeImagePath(path)).filter((path) => path);
+        if (currentImages.length > 0) {
+            payload.images = currentImages;
         }
 
         const response = await fetch('start-workflow.php', {
@@ -1139,13 +1290,22 @@ const updateInterfaceFromData = (data) => {
 
 const applyRunDataToUI = (payload) => {
     const data = payload && typeof payload === 'object' ? payload : {};
+    const runInfo = data.run && typeof data.run === 'object' ? data.run : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
-    const originalImage = typeof data.original_image === 'string' ? data.original_image.trim() : '';
+    const rawOriginalImages = Array.isArray(data.original_images) ? data.original_images : [];
+    const fallbackOriginal = typeof data.original_image === 'string' ? data.original_image.trim() : '';
     let runIsRunning = false;
     let statusRaw = '';
     let indicatorMessage = '';
     let indicatorState = 'idle';
+
+    if (runInfo && Object.prototype.hasOwnProperty.call(runInfo, 'id')) {
+        const candidateRunId = Number(runInfo.id);
+        if (Number.isFinite(candidateRunId) && candidateRunId > 0) {
+            setCurrentRun(candidateRunId, runInfo.user_id ?? window.currentUserId);
+        }
+    }
 
     if (articleNameInput) {
         articleNameInput.value = (note.product_name || '').trim();
@@ -1194,12 +1354,12 @@ const applyRunDataToUI = (payload) => {
         }
     });
 
-    if (data.run) {
-        statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
-        indicatorMessage = sanitizeLogMessage(data.run.last_message) || sanitizeLogMessage(data.run.status) || 'Bereit.';
+    if (runInfo && Object.keys(runInfo).length > 0) {
+        statusRaw = typeof runInfo.status === 'string' ? runInfo.status.trim().toLowerCase() : '';
+        indicatorMessage = sanitizeLogMessage(runInfo.last_message) || sanitizeLogMessage(runInfo.status) || 'Bereit.';
 
-        if (Object.prototype.hasOwnProperty.call(data.run, 'isrunning')) {
-            runIsRunning = toBoolean(data.run.isrunning);
+        if (Object.prototype.hasOwnProperty.call(runInfo, 'isrunning')) {
+            runIsRunning = toBoolean(runInfo.isrunning);
         } else {
             runIsRunning = statusRaw === 'running';
         }
@@ -1220,18 +1380,11 @@ const applyRunDataToUI = (payload) => {
         runIsRunning = toBoolean(data.isrunning);
     }
 
-    if (previewList) {
-        previewList.innerHTML = '';
-
-        if (originalImage) {
-            const previewItem = createPreviewItem(originalImage, note.product_name || '');
-            if (previewItem) {
-                previewList.appendChild(previewItem);
-            }
-        }
-
-        setScanOverlayActive(Boolean(originalImage) && runIsRunning);
-    }
+    const combinedOriginals = rawOriginalImages.length > 0
+        ? rawOriginalImages
+        : (fallbackOriginal ? [fallbackOriginal] : []);
+    const normalizedOriginals = setCurrentImages(combinedOriginals);
+    renderOriginalImages(normalizedOriginals, { isRunning: runIsRunning });
 };
 
 const setActiveRun = (runId) => {
@@ -1750,6 +1903,8 @@ function resetFrontendState(options = {}) {
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields();
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+    setCurrentImages([]);
+    renderOriginalImages([]);
     showPlaceholderImages(withPulse);
     hasShownCompletion = false;
     hasObservedActiveRun = false;

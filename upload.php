@@ -23,6 +23,31 @@ $respond = static function (array $payload, int $statusCode = 200): never {
 
 $timestamp = static fn (): string => gmdate('c');
 
+$normalizePositiveInt = static function (mixed $value): ?int {
+    if (is_int($value) && $value > 0) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (ctype_digit($trimmed)) {
+            $intValue = (int) $trimmed;
+            return $intValue > 0 ? $intValue : null;
+        }
+    }
+
+    if (is_numeric($value)) {
+        $intValue = (int) $value;
+        return $intValue > 0 ? $intValue : null;
+    }
+
+    return null;
+};
+
 if (!auth_is_logged_in()) {
     $respond([
         'success'   => false,
@@ -106,25 +131,64 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runMessage = 'Bereit für Workflow-Start';
     $storedFilePath = null;
     $publicPath = null;
+    $runId = null;
+    $runMessage = 'Bereit für Workflow-Start';
+
+    $requestedRunId = $normalizePositiveInt($_POST['run_id'] ?? $_REQUEST['run_id'] ?? null);
 
     $pdo->beginTransaction();
     try {
-        $insertRun = $pdo->prepare(
-            "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
-            "VALUES (:user_id, NOW(), :status, :last_message)"
-        );
-        $insertRun->execute([
-            ':user_id'      => $userId,
-            ':status'       => 'pending',
-            ':last_message' => $runMessage,
-        ]);
+        $creatingNewRun = $requestedRunId === null;
 
-        $runId = (int) $pdo->lastInsertId();
-        if ($runId <= 0) {
-            throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+        if ($creatingNewRun) {
+            $insertRun = $pdo->prepare(
+                "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
+                "VALUES (:user_id, NOW(), :status, :last_message)"
+            );
+            $insertRun->execute([
+                ':user_id'      => $userId,
+                ':status'       => 'pending',
+                ':last_message' => $runMessage,
+            ]);
+
+            $runId = (int) $pdo->lastInsertId();
+            if ($runId <= 0) {
+                throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+            }
+
+            $stateStmt = $pdo->prepare(
+                'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
+                . ' ON DUPLICATE KEY UPDATE'
+                . '     current_run_id = VALUES(current_run_id),'
+                . '     last_status = VALUES(last_status),'
+                . '     last_message = VALUES(last_message),'
+                . '     updated_at = NOW()'
+            );
+            $stateStmt->execute([
+                ':user_id'        => $userId,
+                ':current_run_id' => $runId,
+                ':last_status'    => 'pending',
+                ':last_message'   => $runMessage,
+            ]);
+        } else {
+            $runCheck = $pdo->prepare('SELECT id, user_id, status FROM workflow_runs WHERE id = :run_id FOR UPDATE');
+            $runCheck->execute([
+                ':run_id' => $requestedRunId,
+            ]);
+            $existingRun = $runCheck->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            if ($existingRun === null || (int) $existingRun['user_id'] !== $userId) {
+                throw new RuntimeException('Workflow konnte nicht gefunden werden.');
+            }
+
+            $status = isset($existingRun['status']) ? strtolower((string) $existingRun['status']) : '';
+            if ($status !== 'pending') {
+                throw new RuntimeException('Für diesen Workflow können keine weiteren Bilder hochgeladen werden.');
+            }
+
+            $runId = (int) $existingRun['id'];
         }
 
         $targetDirectory = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId;
@@ -136,6 +200,7 @@ try {
         $nameWithoutExtension = pathinfo($storedName, PATHINFO_FILENAME);
         $extension = pathinfo($storedName, PATHINFO_EXTENSION);
         $extensionWithDot = $extension !== '' ? '.' . $extension : '';
+        $originalStoredName = $storedName;
 
         $counter = 1;
         while (file_exists($destination)) {
@@ -152,29 +217,24 @@ try {
         @chmod($storedFilePath, 0644);
 
         $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
-        $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
+        $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : '/' . ltrim($publicPath, '/');
 
-        $updateOriginal = $pdo->prepare('UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id');
-        $updateOriginal->execute([
-            ':original' => $publicPath,
-            ':run_id'   => $runId,
-            ':user_id'  => $userId,
-        ]);
-
-        $stateStmt = $pdo->prepare(
-            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
-            . ' ON DUPLICATE KEY UPDATE'
-            . '     current_run_id = VALUES(current_run_id),'
-            . '     last_status = VALUES(last_status),'
-            . '     last_message = VALUES(last_message),'
-            . '     updated_at = NOW()'
+        $insertImage = $pdo->prepare(
+            'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
         );
-        $stateStmt->execute([
-            ':user_id'        => $userId,
-            ':current_run_id' => $runId,
-            ':last_status'    => 'pending',
-            ':last_message'   => $runMessage,
+        $insertImage->execute([
+            ':run_id'        => $runId,
+            ':file_path'     => $publicPath,
+            ':original_name' => $originalStoredName,
         ]);
+
+        $imagesStmt = $pdo->prepare(
+            'SELECT file_path FROM run_images WHERE run_id = :run_id ORDER BY created_at ASC, id ASC'
+        );
+        $imagesStmt->execute([
+            ':run_id' => $runId,
+        ]);
+        $allImages = $imagesStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
         $pdo->commit();
     } catch (Throwable $databaseException) {
@@ -189,14 +249,23 @@ try {
         throw $databaseException;
     }
 
+    $normalizedImages = array_values(array_filter(array_map(
+        static fn ($path) => '/' . ltrim(str_replace('\\', '/', (string) $path), '/'),
+        $allImages
+    ), static fn ($path) => is_string($path) && $path !== '/'));
+
     $respond([
-        'success'   => true,
-        'status'    => 'ok',
-        'message'   => 'Upload erfolgreich gespeichert.',
-        'file'      => $publicPath,
-        'run_id'    => $runId,
-        'user_id'   => $userId,
-        'timestamp' => $timestamp(),
+        'success'     => true,
+        'status'      => 'ok',
+        'message'     => 'Upload erfolgreich gespeichert.',
+        'file'        => $publicPath,
+        'image_path'  => '/' . ltrim($publicPath, '/'),
+        'image_url'   => $publicUrl,
+        'run_id'      => $runId,
+        'user_id'     => $userId,
+        'images'      => $normalizedImages,
+        'timestamp'   => $timestamp(),
+        'is_new_run'  => $requestedRunId === null,
     ]);
 } catch (Throwable $exception) {
     $respond([

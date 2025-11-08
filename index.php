@@ -165,7 +165,7 @@ $appConfig = [
                         <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
                         <input id="file-input" type="file" name="image" accept="image/*" hidden>
                     </div>
-                    <div id="upload-previews" class="preview-list" aria-live="polite"></div>
+                    <div id="upload-previews" class="preview-list original-image-wrapper" aria-live="polite"></div>
                 </div>
             </section>
             <section class="panel panel--details">

@@ -511,9 +511,10 @@ body {
 }
 
 .preview-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 16px;
+    align-items: flex-start;
 }
 
 .preview-item {
@@ -524,13 +525,15 @@ body {
     background: rgba(12, 14, 19, 0.7);
     cursor: pointer;
     transition: transform var(--transition), box-shadow var(--transition);
+    flex: 0 0 auto;
+    max-width: 240px;
 }
 
 .original-image-wrapper {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
 }
 
 .scan-overlay {
@@ -569,8 +572,9 @@ body {
 
 .preview-item img {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
+    max-width: 240px;
+    border-radius: 6px;
     display: block;
 }
 
