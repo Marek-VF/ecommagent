@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth/bootstrap.php';
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -33,10 +37,10 @@ if (!auth_is_logged_in()) {
     ], 401);
 }
 
-$sessionUserId = $_SESSION['user_id'] ?? null;
-if ($sessionUserId !== null && is_numeric($sessionUserId)) {
-    $userId = (int) $sessionUserId;
-} else {
+$userId = $_SESSION['user_id'] ?? null;
+if (is_string($userId) && ctype_digit($userId)) {
+    $userId = (int) $userId;
+} elseif (!is_int($userId)) {
     $user = auth_user();
     $userId = isset($user['id']) && is_numeric($user['id']) ? (int) $user['id'] : 0;
 }
@@ -85,19 +89,6 @@ try {
         throw new RuntimeException('Fehler beim Upload: ' . ($file['error'] ?? 'unbekannt'));
     }
 
-    $requestedRunId = null;
-    if (isset($_POST['run_id']) && $_POST['run_id'] !== '') {
-        $rawRunId = is_array($_POST['run_id']) ? null : trim((string) $_POST['run_id']);
-        if ($rawRunId === null || $rawRunId === '' || !ctype_digit($rawRunId)) {
-            throw new RuntimeException('Ungültige run_id übermittelt.');
-        }
-
-        $requestedRunId = (int) $rawRunId;
-        if ($requestedRunId <= 0) {
-            throw new RuntimeException('Ungültige run_id übermittelt.');
-        }
-    }
-
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     if ($finfo === false) {
         throw new RuntimeException('Datei-Info konnte nicht gelesen werden.');
@@ -123,60 +114,43 @@ try {
     $imageUrl = null;
     $runId = null;
 
+    $sessionRunId = $_SESSION['current_run_id'] ?? null;
+    if (is_string($sessionRunId) && ctype_digit($sessionRunId)) {
+        $sessionRunId = (int) $sessionRunId;
+    } elseif (!is_int($sessionRunId)) {
+        $sessionRunId = null;
+    }
+
     $pdo->beginTransaction();
     try {
-        // IMPORTANT: only create a workflow run when no run_id was provided.
-        // Additional images for the same run MUST reuse the existing run_id.
-        if ($requestedRunId !== null) {
-            $runStmt = $pdo->prepare('SELECT id, user_id FROM workflow_runs WHERE id = :run_id LIMIT 1');
-            $runStmt->execute([':run_id' => $requestedRunId]);
-            $run = $runStmt->fetch(PDO::FETCH_ASSOC);
+        if (is_int($sessionRunId) && $sessionRunId > 0) {
+            $existingRunStmt = $pdo->prepare('SELECT id FROM workflow_runs WHERE id = :run_id AND user_id = :user_id LIMIT 1');
+            $existingRunStmt->execute([
+                ':run_id'  => $sessionRunId,
+                ':user_id' => $userId,
+            ]);
 
-            if (!$run) {
-                throw new RuntimeException('run_id not found');
+            $existingRun = $existingRunStmt->fetch(PDO::FETCH_ASSOC);
+            if ($existingRun) {
+                $runId = (int) $existingRun['id'];
+            }
+        }
+
+        if ($runId === null) {
+            $insertRun = $pdo->prepare(
+                'INSERT INTO workflow_runs (user_id, status) VALUES (:user_id, :status)'
+            );
+            $insertRun->execute([
+                ':user_id' => $userId,
+                ':status'  => 'pending',
+            ]);
+
+            $runId = (int) $pdo->lastInsertId();
+            if ($runId <= 0) {
+                throw new RuntimeException('run_id konnte nicht erzeugt werden.');
             }
 
-            if ((int) $run['user_id'] !== $userId) {
-                throw new RuntimeException('run_id does not belong to current user');
-            }
-
-            $runId = (int) $run['id'];
-        } else {
-            $stateStmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user_id FOR UPDATE');
-            $stateStmt->execute([':user_id' => $userId]);
-            $state = $stateStmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($state && $state['current_run_id'] !== null) {
-                $stateRunId = (int) $state['current_run_id'];
-
-                if ($stateRunId > 0) {
-                    $existingRunStmt = $pdo->prepare('SELECT id FROM workflow_runs WHERE id = :run_id AND user_id = :user_id LIMIT 1');
-                    $existingRunStmt->execute([
-                        ':run_id'  => $stateRunId,
-                        ':user_id' => $userId,
-                    ]);
-
-                    $existingRun = $existingRunStmt->fetch(PDO::FETCH_ASSOC);
-                    if ($existingRun) {
-                        $runId = (int) $existingRun['id'];
-                    }
-                }
-            }
-
-            if ($runId === null) {
-                $insertRun = $pdo->prepare(
-                    'INSERT INTO workflow_runs (user_id, status) VALUES (:user_id, :status)'
-                );
-                $insertRun->execute([
-                    ':user_id' => $userId,
-                    ':status'  => 'pending',
-                ]);
-
-                $runId = (int) $pdo->lastInsertId();
-                if ($runId <= 0) {
-                    throw new RuntimeException('run_id konnte nicht erzeugt werden.');
-                }
-            }
+            $_SESSION['current_run_id'] = $runId;
         }
 
         $targetDirectory = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId;
@@ -204,7 +178,7 @@ try {
         @chmod($storedFilePath, 0644);
 
         $publicPath = sprintf('/uploads/%d/%d/%s', $userId, $runId, $storedName);
-        $imageUrl = $baseUrl !== '' ? $baseUrl . $publicPath : $publicPath;
+        $imageUrl = $baseUrl . $publicPath;
 
         $insertImage = $pdo->prepare(
             'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
@@ -213,21 +187,6 @@ try {
             ':run_id'        => $runId,
             ':file_path'     => $publicPath,
             ':original_name' => $originalName,
-        ]);
-
-        $stateSql = <<<'SQL'
-INSERT INTO user_state (user_id, current_run_id, last_image_url, updated_at)
-VALUES (:user_id, :current_run_id, :last_image_url, NOW())
-ON DUPLICATE KEY UPDATE
-    current_run_id = VALUES(current_run_id),
-    last_image_url = VALUES(last_image_url),
-    updated_at = NOW()
-SQL;
-        $updateState = $pdo->prepare($stateSql);
-        $updateState->execute([
-            ':user_id'         => $userId,
-            ':current_run_id'  => $runId,
-            ':last_image_url'  => ltrim($publicPath, '/'),
         ]);
 
         $updateOriginal = $pdo->prepare(
@@ -257,19 +216,11 @@ SQL;
         'success'    => true,
         'run_id'     => $runId,
         'image_url'  => $imageUrl ?? '',
-        'message'    => 'Upload erfolgreich gespeichert.',
+        'message'    => 'uploaded',
         'timestamp'  => $timestamp(),
     ]);
 } catch (Throwable $exception) {
     $message = $exception->getMessage();
-
-    if (in_array($message, ['run_id not found', 'run_id does not belong to user'], true)) {
-        restore_error_handler();
-        $respond([
-            'success' => false,
-            'message' => $message,
-        ], 400);
-    }
 
     restore_error_handler();
     $respond([

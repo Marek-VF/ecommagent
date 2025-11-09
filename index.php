@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/auth/bootstrap.php';
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+unset($_SESSION['current_run_id']);
+
 auth_require_login();
 
 $config = auth_config();
