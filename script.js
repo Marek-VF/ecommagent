@@ -260,9 +260,8 @@ const appendOriginalImagePreview = (url, options = {}) => {
         return;
     }
 
-    const resolvedUrl = toAbsoluteUrl(rawUrl) || rawUrl;
     const img = document.createElement('img');
-    img.src = resolvedUrl;
+    img.src = rawUrl;
     img.alt = 'Originalbild';
     img.classList.add('original-image-preview');
     originalImagesWrapper.appendChild(img);
@@ -968,7 +967,13 @@ const uploadFiles = async (files) => {
 
             const result = typeof payload === 'object' && payload !== null ? payload : {};
 
-            const isSuccessful = result.success !== false;
+            const successValue = result.success;
+            const isSuccessful =
+                successValue === true ||
+                successValue === 'true' ||
+                successValue === 1 ||
+                successValue === '1';
+
             console.log('Upload-Antwort', {
                 status: response.status,
                 payload,
@@ -999,10 +1004,16 @@ const uploadFiles = async (files) => {
                 activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
                 setCurrentRun(parsedRunId, result.user_id);
             } else {
+                activeRunId = null;
                 setCurrentRun(null, result.user_id);
             }
 
             const runChanged = window.currentRunId !== previousRunId && window.currentRunId !== null;
+
+            if (runChanged) {
+                window.currentOriginalImages = [];
+                clearOriginalImagePreviews();
+            }
 
             showWorkflowFeedback('info', 'Upload erfolgreich. Bitte Workflow starten.');
             updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
@@ -1010,9 +1021,7 @@ const uploadFiles = async (files) => {
             if (rawImageUrl) {
                 ensureOriginalImagesState();
 
-                if (runChanged) {
-                    renderOriginalImagePreviews([]);
-                } else if (window.currentOriginalImages.length === 0) {
+                if (window.currentOriginalImages.length === 0) {
                     clearOriginalImagePreviews();
                 }
 
