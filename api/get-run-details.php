@@ -52,6 +52,15 @@ $imgStmt = $pdo->prepare('
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $images = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
 
+$runImagesStmt = $pdo->prepare('
+    SELECT file_path
+    FROM run_images
+    WHERE run_id = :run_id
+    ORDER BY id ASC
+');
+$runImagesStmt->execute(['run_id' => $runId]);
+$runImages = $runImagesStmt->fetchAll(PDO::FETCH_ASSOC);
+
 $baseUrlConfig = $config['base_url'] ?? '';
 $baseUrl = '';
 if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
@@ -85,6 +94,35 @@ if (isset($run['original_image'])) {
 }
 
 $run['original_image'] = $originalImage;
+$originalImages = [];
+
+foreach ($runImages as $row) {
+    if (!is_array($row) || !array_key_exists('file_path', $row)) {
+        continue;
+    }
+
+    $rawPath = trim((string) $row['file_path']);
+    if ($rawPath === '') {
+        continue;
+    }
+
+    if (preg_match('#^https?://#i', $rawPath)) {
+        $originalImages[] = $rawPath;
+        continue;
+    }
+
+    $relativePath = ltrim($rawPath, '/');
+    if ($relativePath === '') {
+        continue;
+    }
+
+    if ($baseUrl !== '') {
+        $originalImages[] = $baseUrl . '/' . $relativePath;
+        continue;
+    }
+
+    $originalImages[] = '/' . $relativePath;
+}
 $statusValue = isset($run['status']) ? (string) $run['status'] : '';
 $statusNormalized = strtolower(trim($statusValue));
 $isRunning = $statusNormalized === 'running';
@@ -125,6 +163,7 @@ echo json_encode([
         'images' => $images,
         'logs' => $logs,
         'original_image' => $originalImage,
+        'original_images' => $originalImages,
         'isrunning' => $isRunning,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -925,7 +925,10 @@ const uploadFiles = async (files) => {
         return;
     }
 
-    resetFrontendState({ withPulse: true });
+    stopPolling();
+    hasObservedActiveRun = false;
+    workflowIsRunning = false;
+
     setStatus('info', 'Bild wird hochgeladen …');
     updateProcessingIndicator('Bild wird hochgeladen …', 'running');
 
