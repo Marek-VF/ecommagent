@@ -84,7 +84,7 @@ const toAbsoluteUrl = (path) => {
         return '';
     }
 
-    if (/^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/')) {
+    if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(raw)) {
         return raw;
     }
 
@@ -94,11 +94,13 @@ const toAbsoluteUrl = (path) => {
             : '';
     const base = configBase || (typeof window.location === 'object' ? window.location.origin : '');
 
+    const normalizedPath = raw.replace(/^\/+/, '');
+
     if (base) {
-        return `${base.replace(/\/+$/, '')}/${raw.replace(/^\/+/, '')}`;
+        return `${base.replace(/\/+$/, '')}/${normalizedPath}`;
     }
 
-    return `/${raw.replace(/^\/+/, '')}`;
+    return `/${normalizedPath}`;
 };
 
 const pad2 = (value) => String(value).padStart(2, '0');
@@ -1060,10 +1062,25 @@ async function startWorkflow() {
     try {
         const payload = {
             run_id: numericRunId,
+            user_id: window.currentUserId,
         };
 
-        if (Number.isFinite(window.currentUserId) && window.currentUserId > 0) {
-            payload.user_id = window.currentUserId;
+        const firstImage = Array.isArray(window.currentOriginalImages)
+            ? window.currentOriginalImages[0]
+            : null;
+        const secondImage = Array.isArray(window.currentOriginalImages)
+            ? window.currentOriginalImages[1]
+            : null;
+
+        const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
+        const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
+
+        if (resolvedFirstImage) {
+            payload.image_url = resolvedFirstImage;
+        }
+
+        if (resolvedSecondImage) {
+            payload.image_url_2 = resolvedSecondImage;
         }
 
         const response = await fetch('start-workflow.php', {
