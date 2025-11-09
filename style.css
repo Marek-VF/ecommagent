@@ -516,6 +516,19 @@ body {
     gap: 16px;
 }
 
+.original-image-wrapper {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.original-image-wrapper img.original-image-preview {
+    max-width: 240px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
 .preview-item {
     position: relative;
     overflow: hidden;
@@ -526,7 +539,7 @@ body {
     transition: transform var(--transition), box-shadow var(--transition);
 }
 
-.original-image-wrapper {
+.preview-item__media {
     position: relative;
     display: block;
     width: 100%;

@@ -2,6 +2,7 @@ const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const selectFileButton = document.getElementById('select-file');
 const previewList = document.getElementById('upload-previews');
+const originalImagesWrapper = document.querySelector('[data-original-images]');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
@@ -31,6 +32,9 @@ window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(win
 window.currentUserId = Number.isFinite(Number(window.currentUserId)) && Number(window.currentUserId) > 0
     ? Number(window.currentUserId)
     : null;
+window.currentOriginalImages = Array.isArray(window.currentOriginalImages)
+    ? window.currentOriginalImages.filter((url) => typeof url === 'string' && url.trim() !== '')
+    : [];
 
 let isPolling = false;
 let pollInterval = null;
@@ -228,6 +232,64 @@ const applyFadeInAnimation = (element) => {
 
     img.addEventListener('load', handleLoadOrError);
     img.addEventListener('error', handleLoadOrError);
+};
+
+const ensureOriginalImagesState = () => {
+    if (!Array.isArray(window.currentOriginalImages)) {
+        window.currentOriginalImages = [];
+    }
+};
+
+const clearOriginalImagePreviews = () => {
+    if (!originalImagesWrapper) {
+        return;
+    }
+
+    originalImagesWrapper.innerHTML = '';
+};
+
+const appendOriginalImagePreview = (url, options = {}) => {
+    if (!originalImagesWrapper) {
+        return;
+    }
+
+    const rawUrl = typeof url === 'string' ? url.trim() : '';
+    if (rawUrl === '') {
+        return;
+    }
+
+    const resolvedUrl = toAbsoluteUrl(rawUrl) || rawUrl;
+    const img = document.createElement('img');
+    img.src = resolvedUrl;
+    img.alt = 'Originalbild';
+    img.classList.add('original-image-preview');
+    originalImagesWrapper.appendChild(img);
+    applyFadeInAnimation(img);
+
+    if (options.updateState !== false) {
+        ensureOriginalImagesState();
+        window.currentOriginalImages.push(rawUrl);
+    }
+};
+
+const renderOriginalImagePreviews = (urls) => {
+    ensureOriginalImagesState();
+    clearOriginalImagePreviews();
+
+    const normalized = Array.isArray(urls) ? urls : [];
+    const nextState = [];
+
+    normalized.forEach((entry) => {
+        const rawUrl = typeof entry === 'string' ? entry.trim() : '';
+        if (rawUrl === '') {
+            return;
+        }
+
+        appendOriginalImagePreview(rawUrl, { updateState: false });
+        nextState.push(rawUrl);
+    });
+
+    window.currentOriginalImages = nextState;
 };
 
 let selectedHistoryRunId = null;
@@ -820,7 +882,7 @@ const createPreviewItem = (url, name) => {
     item.tabIndex = 0;
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'original-image-wrapper';
+    wrapper.className = 'preview-item__media';
 
     const image = document.createElement('img');
     image.src = resolvedUrl;
@@ -904,10 +966,6 @@ const uploadFiles = async (files) => {
 
             const result = typeof payload === 'object' && payload !== null ? payload : {};
 
-            if (result.file) {
-                addPreviews([{ url: result.file, name: result.name || file.name }]);
-            }
-
             const isSuccessful = result.success !== false;
             console.log('Upload-Antwort', {
                 status: response.status,
@@ -927,6 +985,13 @@ const uploadFiles = async (files) => {
             setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
             hasShownCompletion = false;
 
+            const previousRunId = window.currentRunId;
+            const rawImageUrl = typeof result.image_url === 'string' ? result.image_url.trim() : '';
+
+            if (result.file) {
+                addPreviews([{ url: result.file, name: result.name || file.name }]);
+            }
+
             if (result.run_id !== undefined && result.run_id !== null) {
                 const parsedRunId = Number(result.run_id);
                 activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
@@ -935,8 +1000,22 @@ const uploadFiles = async (files) => {
                 setCurrentRun(null, result.user_id);
             }
 
+            const runChanged = window.currentRunId !== previousRunId && window.currentRunId !== null;
+
             showWorkflowFeedback('info', 'Upload erfolgreich. Bitte Workflow starten.');
             updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
+
+            if (rawImageUrl) {
+                ensureOriginalImagesState();
+
+                if (runChanged) {
+                    renderOriginalImagePreviews([]);
+                } else if (window.currentOriginalImages.length === 0) {
+                    clearOriginalImagePreviews();
+                }
+
+                appendOriginalImagePreview(rawImageUrl);
+            }
         } catch (error) {
             console.error(error);
             const fallback = `Beim Upload ist ein Fehler aufgetreten (${file.name}).`;
@@ -1142,6 +1221,11 @@ const applyRunDataToUI = (payload) => {
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
     const originalImage = typeof data.original_image === 'string' ? data.original_image.trim() : '';
+    const originalImagesFromPayload = Array.isArray(data.original_images) ? data.original_images : [];
+    const originalImagesToDisplay = originalImagesFromPayload.length > 0
+        ? originalImagesFromPayload
+        : (originalImage ? [originalImage] : []);
+    renderOriginalImagePreviews(originalImagesToDisplay);
     let runIsRunning = false;
     let statusRaw = '';
     let indicatorMessage = '';
@@ -1222,16 +1306,10 @@ const applyRunDataToUI = (payload) => {
 
     if (previewList) {
         previewList.innerHTML = '';
-
-        if (originalImage) {
-            const previewItem = createPreviewItem(originalImage, note.product_name || '');
-            if (previewItem) {
-                previewList.appendChild(previewItem);
-            }
-        }
-
-        setScanOverlayActive(Boolean(originalImage) && runIsRunning);
     }
+
+    const hasOriginalPreviews = window.currentOriginalImages.length > 0;
+    setScanOverlayActive(runIsRunning && hasOriginalPreviews);
 };
 
 const setActiveRun = (runId) => {
@@ -1754,6 +1832,7 @@ function resetFrontendState(options = {}) {
     hasShownCompletion = false;
     hasObservedActiveRun = false;
     workflowIsRunning = false;
+    renderOriginalImagePreviews([]);
     setCurrentRun(null, null);
     clearWorkflowFeedback();
 
