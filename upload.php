@@ -119,13 +119,15 @@ try {
 
     $pdo->beginTransaction();
     try {
+        // IMPORTANT: only create a workflow run when no run_id was provided.
+        // Additional images for the same run MUST reuse the existing run_id.
         if ($requestedRunId !== null) {
             $runStmt = $pdo->prepare('SELECT id, user_id FROM workflow_runs WHERE id = :run_id LIMIT 1');
             $runStmt->execute([':run_id' => $requestedRunId]);
             $run = $runStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$run) {
-                throw new RuntimeException('Workflow-Run wurde nicht gefunden.');
+                throw new RuntimeException('run_id not found');
             }
 
             if ((int) $run['user_id'] !== $userId) {
@@ -215,10 +217,21 @@ try {
         'timestamp'  => $timestamp(),
     ]);
 } catch (Throwable $exception) {
+    $message = $exception->getMessage();
+
+    if (in_array($message, ['run_id not found', 'run_id does not belong to user'], true)) {
+        restore_error_handler();
+        $respond([
+            'success' => false,
+            'message' => $message,
+        ], 400);
+    }
+
+    restore_error_handler();
     $respond([
         'success'   => false,
         'status'    => 'error',
-        'message'   => $exception->getMessage(),
+        'message'   => $message,
         'timestamp' => $timestamp(),
     ], $exception instanceof RuntimeException ? 400 : 500);
 } finally {
