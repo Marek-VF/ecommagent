@@ -33,8 +33,13 @@ if (!auth_is_logged_in()) {
     ], 401);
 }
 
-$user = auth_user();
-$userId = isset($user['id']) && is_numeric($user['id']) ? (int) $user['id'] : 0;
+$sessionUserId = $_SESSION['user_id'] ?? null;
+if ($sessionUserId !== null && is_numeric($sessionUserId)) {
+    $userId = (int) $sessionUserId;
+} else {
+    $user = auth_user();
+    $userId = isset($user['id']) && is_numeric($user['id']) ? (int) $user['id'] : 0;
+}
 
 if ($userId <= 0) {
     $respond([
@@ -116,6 +121,7 @@ try {
 
     $storedFilePath = null;
     $imageUrl = null;
+    $runId = null;
 
     $pdo->beginTransaction();
     try {
@@ -136,17 +142,40 @@ try {
 
             $runId = (int) $run['id'];
         } else {
-            $insertRun = $pdo->prepare(
-                'INSERT INTO workflow_runs (user_id, status) VALUES (:user_id, :status)'
-            );
-            $insertRun->execute([
-                ':user_id' => $userId,
-                ':status'  => 'pending',
-            ]);
+            $stateStmt = $pdo->prepare('SELECT current_run_id FROM user_state WHERE user_id = :user_id FOR UPDATE');
+            $stateStmt->execute([':user_id' => $userId]);
+            $state = $stateStmt->fetch(PDO::FETCH_ASSOC);
 
-            $runId = (int) $pdo->lastInsertId();
-            if ($runId <= 0) {
-                throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+            if ($state && $state['current_run_id'] !== null) {
+                $stateRunId = (int) $state['current_run_id'];
+
+                if ($stateRunId > 0) {
+                    $existingRunStmt = $pdo->prepare('SELECT id FROM workflow_runs WHERE id = :run_id AND user_id = :user_id LIMIT 1');
+                    $existingRunStmt->execute([
+                        ':run_id'  => $stateRunId,
+                        ':user_id' => $userId,
+                    ]);
+
+                    $existingRun = $existingRunStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($existingRun) {
+                        $runId = (int) $existingRun['id'];
+                    }
+                }
+            }
+
+            if ($runId === null) {
+                $insertRun = $pdo->prepare(
+                    'INSERT INTO workflow_runs (user_id, status) VALUES (:user_id, :status)'
+                );
+                $insertRun->execute([
+                    ':user_id' => $userId,
+                    ':status'  => 'pending',
+                ]);
+
+                $runId = (int) $pdo->lastInsertId();
+                if ($runId <= 0) {
+                    throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+                }
             }
         }
 
@@ -181,9 +210,24 @@ try {
             'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
         );
         $insertImage->execute([
-            ':run_id'       => $runId,
-            ':file_path'    => $publicPath,
-            ':original_name'=> $originalName,
+            ':run_id'        => $runId,
+            ':file_path'     => $publicPath,
+            ':original_name' => $originalName,
+        ]);
+
+        $stateSql = <<<'SQL'
+INSERT INTO user_state (user_id, current_run_id, last_image_url, updated_at)
+VALUES (:user_id, :current_run_id, :last_image_url, NOW())
+ON DUPLICATE KEY UPDATE
+    current_run_id = VALUES(current_run_id),
+    last_image_url = VALUES(last_image_url),
+    updated_at = NOW()
+SQL;
+        $updateState = $pdo->prepare($stateSql);
+        $updateState->execute([
+            ':user_id'         => $userId,
+            ':current_run_id'  => $runId,
+            ':last_image_url'  => ltrim($publicPath, '/'),
         ]);
 
         $updateOriginal = $pdo->prepare(
