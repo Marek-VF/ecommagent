@@ -541,7 +541,7 @@ body {
 
 .original-image-wrapper.multi img.original-image-preview {
     flex: 1 1 45%;
-    max-width: 220px;
+    max-width: 130px;
 }
 
 .original-image-wrapper.multi img.original-image-preview:hover {
