@@ -131,7 +131,7 @@ try {
             }
 
             if ((int) $run['user_id'] !== $userId) {
-                throw new RuntimeException('run_id does not belong to user');
+                throw new RuntimeException('run_id does not belong to current user');
             }
 
             $runId = (int) $run['id'];
