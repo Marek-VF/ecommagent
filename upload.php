@@ -64,7 +64,6 @@ try {
         $baseUploadDir = __DIR__ . '/uploads';
     }
 
-    $webhook = $config['workflow_webhook'] ?? null;
     $baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
 
     if (!is_dir($baseUploadDir) && !mkdir($baseUploadDir, 0775, true) && !is_dir($baseUploadDir)) {
@@ -112,18 +111,11 @@ try {
     $sanitized = trim($sanitized) === '' ? 'upload_' . date('Ymd_His') : trim($sanitized);
     $storedName = basename($sanitized);
 
-    if ($webhook === null || $webhook === '') {
-        throw new RuntimeException('Workflow-Webhook ist nicht konfiguriert.');
-    }
-
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runMessage = 'Bereit für Workflow-Start';
     $storedFilePath = null;
-    $publicPath = null;
     $imageUrl = null;
-    $isNewRun = false;
 
     $pdo->beginTransaction();
     try {
@@ -137,27 +129,23 @@ try {
             }
 
             if ((int) $run['user_id'] !== $userId) {
-                throw new RuntimeException('Kein Zugriff auf diesen Workflow-Run.');
+                throw new RuntimeException('run_id does not belong to current user');
             }
 
             $runId = (int) $run['id'];
         } else {
             $insertRun = $pdo->prepare(
-                "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
-                "VALUES (:user_id, NOW(), :status, :last_message)"
+                'INSERT INTO workflow_runs (user_id, status) VALUES (:user_id, :status)'
             );
             $insertRun->execute([
-                ':user_id'      => $userId,
-                ':status'       => 'pending',
-                ':last_message' => $runMessage,
+                ':user_id' => $userId,
+                ':status'  => 'pending',
             ]);
 
             $runId = (int) $pdo->lastInsertId();
             if ($runId <= 0) {
                 throw new RuntimeException('run_id konnte nicht erzeugt werden.');
             }
-
-            $isNewRun = true;
         }
 
         $targetDirectory = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId;
@@ -184,8 +172,8 @@ try {
         $storedFilePath = $destination;
         @chmod($storedFilePath, 0644);
 
-        $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
-        $imageUrl = '/' . ltrim($publicPath, '/');
+        $publicPath = sprintf('/uploads/%d/%d/%s', $userId, $runId, $storedName);
+        $imageUrl = $baseUrl !== '' ? $baseUrl . $publicPath : $publicPath;
 
         $insertImage = $pdo->prepare(
             'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
@@ -196,29 +184,15 @@ try {
             ':original_name'=> $originalName,
         ]);
 
-        if ($isNewRun) {
-            $updateOriginal = $pdo->prepare('UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id');
-            $updateOriginal->execute([
-                ':original' => $publicPath,
-                ':run_id'   => $runId,
-                ':user_id'  => $userId,
-            ]);
-
-            $stateStmt = $pdo->prepare(
-                'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
-                . ' ON DUPLICATE KEY UPDATE'
-                . '     current_run_id = VALUES(current_run_id),'
-                . '     last_status = VALUES(last_status),'
-                . '     last_message = VALUES(last_message),'
-                . '     updated_at = NOW()'
-            );
-            $stateStmt->execute([
-                ':user_id'        => $userId,
-                ':current_run_id' => $runId,
-                ':last_status'    => 'pending',
-                ':last_message'   => $runMessage,
-            ]);
-        }
+        $updateOriginal = $pdo->prepare(
+            'UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id'
+            . ' AND (original_image IS NULL OR original_image = "")'
+        );
+        $updateOriginal->execute([
+            ':original' => $publicPath,
+            ':run_id'   => $runId,
+            ':user_id'  => $userId,
+        ]);
 
         $pdo->commit();
     } catch (Throwable $databaseException) {
