@@ -128,6 +128,48 @@ try {
 
     $baseUrl = rtrim((string) ($config['base_url'] ?? ''), '/');
 
+    $buildAbsoluteUrl = static function (string $path) use ($baseUrl): string {
+        $trimmed = trim($path);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $normalized = str_replace('\\', '/', $trimmed);
+        if (preg_match('#^(?:[a-z][a-z0-9+.-]*:)?//#i', $normalized)) {
+            return $normalized;
+        }
+
+        $relative = ltrim($normalized, '/');
+        if ($relative === '') {
+            return $baseUrl !== '' ? $baseUrl : '/';
+        }
+
+        if ($baseUrl !== '') {
+            return $baseUrl . '/' . $relative;
+        }
+
+        return '/' . $relative;
+    };
+
+    $resolveStoredFilePath = static function (string $path) use ($baseUploadDir, $userId, $runId): string {
+        $normalized = str_replace('\\', '/', trim($path));
+        if ($normalized === '') {
+            return '';
+        }
+
+        $filename = basename($normalized);
+        if ($filename === '') {
+            return '';
+        }
+
+        $storedFile = $baseUploadDir
+            . DIRECTORY_SEPARATOR . $userId
+            . DIRECTORY_SEPARATOR . $runId
+            . DIRECTORY_SEPARATOR . $filename;
+
+        return is_file($storedFile) ? $storedFile : '';
+    };
+
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -167,7 +209,24 @@ try {
     }
 
     $originalPath = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
-    if ($originalPath === '') {
+
+    $imageStmt = $pdo->prepare('SELECT file_path FROM run_images WHERE run_id = :run_id ORDER BY id ASC LIMIT 2');
+    $imageStmt->execute([':run_id' => $runId]);
+    $imageRows = $imageStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    $imagePaths = [];
+    foreach ($imageRows as $rowPath) {
+        $trimmedPath = trim((string) $rowPath);
+        if ($trimmedPath !== '') {
+            $imagePaths[] = $trimmedPath;
+        }
+    }
+
+    if ($imagePaths === [] && $originalPath !== '') {
+        $imagePaths[] = $originalPath;
+    }
+
+    if ($imagePaths === []) {
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -176,8 +235,18 @@ try {
         ], 400);
     }
 
-    $normalizedPath = str_replace('\\', '/', $originalPath);
-    $filename = basename($normalizedPath);
+    $primaryPath = $imagePaths[0];
+    $storedFilePath = $resolveStoredFilePath($primaryPath);
+    if ($storedFilePath === '') {
+        $respond([
+            'success'   => false,
+            'status'    => 'error',
+            'message'   => 'Originalbild wurde nicht gefunden.',
+            'timestamp' => $timestamp(),
+        ], 404);
+    }
+
+    $filename = basename(str_replace('\\', '/', $primaryPath));
     if ($filename === '') {
         $respond([
             'success'   => false,
@@ -187,23 +256,21 @@ try {
         ], 400);
     }
 
-    $storedFilePath = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId . DIRECTORY_SEPARATOR . $filename;
-    if (!is_file($storedFilePath)) {
+    $publicUrl = $buildAbsoluteUrl($primaryPath);
+    if ($publicUrl === '') {
         $respond([
             'success'   => false,
             'status'    => 'error',
-            'message'   => 'Originalbild wurde nicht gefunden.',
+            'message'   => 'Öffentliche Bild-URL konnte nicht erzeugt werden.',
             'timestamp' => $timestamp(),
-        ], 404);
+        ], 500);
     }
 
-    $publicPath = ltrim($normalizedPath, '/');
-    $publicUrl = $originalPath;
-    if ($publicPath !== '') {
-        if ($baseUrl !== '' && !preg_match('#^https?://#i', $publicPath) && !str_starts_with($publicPath, '/')) {
-            $publicUrl = $baseUrl . '/' . $publicPath;
-        } elseif ($baseUrl === '' && !preg_match('#^https?://#i', $publicPath) && !str_starts_with($publicPath, '/')) {
-            $publicUrl = '/' . $publicPath;
+    $secondaryUrl = null;
+    if (isset($imagePaths[1])) {
+        $secondUrl = $buildAbsoluteUrl($imagePaths[1]);
+        if ($secondUrl !== '') {
+            $secondaryUrl = $secondUrl;
         }
     }
 
@@ -222,6 +289,10 @@ try {
         'file_name' => $filename,
         'timestamp' => $timestamp(),
     ];
+
+    if ($secondaryUrl !== null) {
+        $postFields['image_url_2'] = $secondaryUrl;
+    }
 
     $ch = curl_init($webhook);
     if ($ch === false) {
