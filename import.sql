@@ -69,6 +69,21 @@ CREATE TABLE IF NOT EXISTS `run_images` (
     FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Datenmigration: vorhandene Originalbilder aus workflow_runs übernehmen
+INSERT INTO `run_images` (`run_id`, `file_path`, `original_name`)
+SELECT wr.id,
+       wr.original_image,
+       NULL
+  FROM `workflow_runs` wr
+ WHERE wr.original_image IS NOT NULL
+   AND TRIM(wr.original_image) <> ''
+   AND NOT EXISTS (
+         SELECT 1
+           FROM `run_images` ri
+          WHERE ri.run_id = wr.id
+            AND ri.file_path = wr.original_image
+       );
+
 -- =========================================
 -- STATUS LOGS (Historie von Events)
 -- =========================================
