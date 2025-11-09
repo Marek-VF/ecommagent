@@ -81,6 +81,19 @@ try {
         throw new RuntimeException('Fehler beim Upload: ' . ($file['error'] ?? 'unbekannt'));
     }
 
+    $requestedRunId = null;
+    if (isset($_POST['run_id']) && $_POST['run_id'] !== '') {
+        $rawRunId = is_array($_POST['run_id']) ? null : trim((string) $_POST['run_id']);
+        if ($rawRunId === null || $rawRunId === '' || !ctype_digit($rawRunId)) {
+            throw new RuntimeException('Ungültige run_id übermittelt.');
+        }
+
+        $requestedRunId = (int) $rawRunId;
+        if ($requestedRunId <= 0) {
+            throw new RuntimeException('Ungültige run_id übermittelt.');
+        }
+    }
+
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     if ($finfo === false) {
         throw new RuntimeException('Datei-Info konnte nicht gelesen werden.');
@@ -109,22 +122,42 @@ try {
     $runMessage = 'Bereit für Workflow-Start';
     $storedFilePath = null;
     $publicPath = null;
+    $imageUrl = null;
+    $isNewRun = false;
 
     $pdo->beginTransaction();
     try {
-        $insertRun = $pdo->prepare(
-            "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
-            "VALUES (:user_id, NOW(), :status, :last_message)"
-        );
-        $insertRun->execute([
-            ':user_id'      => $userId,
-            ':status'       => 'pending',
-            ':last_message' => $runMessage,
-        ]);
+        if ($requestedRunId !== null) {
+            $runStmt = $pdo->prepare('SELECT id, user_id FROM workflow_runs WHERE id = :run_id LIMIT 1');
+            $runStmt->execute([':run_id' => $requestedRunId]);
+            $run = $runStmt->fetch(PDO::FETCH_ASSOC);
 
-        $runId = (int) $pdo->lastInsertId();
-        if ($runId <= 0) {
-            throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+            if (!$run) {
+                throw new RuntimeException('Workflow-Run wurde nicht gefunden.');
+            }
+
+            if ((int) $run['user_id'] !== $userId) {
+                throw new RuntimeException('Kein Zugriff auf diesen Workflow-Run.');
+            }
+
+            $runId = (int) $run['id'];
+        } else {
+            $insertRun = $pdo->prepare(
+                "INSERT INTO workflow_runs (user_id, started_at, status, last_message) " .
+                "VALUES (:user_id, NOW(), :status, :last_message)"
+            );
+            $insertRun->execute([
+                ':user_id'      => $userId,
+                ':status'       => 'pending',
+                ':last_message' => $runMessage,
+            ]);
+
+            $runId = (int) $pdo->lastInsertId();
+            if ($runId <= 0) {
+                throw new RuntimeException('run_id konnte nicht erzeugt werden.');
+            }
+
+            $isNewRun = true;
         }
 
         $targetDirectory = $baseUploadDir . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . $runId;
@@ -152,29 +185,40 @@ try {
         @chmod($storedFilePath, 0644);
 
         $publicPath = sprintf('uploads/%d/%d/%s', $userId, $runId, $storedName);
-        $publicUrl  = $baseUrl !== '' ? $baseUrl . '/' . $publicPath : $publicPath;
+        $imageUrl = '/' . ltrim($publicPath, '/');
 
-        $updateOriginal = $pdo->prepare('UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id');
-        $updateOriginal->execute([
-            ':original' => $publicPath,
-            ':run_id'   => $runId,
-            ':user_id'  => $userId,
-        ]);
-
-        $stateStmt = $pdo->prepare(
-            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
-            . ' ON DUPLICATE KEY UPDATE'
-            . '     current_run_id = VALUES(current_run_id),'
-            . '     last_status = VALUES(last_status),'
-            . '     last_message = VALUES(last_message),'
-            . '     updated_at = NOW()'
+        $insertImage = $pdo->prepare(
+            'INSERT INTO run_images (run_id, file_path, original_name) VALUES (:run_id, :file_path, :original_name)'
         );
-        $stateStmt->execute([
-            ':user_id'        => $userId,
-            ':current_run_id' => $runId,
-            ':last_status'    => 'pending',
-            ':last_message'   => $runMessage,
+        $insertImage->execute([
+            ':run_id'       => $runId,
+            ':file_path'    => $publicPath,
+            ':original_name'=> $originalName,
         ]);
+
+        if ($isNewRun) {
+            $updateOriginal = $pdo->prepare('UPDATE workflow_runs SET original_image = :original WHERE id = :run_id AND user_id = :user_id');
+            $updateOriginal->execute([
+                ':original' => $publicPath,
+                ':run_id'   => $runId,
+                ':user_id'  => $userId,
+            ]);
+
+            $stateStmt = $pdo->prepare(
+                'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
+                . ' ON DUPLICATE KEY UPDATE'
+                . '     current_run_id = VALUES(current_run_id),'
+                . '     last_status = VALUES(last_status),'
+                . '     last_message = VALUES(last_message),'
+                . '     updated_at = NOW()'
+            );
+            $stateStmt->execute([
+                ':user_id'        => $userId,
+                ':current_run_id' => $runId,
+                ':last_status'    => 'pending',
+                ':last_message'   => $runMessage,
+            ]);
+        }
 
         $pdo->commit();
     } catch (Throwable $databaseException) {
@@ -190,13 +234,11 @@ try {
     }
 
     $respond([
-        'success'   => true,
-        'status'    => 'ok',
-        'message'   => 'Upload erfolgreich gespeichert.',
-        'file'      => $publicPath,
-        'run_id'    => $runId,
-        'user_id'   => $userId,
-        'timestamp' => $timestamp(),
+        'success'    => true,
+        'run_id'     => $runId,
+        'image_url'  => $imageUrl ?? '',
+        'message'    => 'Upload erfolgreich gespeichert.',
+        'timestamp'  => $timestamp(),
     ]);
 } catch (Throwable $exception) {
     $respond([
