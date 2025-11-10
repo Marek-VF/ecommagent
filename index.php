@@ -164,7 +164,7 @@ $appConfig = [
         <main class="grid">
             <section class="panel panel--upload">
                 <div class="panel__section panel__section--upload">
-                    <h2>Bild hochladen</h2>
+                  
                     <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen oder klicken, um eine Datei auszuwählen">
                         <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
                         <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
