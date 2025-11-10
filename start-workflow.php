@@ -274,6 +274,16 @@ try {
         }
     }
 
+    $secondFilePathOnDisk = null;
+    $secondFileName = null;
+    if (isset($imagePaths[1])) {
+        $secondStoredFile = $resolveStoredFilePath($imagePaths[1]);
+        if ($secondStoredFile !== '') {
+            $secondFilePathOnDisk = $secondStoredFile;
+            $secondFileName = basename(str_replace('\\', '/', $imagePaths[1]));
+        }
+    }
+
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mimeType = $finfo !== false ? finfo_file($finfo, $storedFilePath) : null;
     if ($finfo !== false) {
@@ -292,6 +302,23 @@ try {
 
     if ($secondaryUrl !== null) {
         $postFields['image_url_2'] = $secondaryUrl;
+    }
+
+    if ($secondaryUrl !== null && $secondFilePathOnDisk !== null && $secondFileName !== null) {
+        $finfo2 = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType2 = $finfo2 !== false ? finfo_file($finfo2, $secondFilePathOnDisk) : null;
+        if ($finfo2 !== false) {
+            finfo_close($finfo2);
+        }
+
+        $curlFile2 = new CURLFile(
+            $secondFilePathOnDisk,
+            $mimeType2 ?: 'application/octet-stream',
+            $secondFileName
+        );
+
+        $postFields['file_2'] = $curlFile2;
+        $postFields['file_name_2'] = $secondFileName;
     }
 
     $ch = curl_init($webhook);
