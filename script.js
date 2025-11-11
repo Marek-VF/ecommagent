@@ -8,8 +8,10 @@ const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const newButton = document.getElementById('btn-new');
 const workflowFeedback = document.getElementById('workflow-feedback');
-const articleNameInput = document.getElementById('article-name');
-const articleDescriptionInput = document.getElementById('article-description');
+const articleNameInput = document.getElementById('article_name');
+const articleDescriptionInput = document.getElementById('article_description');
+const articleNameGroup = document.getElementById('article-name-group');
+const articleDescriptionGroup = document.getElementById('article-description-group');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
 const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
@@ -20,6 +22,8 @@ const SIDEBAR_PROFILE_TRIGGER =
     SIDEBAR_PROFILE && SIDEBAR_PROFILE instanceof HTMLElement
         ? SIDEBAR_PROFILE.querySelector('[data-profile-trigger]')
         : null;
+
+const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 
 const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'workflow-feedback--visible';
 const WORKFLOW_FEEDBACK_ERROR_CLASS = 'workflow-feedback--error';
@@ -327,6 +331,117 @@ const sanitizeLatestItemString = (value) => {
     return String(value);
 };
 
+const setFieldGroupLoading = (group, isLoading) => {
+    if (!(group instanceof HTMLElement)) {
+        return;
+    }
+
+    group.classList.toggle(FIELD_GROUP_LOADING_CLASS, Boolean(isLoading));
+};
+
+const collectArticleFieldSources = (input) => {
+    const sources = [];
+    const visited = new Set();
+    const queue = [];
+
+    const enqueue = (candidate) => {
+        if (!candidate || typeof candidate !== 'object') {
+            return;
+        }
+
+        if (visited.has(candidate)) {
+            return;
+        }
+
+        visited.add(candidate);
+        queue.push(candidate);
+        sources.push(candidate);
+    };
+
+    enqueue(input);
+
+    const nestedKeys = ['data', 'item', 'latest', 'latest_item', 'latestItem', 'note', 'payload', 'result', 'entry', 'article', 'product'];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+
+        nestedKeys.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(current, key)) {
+                enqueue(current[key]);
+            }
+        });
+
+        if (Array.isArray(current.items)) {
+            current.items.forEach((value) => enqueue(value));
+        }
+
+        if (Array.isArray(current.notes)) {
+            current.notes.forEach((value) => enqueue(value));
+        }
+
+        if (Array.isArray(current.entries)) {
+            current.entries.forEach((value) => enqueue(value));
+        }
+    }
+
+    return sources;
+};
+
+const findArticleFieldValue = (sources, keys) => {
+    for (const source of sources) {
+        if (!source || typeof source !== 'object') {
+            continue;
+        }
+
+        for (const key of keys) {
+            if (!Object.prototype.hasOwnProperty.call(source, key)) {
+                continue;
+            }
+
+            const value = sanitizeLatestItemString(source[key]).trim();
+            if (value !== '') {
+                return value;
+            }
+        }
+    }
+
+    return '';
+};
+
+const updateArticleFieldsFromData = (data) => {
+    const sources = collectArticleFieldSources(data);
+    const articleName = findArticleFieldValue(sources, [
+        'product_name',
+        'article_name',
+        'produktname',
+        'title',
+        'name',
+    ]);
+    const articleDescription = findArticleFieldValue(sources, [
+        'product_description',
+        'article_description',
+        'produktbeschreibung',
+        'description',
+        'details',
+        'text',
+    ]);
+
+    const hasName = articleName.trim() !== '';
+    const hasDescription = articleDescription.trim() !== '';
+
+    if (articleNameInput) {
+        articleNameInput.value = hasName ? articleName : '';
+    }
+
+    setFieldGroupLoading(articleNameGroup, !hasName);
+
+    if (articleDescriptionInput) {
+        articleDescriptionInput.value = hasDescription ? articleDescription : '';
+    }
+
+    setFieldGroupLoading(articleDescriptionGroup, !hasDescription);
+};
+
 const resolveLatestStatusMessage = (payload) => {
     if (!payload || typeof payload !== 'object') {
         return '';
@@ -347,22 +462,7 @@ const resolveLatestStatusMessage = (payload) => {
 };
 
 const applyLatestItemData = (payload) => {
-    const data = payload && typeof payload === 'object' ? payload : {};
-
-    if (articleNameInput) {
-        const value = sanitizeLatestItemString(data.product_name).trim();
-        if (value !== '') {
-            articleNameInput.value = value;
-        }
-    }
-
-    if (articleDescriptionInput) {
-        const value = sanitizeLatestItemString(data.product_description).trim();
-        if (value !== '') {
-            articleDescriptionInput.value = value;
-        }
-    }
-
+    updateArticleFieldsFromData(payload);
 };
 
 const normalizeLatestImagesObject = (input) => {
@@ -1154,6 +1254,7 @@ async function startWorkflow() {
         showWorkflowFeedback('success', successMessage);
         setStatus('info', 'Verarbeitung läuft …');
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
+        clearProductFields();
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
         if (hasPreviewImage) {
             setScanOverlayActive(true);
@@ -1231,15 +1332,7 @@ const updateInterfaceFromData = (data) => {
         hasShownCompletion = true;
     }
 
-    const nameValue = data.produktname ?? data.product_name ?? data.title;
-    if (typeof nameValue === 'string' && nameValue.trim() !== '') {
-        articleNameInput.value = nameValue;
-    }
-
-    const descriptionValue = data.produktbeschreibung ?? data.product_description ?? data.description;
-    if (typeof descriptionValue === 'string' && descriptionValue.trim() !== '') {
-        articleDescriptionInput.value = descriptionValue;
-    }
+    updateArticleFieldsFromData(data);
 
     gallerySlots.forEach((slot) => {
         const value = getDataField(data, slot.key);
@@ -1271,13 +1364,7 @@ const applyRunDataToUI = (payload) => {
     let indicatorMessage = '';
     let indicatorState = 'idle';
 
-    if (articleNameInput) {
-        articleNameInput.value = (note.product_name || '').trim();
-    }
-
-    if (articleDescriptionInput) {
-        articleDescriptionInput.value = note.product_description || '';
-    }
+    updateArticleFieldsFromData({ ...data, note });
 
     const normalizedImages = images.map((entry) => ({
         position: Number(entry.position),
@@ -1803,6 +1890,9 @@ function clearProductFields() {
     if (articleDescriptionInput) {
         articleDescriptionInput.value = '';
     }
+
+    setFieldGroupLoading(articleNameGroup, true);
+    setFieldGroupLoading(articleDescriptionGroup, true);
 }
 
 function showPlaceholderImages(withPulse = false) {

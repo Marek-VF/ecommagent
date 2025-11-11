@@ -192,13 +192,37 @@ $appConfig = [
                         </div>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="article-name">Artikelname</label>
-                    <input type="text" id="article-name" name="article-name" placeholder="Name eingeben">
+                <div class="form-group field-group is-loading" id="article-name-group">
+                    <label for="article_name">Artikelname</label>
+                    <div class="field-content">
+                        <input
+                            type="text"
+                            id="article_name"
+                            name="article_name"
+                            placeholder="Name eingeben"
+                            class="article-input"
+                        >
+                    </div>
+                    <div class="skeleton-text" aria-hidden="true">
+                        <div class="skeleton-line short"></div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="article-description">Artikelbeschreibung</label>
-                    <textarea id="article-description" name="article-description" rows="6" placeholder="Beschreibung eingeben"></textarea>
+                <div class="form-group field-group is-loading" id="article-description-group">
+                    <label for="article_description">Artikelbeschreibung</label>
+                    <div class="field-content">
+                        <textarea
+                            id="article_description"
+                            name="article_description"
+                            rows="6"
+                            placeholder="Beschreibung eingeben"
+                            class="article-textarea"
+                        ></textarea>
+                    </div>
+                    <div class="skeleton-text" aria-hidden="true">
+                        <div class="skeleton-line"></div>
+                        <div class="skeleton-line"></div>
+                        <div class="skeleton-line medium"></div>
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button id="btn-new" type="button" class="btn btn--primary">Workflow starten</button>

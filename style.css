@@ -703,6 +703,65 @@ body {
     gap: 10px;
 }
 
+.field-group {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.field-group .field-content {
+    width: 100%;
+}
+
+.skeleton-text {
+    display: none;
+    gap: 0.5rem;
+    flex-direction: column;
+}
+
+.skeleton-line {
+    height: 14px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    position: relative;
+}
+
+.skeleton-line.short {
+    width: 35%;
+}
+
+.skeleton-line.medium {
+    width: 65%;
+}
+
+.skeleton-line::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0) 100%);
+    animation: skeleton-shine 1.4s ease-out infinite;
+}
+
+@keyframes skeleton-shine {
+    0% {
+        left: -40%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.is-loading .field-content {
+    display: none;
+}
+
+.is-loading .skeleton-text {
+    display: flex;
+}
+
 label {
     font-size: 0.95rem;
     color: var(--text-muted);
