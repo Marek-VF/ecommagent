@@ -620,15 +620,16 @@ body {
 
 
 #workflow-output {
-    min-height: 70vh;
+    min-height: 420px;
     display: flex;
     flex-direction: column;
+    gap: 1.25rem;
     justify-content: flex-start;
     transition: min-height 0.3s ease;
 }
 
 #workflow-output.is-active {
-    min-height: 80vh;
+    min-height: 420px;
 }
 
 .workflow-output {
@@ -657,14 +658,13 @@ body {
 
 .generated-grid {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 1rem;
     width: 100%;
-    flex-grow: 1;
 }
 
 .generated-slot {
-    flex: 1 1 0;
+    flex: 0 0 calc(33.333% - 0.666rem);
     aspect-ratio: 3 / 4;
     border-radius: 14px;
     background: rgba(0, 0, 0, 0.1);
@@ -680,13 +680,13 @@ body {
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
-.generated-slot.is-inactive {
-    display: none;
+.generated-slot.is-hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .generated-slot.first-active {
-    height: 33%;
-    aspect-ratio: unset;
+    opacity: 1;
 }
 
 .generated-slot:focus-visible {
@@ -748,6 +748,11 @@ body {
 @media (max-width: 1024px) {
     .generated-grid {
         flex-direction: column;
+    }
+
+    .generated-slot {
+        flex: 1 1 auto;
+        width: 100%;
     }
 }
 
