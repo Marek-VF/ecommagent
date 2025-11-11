@@ -619,6 +619,18 @@ body {
 }
 
 
+#workflow-output {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    transition: min-height 0.3s ease;
+}
+
+#workflow-output.is-active {
+    min-height: 80vh;
+}
+
 .workflow-output {
     display: flex;
     flex-direction: column;
@@ -645,8 +657,10 @@ body {
 
 .generated-grid {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
     width: 100%;
+    flex-grow: 1;
 }
 
 .generated-slot {
@@ -660,13 +674,19 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition),
+        height 0.4s ease, opacity 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
 .generated-slot.is-inactive {
     display: none;
+}
+
+.generated-slot.first-active {
+    height: 33%;
+    aspect-ratio: unset;
 }
 
 .generated-slot:focus-visible {
@@ -708,6 +728,11 @@ body {
     object-fit: cover;
     border-radius: 12px;
     display: block;
+}
+
+.generated-slot img,
+.render-box {
+    transition: all 0.4s ease;
 }
 
 @keyframes preload {

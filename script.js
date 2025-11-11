@@ -701,6 +701,7 @@ const clearSlotContent = (slot) => {
     slot.container.dataset.hasContent = 'false';
     slot.container.dataset.currentSrc = '';
     slot.container.classList.remove('has-image');
+    slot.container.classList.remove('first-active');
 
     const existingImage = slot.container.querySelector('img');
     if (existingImage) {
@@ -781,6 +782,9 @@ const createWorkflowOutputController = () => {
         if (className) {
             workflowOutput.classList.add(className);
         }
+
+        const isActiveState = nextState === 'running' || nextState === 'complete';
+        workflowOutput.classList.toggle('is-active', isActiveState);
     };
 
     const getFilledCount = () =>
@@ -818,6 +822,12 @@ const createWorkflowOutputController = () => {
                 setSlotLoadingState(slot, false);
             }
         });
+
+        const firstSlot = gallerySlots[0];
+        if (firstSlot?.container) {
+            const shouldHighlightFirst = currentState === 'running' && filledCount === 0;
+            firstSlot.container.classList.toggle('first-active', shouldHighlightFirst);
+        }
 
         if (currentState === 'running' && nextIndex === null) {
             applyState('complete');
