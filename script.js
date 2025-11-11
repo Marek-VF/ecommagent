@@ -482,28 +482,8 @@ const updateUiWithData = (payload) => {
     const normalized = mapLatestItemPayloadToLegacy(data);
     updateInterfaceFromData(normalized);
 
-    if (data.images && typeof data.images === 'object') {
-        gallerySlots.forEach((slot) => {
-            const slotKey = slot?.key;
-            if (!slotKey) {
-                return;
-            }
-
-            const src = data.images[slotKey];
-
-            if (typeof src === 'string' && src.trim() !== '') {
-                const resolvedSrc = toAbsoluteUrl(src);
-                if (!resolvedSrc) {
-                    clearSlotContent(slot);
-                    setSlotLoadingState(slot, false);
-                    lastKnownImages[slotKey] = null;
-                    return;
-                }
-
-                setSlotImageSource(slot, resolvedSrc);
-                lastKnownImages[slotKey] = resolvedSrc;
-            }
-        });
+    if (data.images) {
+        renderGeneratedImages(data.images);
     }
 
     return normalized;
@@ -525,57 +505,29 @@ const resolveAssetBase = () => {
 
 const assetBase = resolveAssetBase();
 const PLACEHOLDER_SRC = assetConfig.placeholder || `${assetBase}/placeholder.png`;
-const OVERLAY_SRC =
-    assetConfig.loading_overlay ||
-    assetConfig.loadingOverlay ||
-    assetConfig.overlay ||
-    assetConfig.pulse ||
-    assetConfig.loading ||
-    `${assetBase}/pulse.svg`;
 const gallerySlotKeys = ['image_1', 'image_2', 'image_3'];
 
-const gallerySlots = gallerySlotKeys
-    .map((key, index) => {
-        const container = document.querySelector(`[data-slot="${key}"]`);
-        if (!container) {
-            return null;
-        }
+const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).map((container, index) => {
+    const key = gallerySlotKeys[index] || `image_${index + 1}`;
+    container.dataset.slotKey = key;
+    container.dataset.currentSrc = '';
+    container.dataset.hasContent = 'false';
+    container.dataset.isLoading = 'false';
 
-        const placeholder = container.querySelector('[data-role="placeholder"]');
-        const content = container.querySelector('[data-role="content"]');
-        const overlay = container.querySelector('[data-role="overlay"]');
-
-        const placeholderSrc = (container.dataset.placeholder || '').trim() || PLACEHOLDER_SRC;
-        container.dataset.placeholder = placeholderSrc;
-        container.dataset.currentSrc = '';
-        container.dataset.hasContent = 'false';
-        container.dataset.isLoading = 'false';
-
-        if (placeholder) {
-            placeholder.src = placeholderSrc;
-        }
-
-        if (content) {
-            content.removeAttribute('src');
-            content.alt = content.alt || `Produktbild ${index + 1}`;
-        }
-
-        if (overlay) {
-            overlay.src = OVERLAY_SRC;
-        }
-
+    if (!container.hasAttribute('tabindex')) {
         container.setAttribute('tabindex', '0');
+    }
 
-        return {
-            key,
-            index,
-            container,
-            placeholder,
-            content,
-            overlay,
-        };
-    })
-    .filter(Boolean);
+    if (!container.hasAttribute('role')) {
+        container.setAttribute('role', 'button');
+    }
+
+    return {
+        key,
+        index,
+        container,
+    };
+});
 
 const placeholderDimensions = appConfig.placeholderDimensions || null;
 
@@ -587,27 +539,11 @@ if (placeholderDimensions && placeholderDimensions.width && placeholderDimension
 }
 
 const getPlaceholderForSlot = (slot) => {
-    if (!slot || !slot.container) {
-        return PLACEHOLDER_SRC;
-    }
-
-    const placeholder = slot.container.dataset?.placeholder;
-    if (typeof placeholder === 'string' && placeholder.trim() !== '') {
-        return placeholder.trim();
-    }
-
     return PLACEHOLDER_SRC;
 };
 
 const ensurePlaceholderForSlot = (slot) => {
-    if (!slot || !slot.placeholder) {
-        return;
-    }
-
-    const placeholderSrc = getPlaceholderForSlot(slot);
-    if (slot.placeholder.src !== placeholderSrc) {
-        slot.placeholder.src = placeholderSrc;
-    }
+    // Platzhalter werden nun über die Render-Animation bereitgestellt.
 };
 
 const setPulseState = (slot, shouldPulse) => {
@@ -615,11 +551,7 @@ const setPulseState = (slot, shouldPulse) => {
         return;
     }
 
-    if (shouldPulse) {
-        slot.container.classList.add('is-pulsing');
-    } else {
-        slot.container.classList.remove('is-pulsing');
-    }
+    slot.container.classList.toggle('is-pulsing', Boolean(shouldPulse));
 };
 
 const clearSlotContent = (slot) => {
@@ -629,9 +561,11 @@ const clearSlotContent = (slot) => {
 
     slot.container.dataset.hasContent = 'false';
     slot.container.dataset.currentSrc = '';
+    slot.container.classList.remove('has-image');
 
-    if (slot.content) {
-        slot.content.removeAttribute('src');
+    const existingImage = slot.container.querySelector('img');
+    if (existingImage) {
+        existingImage.remove();
     }
 
     ensurePlaceholderForSlot(slot);
@@ -644,14 +578,6 @@ const setSlotLoadingState = (slot, loading) => {
 
     slot.container.dataset.isLoading = loading ? 'true' : 'false';
     setPulseState(slot, Boolean(loading));
-
-    if (slot.overlay && slot.overlay.src !== OVERLAY_SRC) {
-        slot.overlay.src = OVERLAY_SRC;
-    }
-
-    if (loading) {
-        ensurePlaceholderForSlot(slot);
-    }
 };
 
 const setSlotImageSource = (slot, src) => {
@@ -679,10 +605,16 @@ const setSlotImageSource = (slot, src) => {
     slot.container.dataset.isLoading = 'false';
     setPulseState(slot, false);
 
-    if (slot.content) {
-        slot.content.src = resolved;
-        applyFadeInAnimation(slot.content);
+    let imageElement = slot.container.querySelector('img');
+    if (!imageElement) {
+        imageElement = document.createElement('img');
+        slot.container.appendChild(imageElement);
     }
+
+    imageElement.src = resolved;
+    imageElement.alt = imageElement.alt || `Produktbild ${slot.index + 1}`;
+    slot.container.classList.add('has-image');
+    applyFadeInAnimation(imageElement);
 };
 
 const getSlotPreviewData = (slot) => {
@@ -690,14 +622,73 @@ const getSlotPreviewData = (slot) => {
         return { src: PLACEHOLDER_SRC, alt: 'Bildvorschau' };
     }
 
-    const hasContent = slot.container.dataset.hasContent === 'true' && slot.content && slot.content.src;
-    const src = hasContent && slot.content ? slot.content.src : getPlaceholderForSlot(slot);
-    const alt = hasContent && slot.content
-        ? slot.content.alt || `Produktbild ${slot.index + 1}`
-        : (slot.placeholder?.alt || `Platzhalter ${slot.index + 1}`);
+    const imageElement = slot.container.querySelector('img');
+    const hasContent = slot.container.dataset.hasContent === 'true' && imageElement && imageElement.src;
+    const src = hasContent && imageElement ? imageElement.src : getPlaceholderForSlot(slot);
+    const alt = hasContent && imageElement
+        ? imageElement.alt || `Produktbild ${slot.index + 1}`
+        : `Platzhalter ${slot.index + 1}`;
 
     return { src, alt };
 };
+
+function renderGeneratedImages(images) {
+    const imageList = Array.isArray(images)
+        ? images
+        : gallerySlotKeys.map((key) => {
+              if (!images || typeof images !== 'object') {
+                  return null;
+              }
+
+              return images[key] ?? null;
+          });
+
+    gallerySlots.forEach((slot, index) => {
+        if (!slot || !slot.container) {
+            return;
+        }
+
+        const rawData = imageList[index];
+
+        if (rawData) {
+            let imageUrl = '';
+            let altText = `Generiertes Bild ${index + 1}`;
+
+            if (typeof rawData === 'string') {
+                imageUrl = rawData;
+            } else if (typeof rawData === 'object') {
+                imageUrl = rawData.url || rawData.src || '';
+                altText = rawData.alt || rawData.title || altText;
+            }
+
+            const resolvedUrl = imageUrl ? toAbsoluteUrl(imageUrl) : '';
+
+            if (resolvedUrl) {
+                let imageElement = slot.container.querySelector('img');
+                if (!imageElement) {
+                    imageElement = document.createElement('img');
+                    slot.container.appendChild(imageElement);
+                }
+
+                imageElement.src = resolvedUrl;
+                imageElement.alt = altText;
+
+                slot.container.classList.add('has-image');
+                slot.container.dataset.hasContent = 'true';
+                slot.container.dataset.currentSrc = resolvedUrl;
+                slot.container.dataset.isLoading = 'false';
+                lastKnownImages[slot.key] = resolvedUrl;
+
+                applyFadeInAnimation(imageElement);
+                return;
+            }
+        }
+
+        clearSlotContent(slot);
+        slot.container.dataset.isLoading = 'false';
+        lastKnownImages[slot.key] = null;
+    });
+}
 
 gallerySlots.forEach((slot) => {
     clearSlotContent(slot);

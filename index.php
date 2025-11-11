@@ -175,16 +175,22 @@ $appConfig = [
                 </div>
             </section>
             <section class="panel panel--details">
-                <div class="gallery" aria-label="Platzhalter-Bilder">
-<?php for ($i = 1; $i <= 3; $i++):
-    $slotKey = 'image_' . $i;
-?>
-                    <div id="img<?php echo $i; ?>" class="gallery__item" data-preview data-slot="<?php echo htmlspecialchars($slotKey, ENT_QUOTES); ?>" data-placeholder="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" data-has-content="false" data-is-loading="false" role="button" aria-label="Bildvorschau <?php echo $i; ?>" tabindex="0">
-                        <img class="gallery__image gallery__image--placeholder" src="<?php echo htmlspecialchars($placeholderSrc, ENT_QUOTES); ?>" alt="Platzhalter <?php echo $i; ?>" data-role="placeholder">
-                        <img class="gallery__image gallery__image--content" alt="Produktbild <?php echo $i; ?>" data-role="content">
-                        <img class="gallery__overlay" src="<?php echo htmlspecialchars($pulseOverlaySrc, ENT_QUOTES); ?>" alt="" data-role="overlay" aria-hidden="true">
+                <div class="generated-grid" aria-label="Generierte Bilder">
+                    <div class="generated-slot" data-slot="1" role="button" aria-label="Bildvorschau 1" tabindex="0">
+                        <div class="render-shell">
+                            <div class="render-box"></div>
+                        </div>
                     </div>
-<?php endfor; ?>
+                    <div class="generated-slot" data-slot="2" role="button" aria-label="Bildvorschau 2" tabindex="0">
+                        <div class="render-shell">
+                            <div class="render-box"></div>
+                        </div>
+                    </div>
+                    <div class="generated-slot" data-slot="3" role="button" aria-label="Bildvorschau 3" tabindex="0">
+                        <div class="render-shell">
+                            <div class="render-box"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="article-name">Artikelname</label>
