@@ -754,7 +754,7 @@ const setSlotImageSource = (slot, src) => {
     imageElement.src = resolved;
     imageElement.alt = imageElement.alt || `Produktbild ${slot.index + 1}`;
     slot.container.classList.add('has-image');
-    slot.container.classList.remove('is-inactive');
+    slot.container.classList.remove('is-hidden');
     applyFadeInAnimation(imageElement);
 };
 
@@ -812,7 +812,7 @@ const createWorkflowOutputController = () => {
             const shouldLoad = nextIndex !== null && index === nextIndex;
             const shouldBeInactive = !hasImage && !shouldLoad;
 
-            slot.container.classList.toggle('is-inactive', shouldBeInactive);
+            slot.container.classList.toggle('is-hidden', shouldBeInactive);
 
             if (hasImage) {
                 setSlotLoadingState(slot, false);
@@ -849,7 +849,7 @@ const createWorkflowOutputController = () => {
             applyState('idle');
             gallerySlots.forEach((slot) => {
                 if (slot?.container) {
-                    slot.container.classList.add('is-inactive');
+                    slot.container.classList.add('is-hidden');
                 }
             });
         },
@@ -893,7 +893,7 @@ const createWorkflowOutputController = () => {
                         return;
                     }
 
-                    slot.container.classList.add('is-inactive');
+                    slot.container.classList.add('is-hidden');
                     setSlotLoadingState(slot, false);
                 });
             }
@@ -912,7 +912,7 @@ const createWorkflowOutputController = () => {
                 }
 
                 clearSlotContent(slot);
-                slot.container.classList.add('is-inactive');
+                slot.container.classList.add('is-hidden');
                 setSlotLoadingState(slot, false);
             });
         },
@@ -981,7 +981,7 @@ function renderGeneratedImages(images) {
                 imageElement.alt = altText;
 
                 slot.container.classList.add('has-image');
-                slot.container.classList.remove('is-inactive');
+                slot.container.classList.remove('is-hidden');
                 slot.container.dataset.hasContent = 'true';
                 slot.container.dataset.currentSrc = resolvedUrl;
                 slot.container.dataset.isLoading = 'false';
