@@ -12,6 +12,7 @@ const articleNameOutput = document.getElementById('article-name-content');
 const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
 const articleDescriptionGroup = document.getElementById('article-description-group');
+const workflowOutput = document.getElementById('workflow-output');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
 const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
@@ -24,6 +25,8 @@ const SIDEBAR_PROFILE_TRIGGER =
         : null;
 
 const FIELD_GROUP_LOADING_CLASS = 'is-loading';
+
+let workflowOutputController = null;
 
 const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'workflow-feedback--visible';
 const WORKFLOW_FEEDBACK_ERROR_CLASS = 'workflow-feedback--error';
@@ -440,6 +443,10 @@ const updateArticleFieldsFromData = (data) => {
     }
 
     setFieldGroupLoading(articleDescriptionGroup, !hasDescription);
+
+    if (workflowOutputController) {
+        workflowOutputController.sync();
+    }
 };
 
 function initCopyButtons() {
@@ -746,8 +753,166 @@ const setSlotImageSource = (slot, src) => {
     imageElement.src = resolved;
     imageElement.alt = imageElement.alt || `Produktbild ${slot.index + 1}`;
     slot.container.classList.add('has-image');
+    slot.container.classList.remove('is-inactive');
     applyFadeInAnimation(imageElement);
 };
+
+const createWorkflowOutputController = () => {
+    const STATE_CLASSES = {
+        idle: 'is-idle',
+        running: 'is-running',
+        complete: 'is-complete',
+    };
+
+    let currentState = 'idle';
+
+    const applyState = (nextState) => {
+        currentState = nextState;
+
+        if (!workflowOutput) {
+            return;
+        }
+
+        Object.values(STATE_CLASSES).forEach((className) => {
+            workflowOutput.classList.remove(className);
+        });
+
+        const className = STATE_CLASSES[nextState];
+        if (className) {
+            workflowOutput.classList.add(className);
+        }
+    };
+
+    const getFilledCount = () =>
+        gallerySlots.reduce(
+            (count, slot) => (slot?.container?.dataset.hasContent === 'true' ? count + 1 : count),
+            0,
+        );
+
+    const hasTextContent = () => {
+        const nameText = articleNameOutput ? articleNameOutput.textContent.trim() : '';
+        const descriptionText = articleDescriptionOutput ? articleDescriptionOutput.textContent.trim() : '';
+        return nameText !== '' || descriptionText !== '';
+    };
+
+    const ensureSequentialSlots = () => {
+        const filledCount = getFilledCount();
+        const nextIndex = currentState === 'running' && filledCount < gallerySlots.length ? filledCount : null;
+
+        gallerySlots.forEach((slot, index) => {
+            if (!slot?.container) {
+                return;
+            }
+
+            const hasImage = slot.container.dataset.hasContent === 'true';
+            const shouldLoad = nextIndex !== null && index === nextIndex;
+            const shouldBeInactive = !hasImage && !shouldLoad;
+
+            slot.container.classList.toggle('is-inactive', shouldBeInactive);
+
+            if (hasImage) {
+                setSlotLoadingState(slot, false);
+            } else if (shouldLoad) {
+                setSlotLoadingState(slot, true);
+            } else {
+                setSlotLoadingState(slot, false);
+            }
+        });
+
+        if (currentState === 'running' && nextIndex === null) {
+            applyState('complete');
+        }
+    };
+
+    return {
+        init() {
+            if (!workflowOutput) {
+                return;
+            }
+
+            if (getFilledCount() > 0 || hasTextContent()) {
+                applyState('complete');
+                ensureSequentialSlots();
+                return;
+            }
+
+            applyState('idle');
+            gallerySlots.forEach((slot) => {
+                if (slot?.container) {
+                    slot.container.classList.add('is-inactive');
+                }
+            });
+        },
+        start() {
+            if (!workflowOutput) {
+                return;
+            }
+
+            applyState('running');
+            gallerySlots.forEach((slot) => {
+                if (!slot?.container) {
+                    return;
+                }
+
+                clearSlotContent(slot);
+            });
+            ensureSequentialSlots();
+        },
+        sync() {
+            if (!workflowOutput) {
+                return;
+            }
+
+            if (currentState === 'idle' && (getFilledCount() > 0 || hasTextContent())) {
+                applyState('complete');
+            }
+
+            ensureSequentialSlots();
+        },
+        finish() {
+            if (!workflowOutput) {
+                return;
+            }
+
+            if (getFilledCount() > 0 || hasTextContent()) {
+                applyState('complete');
+            } else {
+                applyState('idle');
+                gallerySlots.forEach((slot) => {
+                    if (!slot?.container) {
+                        return;
+                    }
+
+                    slot.container.classList.add('is-inactive');
+                    setSlotLoadingState(slot, false);
+                });
+            }
+
+            ensureSequentialSlots();
+        },
+        reset() {
+            if (!workflowOutput) {
+                return;
+            }
+
+            applyState('idle');
+            gallerySlots.forEach((slot) => {
+                if (!slot?.container) {
+                    return;
+                }
+
+                clearSlotContent(slot);
+                slot.container.classList.add('is-inactive');
+                setSlotLoadingState(slot, false);
+            });
+        },
+    };
+};
+
+workflowOutputController = createWorkflowOutputController();
+if (workflowOutputController) {
+    workflowOutputController.init();
+}
 
 const getSlotPreviewData = (slot) => {
     if (!slot || !slot.container) {
@@ -806,6 +971,7 @@ function renderGeneratedImages(images) {
                 imageElement.alt = altText;
 
                 slot.container.classList.add('has-image');
+                slot.container.classList.remove('is-inactive');
                 slot.container.dataset.hasContent = 'true';
                 slot.container.dataset.currentSrc = resolvedUrl;
                 slot.container.dataset.isLoading = 'false';
@@ -820,6 +986,10 @@ function renderGeneratedImages(images) {
         slot.container.dataset.isLoading = 'false';
         lastKnownImages[slot.key] = null;
     });
+
+    if (workflowOutputController) {
+        workflowOutputController.sync();
+    }
 }
 
 gallerySlots.forEach((slot) => {
@@ -959,22 +1129,17 @@ const setLoadingState = (loading, options = {}) => {
 
     if (loading) {
         hasObservedActiveRun = true;
+        if (workflowOutputController) {
+            workflowOutputController.start();
+        }
     } else if (!options || options.indicatorState !== 'success') {
         hasObservedActiveRun = false;
-    }
-
-    // Nur anzeigen, wenn der Workflow tatsächlich läuft
-    gallerySlots.forEach((slot) => {
-        if (loading) {
-            clearSlotContent(slot);
-            setSlotLoadingState(slot, true);
-        } else {
-            setSlotLoadingState(slot, false);
-            if (!slot.container || slot.container.dataset.hasContent !== 'true') {
-                clearSlotContent(slot);
-            }
+        if (workflowOutputController) {
+            workflowOutputController.finish();
         }
-    });
+    } else if (workflowOutputController) {
+        workflowOutputController.finish();
+    }
 
     if (loading) {
         hasShownCompletion = false;
@@ -1376,6 +1541,10 @@ const updateInterfaceFromData = (data) => {
         }
     });
 
+    if (workflowOutputController) {
+        workflowOutputController.sync();
+    }
+
     if (!isRunning) {
         stopPolling();
     }
@@ -1436,6 +1605,10 @@ const applyRunDataToUI = (payload) => {
             lastKnownImages[slotKey] = null;
         }
     });
+
+    if (workflowOutputController) {
+        workflowOutputController.sync();
+    }
 
     if (data.run) {
         statusRaw = typeof data.run.status === 'string' ? data.run.status.trim().toLowerCase() : '';
@@ -1934,10 +2107,14 @@ function showPlaceholderImages(withPulse = false) {
 
     setScanOverlayActive(false);
 
-    gallerySlots.forEach((slot) => {
-        clearSlotContent(slot);
-        setSlotLoadingState(slot, withPulse);
-    });
+    if (workflowOutputController) {
+        workflowOutputController.reset();
+    } else {
+        gallerySlots.forEach((slot) => {
+            clearSlotContent(slot);
+            setSlotLoadingState(slot, Boolean(withPulse));
+        });
+    }
 
     Object.keys(lastKnownImages).forEach((key) => {
         lastKnownImages[key] = null;
