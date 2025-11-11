@@ -712,6 +712,55 @@ body {
     width: 100%;
 }
 
+/* Output-Panels (dunkle Fenster für Text) */
+.output-panel {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 0.75rem 0 0.75rem;
+}
+
+.output-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.output-copy {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: 9999px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+    cursor: pointer;
+}
+
+.output-copy:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.output-body {
+    padding: 0.4rem 0.75rem 0.75rem 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.78rem;
+    line-height: 1.25rem;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    min-height: 2.6rem;
+}
+
 .skeleton-text {
     display: none;
     gap: 0.5rem;
@@ -754,8 +803,12 @@ body {
     }
 }
 
-.is-loading .field-content {
+.field-group.is-loading .field-content {
     display: none;
+}
+
+.field-group.is-loading .skeleton-text {
+    display: flex;
 }
 
 .is-loading .skeleton-text {

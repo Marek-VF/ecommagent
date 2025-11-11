@@ -192,31 +192,28 @@ $appConfig = [
                         </div>
                     </div>
                 </div>
-                <div class="form-group field-group is-loading" id="article-name-group">
-                    <label for="article_name">Artikelname</label>
-                    <div class="field-content">
-                        <input
-                            type="text"
-                            id="article_name"
-                            name="article_name"
-                            placeholder="Name eingeben"
-                            class="article-input"
-                        >
+                <!-- Artikelname-Ausgabe -->
+                <div class="field-group is-loading" id="article-name-group">
+                    <div class="field-content output-panel">
+                        <div class="output-header">
+                            <span class="output-title">Artikelname</span>
+                            <button type="button" class="output-copy" data-copy-target="#article-name-content">Kopieren</button>
+                        </div>
+                        <pre class="output-body" id="article-name-content"></pre>
                     </div>
                     <div class="skeleton-text" aria-hidden="true">
                         <div class="skeleton-line short"></div>
                     </div>
                 </div>
-                <div class="form-group field-group is-loading" id="article-description-group">
-                    <label for="article_description">Artikelbeschreibung</label>
-                    <div class="field-content">
-                        <textarea
-                            id="article_description"
-                            name="article_description"
-                            rows="6"
-                            placeholder="Beschreibung eingeben"
-                            class="article-textarea"
-                        ></textarea>
+
+                <!-- Artikelbeschreibung-Ausgabe -->
+                <div class="field-group is-loading" id="article-description-group">
+                    <div class="field-content output-panel">
+                        <div class="output-header">
+                            <span class="output-title">Artikelbeschreibung</span>
+                            <button type="button" class="output-copy" data-copy-target="#article-description-content">Kopieren</button>
+                        </div>
+                        <pre class="output-body" id="article-description-content"></pre>
                     </div>
                     <div class="skeleton-text" aria-hidden="true">
                         <div class="skeleton-line"></div>

@@ -8,8 +8,8 @@ const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
 const newButton = document.getElementById('btn-new');
 const workflowFeedback = document.getElementById('workflow-feedback');
-const articleNameInput = document.getElementById('article_name');
-const articleDescriptionInput = document.getElementById('article_description');
+const articleNameOutput = document.getElementById('article-name-content');
+const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
 const articleDescriptionGroup = document.getElementById('article-description-group');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
@@ -429,18 +429,50 @@ const updateArticleFieldsFromData = (data) => {
     const hasName = articleName.trim() !== '';
     const hasDescription = articleDescription.trim() !== '';
 
-    if (articleNameInput) {
-        articleNameInput.value = hasName ? articleName : '';
+    if (articleNameOutput) {
+        articleNameOutput.textContent = hasName ? articleName : '';
     }
 
     setFieldGroupLoading(articleNameGroup, !hasName);
 
-    if (articleDescriptionInput) {
-        articleDescriptionInput.value = hasDescription ? articleDescription : '';
+    if (articleDescriptionOutput) {
+        articleDescriptionOutput.textContent = hasDescription ? articleDescription : '';
     }
 
     setFieldGroupLoading(articleDescriptionGroup, !hasDescription);
 };
+
+function initCopyButtons() {
+    document.querySelectorAll('.output-copy').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const targetSelector = btn.getAttribute('data-copy-target');
+            const targetEl = targetSelector ? document.querySelector(targetSelector) : null;
+            if (!targetEl) {
+                return;
+            }
+
+            const text = targetEl.textContent || '';
+            if (!text) {
+                return;
+            }
+
+            navigator.clipboard
+                .writeText(text)
+                .then(() => {
+                    btn.textContent = 'Kopiert';
+                    setTimeout(() => {
+                        btn.textContent = 'Kopieren';
+                    }, 1200);
+                })
+                .catch(() => {
+                    btn.textContent = 'Fehler';
+                    setTimeout(() => {
+                        btn.textContent = 'Kopieren';
+                    }, 1200);
+                });
+        });
+    });
+}
 
 const resolveLatestStatusMessage = (payload) => {
     if (!payload || typeof payload !== 'object') {
@@ -1883,12 +1915,12 @@ gallerySlots.forEach((slot) => {
 });
 
 function clearProductFields() {
-    if (articleNameInput) {
-        articleNameInput.value = '';
+    if (articleNameOutput) {
+        articleNameOutput.textContent = '';
     }
 
-    if (articleDescriptionInput) {
-        articleDescriptionInput.value = '';
+    if (articleDescriptionOutput) {
+        articleDescriptionOutput.textContent = '';
     }
 
     setFieldGroupLoading(articleNameGroup, true);
@@ -1980,6 +2012,8 @@ function resetFrontendState(options = {}) {
 function setInitialUiState() {
     resetFrontendState();
 }
+
+document.addEventListener('DOMContentLoaded', initCopyButtons);
 
 document.addEventListener('DOMContentLoaded', () => {
     setInitialUiState();
