@@ -110,6 +110,23 @@ const toAbsoluteUrl = (path) => {
     return `/${normalizedPath}`;
 };
 
+function attachLightboxToImage(imgEl, srcOverride) {
+    if (!imgEl) return;
+    const src = srcOverride || imgEl.getAttribute('data-full') || imgEl.src;
+    if (!src) return;
+
+    imgEl.style.cursor = 'pointer';
+    imgEl.addEventListener(
+        'click',
+        function () {
+            if (typeof openLightbox === 'function') {
+                openLightbox(src);
+            }
+        },
+        { once: false },
+    );
+}
+
 const pad2 = (value) => String(value).padStart(2, '0');
 
 const parseDateValue = (value) => {
@@ -289,8 +306,10 @@ const appendOriginalImagePreview = (url, options = {}) => {
     img.src = rawUrl;
     img.alt = 'Originalbild';
     img.classList.add('original-image-preview');
+    img.setAttribute('data-full', rawUrl);
     originalImagesWrapper.appendChild(img);
     applyFadeInAnimation(img);
+    attachLightboxToImage(img, rawUrl);
     updateOriginalImageLayoutMode();
 
     if (options.updateState !== false) {
