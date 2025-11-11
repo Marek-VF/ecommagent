@@ -53,7 +53,7 @@ body {
     transform: translateY(0);
 }
 
-.app { 
+.app {
     width: min(1200px, 100%);
     background: rgba(15, 17, 22, 0.8);
     backdrop-filter: blur(18px);
@@ -63,6 +63,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
 }
 
 .app__header {
@@ -400,6 +401,9 @@ body {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 32px;
     padding: 32px 40px 40px;
+    flex: 1 1 0;
+    min-height: 0;
+    align-items: stretch;
 }
 
 .panel {
@@ -411,6 +415,8 @@ body {
     flex-direction: column;
     gap: 24px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+    min-height: 0;
+    height: 100%;
 }
 
 .panel--upload {
@@ -418,10 +424,12 @@ body {
     padding: 0;
     gap: 0;
     overflow: hidden;
+    min-height: 0;
 }
 
 .panel--details {
     grid-column: span 8;
+    min-height: 0;
 }
 
 .panel h2 {
@@ -620,16 +628,12 @@ body {
 
 
 #workflow-output {
-    min-height: 420px;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
     justify-content: flex-start;
-    transition: min-height 0.3s ease;
-}
-
-#workflow-output.is-active {
-    min-height: 420px;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .workflow-output {
@@ -678,6 +682,16 @@ body {
         height 0.4s ease, opacity 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.generated-slot:not(.has-image) {
+    cursor: default;
+    pointer-events: none;
+}
+
+.generated-slot.has-image {
+    pointer-events: auto;
+    cursor: pointer;
 }
 
 .generated-slot.is-hidden {

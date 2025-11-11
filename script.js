@@ -2084,13 +2084,25 @@ gallerySlots.forEach((slot) => {
     }
 
     const open = () => {
+        if (!slot.container.classList.contains('has-image')) {
+            return;
+        }
+
         const { src, alt } = getSlotPreviewData(slot);
+        if (!src || src === PLACEHOLDER_SRC) {
+            return;
+        }
+
         openLightbox(src, alt);
     };
 
     slot.container.addEventListener('click', open);
     slot.container.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
+            if (!slot.container.classList.contains('has-image')) {
+                return;
+            }
+
             event.preventDefault();
             open();
         }
