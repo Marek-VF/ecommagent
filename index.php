@@ -176,76 +176,83 @@ $appConfig = [
             </section>
             <section class="panel panel--details">
                 <div id="workflow-output" class="workflow-output is-idle">
-                    <div class="generated-grid" aria-label="Generierte Bilder">
-                        <div
-                            class="generated-slot"
-                            data-slot="1"
-                            role="button"
-                            aria-label="Bildvorschau 1"
-                            tabindex="0"
-                        >
-                            <div class="render-shell"><div class="render-box"></div></div>
+                    <div class="workflow-header"><!-- optional --></div>
+
+                    <div class="workflow-body">
+                        <div class="generated-grid" aria-label="Generierte Bilder">
+                            <div
+                                class="generated-slot"
+                                data-slot="1"
+                                role="button"
+                                aria-label="Bildvorschau 1"
+                                tabindex="0"
+                            >
+                                <div class="render-shell"><div class="render-box"></div></div>
+                            </div>
+                            <div
+                                class="generated-slot"
+                                data-slot="2"
+                                role="button"
+                                aria-label="Bildvorschau 2"
+                                tabindex="0"
+                            >
+                                <div class="render-shell"><div class="render-box"></div></div>
+                            </div>
+                            <div
+                                class="generated-slot"
+                                data-slot="3"
+                                role="button"
+                                aria-label="Bildvorschau 3"
+                                tabindex="0"
+                            >
+                                <div class="render-shell"><div class="render-box"></div></div>
+                            </div>
                         </div>
-                        <div
-                            class="generated-slot"
-                            data-slot="2"
-                            role="button"
-                            aria-label="Bildvorschau 2"
-                            tabindex="0"
-                        >
-                            <div class="render-shell"><div class="render-box"></div></div>
+
+                        <div class="field-group is-loading" id="article-name-group">
+                            <div class="field-content output-panel">
+                                <div class="output-header">
+                                    <span class="output-title">Artikelname</span>
+                                    <button
+                                        type="button"
+                                        class="output-copy"
+                                        data-copy-target="#article-name-content"
+                                    >Kopieren</button>
+                                </div>
+                                <pre class="output-body" id="article-name-content"></pre>
+                            </div>
+                            <div class="skeleton-text" aria-hidden="true">
+                                <div class="skeleton-line short"></div>
+                            </div>
                         </div>
-                        <div
-                            class="generated-slot"
-                            data-slot="3"
-                            role="button"
-                            aria-label="Bildvorschau 3"
-                            tabindex="0"
-                        >
-                            <div class="render-shell"><div class="render-box"></div></div>
+
+                        <div class="field-group is-loading" id="article-description-group">
+                            <div class="field-content output-panel">
+                                <div class="output-header">
+                                    <span class="output-title">Artikelbeschreibung</span>
+                                    <button
+                                        type="button"
+                                        class="output-copy"
+                                        data-copy-target="#article-description-content"
+                                    >Kopieren</button>
+                                </div>
+                                <pre class="output-body" id="article-description-content"></pre>
+                            </div>
+                            <div class="skeleton-text" aria-hidden="true">
+                                <div class="skeleton-line"></div>
+                                <div class="skeleton-line"></div>
+                                <div class="skeleton-line medium"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="field-group is-loading" id="article-name-group">
-                        <div class="field-content output-panel">
-                            <div class="output-header">
-                                <span class="output-title">Artikelname</span>
-                                <button
-                                    type="button"
-                                    class="output-copy"
-                                    data-copy-target="#article-name-content"
-                                >Kopieren</button>
-                            </div>
-                            <pre class="output-body" id="article-name-content"></pre>
+                    <div class="workflow-footer">
+                        <div class="footer-row">
+                            <button id="start-workflow-btn" class="btn-primary">Workflow starten</button>
                         </div>
-                        <div class="skeleton-text" aria-hidden="true">
-                            <div class="skeleton-line short"></div>
-                        </div>
-                    </div>
-
-                    <div class="field-group is-loading" id="article-description-group">
-                        <div class="field-content output-panel">
-                            <div class="output-header">
-                                <span class="output-title">Artikelbeschreibung</span>
-                                <button
-                                    type="button"
-                                    class="output-copy"
-                                    data-copy-target="#article-description-content"
-                                >Kopieren</button>
-                            </div>
-                            <pre class="output-body" id="article-description-content"></pre>
-                        </div>
-                        <div class="skeleton-text" aria-hidden="true">
-                            <div class="skeleton-line"></div>
-                            <div class="skeleton-line"></div>
-                            <div class="skeleton-line medium"></div>
-                        </div>
+                        <div id="status-bar" class="status-bar" aria-live="polite"></div>
                     </div>
                 </div>
-                <div class="form-actions">
-                    <button id="btn-new" type="button" class="btn btn--primary">Workflow starten</button>
-                </div>
-                <div id="workflow-feedback" class="workflow-feedback" role="alert" aria-live="polite"></div>
             </section>
         </main>
     </div>
