@@ -80,6 +80,23 @@ const DATA_ENDPOINT = 'api/get-latest-item.php';
 const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
 const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
 
+function updateStartButtonState(hasUpload) {
+    const btn = document.getElementById('start-workflow-btn');
+    if (!btn) {
+        return;
+    }
+
+    if (hasUpload) {
+        btn.removeAttribute('disabled');
+        btn.classList.remove('is-disabled');
+        btn.setAttribute('aria-disabled', 'false');
+    } else {
+        btn.setAttribute('disabled', 'true');
+        btn.classList.add('is-disabled');
+        btn.setAttribute('aria-disabled', 'true');
+    }
+}
+
 const setScanOverlayActive = (isActive) => {
     if (!previewList) {
         return;
@@ -1085,19 +1102,17 @@ const sanitizeLogMessage = (value) => {
 };
 
 function updateWorkflowButtonState() {
+    const hasRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
+    updateStartButtonState(hasRun);
+
     if (!startWorkflowButton) {
         return;
     }
 
-    const hasRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
-    const shouldDisable = !hasRun || isProcessing || isStartingWorkflow;
-
-    startWorkflowButton.disabled = shouldDisable;
-
-    if (shouldDisable) {
+    if (isProcessing || isStartingWorkflow) {
+        startWorkflowButton.setAttribute('disabled', 'true');
+        startWorkflowButton.classList.add('is-disabled');
         startWorkflowButton.setAttribute('aria-disabled', 'true');
-    } else {
-        startWorkflowButton.removeAttribute('aria-disabled');
     }
 }
 
@@ -1385,6 +1400,13 @@ const handleFiles = (files) => {
     uploadFiles(files);
 };
 
+function onWorkflowStarted() {
+    const out = document.getElementById('workflow-output');
+    if (out) {
+        out.classList.remove('is-idle');
+    }
+}
+
 async function startWorkflow() {
     const runId = window.currentRunId;
     const numericRunId = Number(runId);
@@ -1399,6 +1421,7 @@ async function startWorkflow() {
     }
 
     clearWorkflowFeedback();
+    onWorkflowStarted();
     isStartingWorkflow = true;
     updateWorkflowButtonState();
 

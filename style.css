@@ -634,7 +634,6 @@ body {
     min-height: 0;
     background: var(--card-bg, rgba(20, 20, 25, 0.4));
     border-radius: 16px;
-    overflow: hidden;
 }
 
 .workflow-output {
@@ -649,38 +648,51 @@ body {
     margin-bottom: 0;
 }
 
-.workflow-output.is-idle {
-    opacity: 0;
-    visibility: hidden;
-}
-
 .workflow-output.is-running,
 .workflow-output.is-complete {
     opacity: 1;
     visibility: visible;
 }
 
+.workflow-output.is-idle .workflow-body {
+    opacity: 0.35;
+    filter: saturate(0.7);
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.workflow-output.is-idle .workflow-footer {
+    opacity: 1;
+    filter: none;
+    pointer-events: auto;
+}
+
 .workflow-body {
     flex: 1 1 auto;
-    overflow-y: auto;
     min-height: 0;
+    overflow: auto;
     padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+    opacity: 1;
+    filter: none;
+    transition: opacity 0.2s ease;
 }
 
 .workflow-footer {
     flex: 0 0 auto;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
     background: rgba(10, 10, 15, 0.6);
     backdrop-filter: blur(4px);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.75rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.6rem;
     align-items: flex-end;
-    z-index: 10;
 }
 
 .status-bar {
@@ -696,7 +708,9 @@ body {
 }
 
 #start-workflow-btn {
-    display: inline-block;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     align-self: flex-end;
     background: rgb(65, 90, 245);
     color: white;
