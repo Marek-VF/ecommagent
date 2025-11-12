@@ -6,8 +6,8 @@ const originalImagesWrapper = document.querySelector('[data-original-images]');
 const lightbox = document.getElementById('lightbox');
 const lightboxImage = lightbox.querySelector('.lightbox__image');
 const lightboxClose = lightbox.querySelector('.lightbox__close');
-const newButton = document.getElementById('btn-new');
-const workflowFeedback = document.getElementById('workflow-feedback');
+const startWorkflowButton = document.getElementById('start-workflow-btn');
+const statusBar = document.getElementById('status-bar');
 const articleNameOutput = document.getElementById('article-name-content');
 const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
@@ -28,10 +28,10 @@ const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 
 let workflowOutputController = null;
 
-const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'workflow-feedback--visible';
-const WORKFLOW_FEEDBACK_ERROR_CLASS = 'workflow-feedback--error';
-const WORKFLOW_FEEDBACK_SUCCESS_CLASS = 'workflow-feedback--success';
-const WORKFLOW_FEEDBACK_INFO_CLASS = 'workflow-feedback--info';
+const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'status-bar--visible';
+const WORKFLOW_FEEDBACK_ERROR_CLASS = 'status-bar--error';
+const WORKFLOW_FEEDBACK_SUCCESS_CLASS = 'status-bar--success';
+const WORKFLOW_FEEDBACK_INFO_CLASS = 'status-bar--info';
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
     ? Number(window.currentRunId)
@@ -1064,45 +1064,45 @@ const sanitizeLogMessage = (value) => {
 };
 
 function updateWorkflowButtonState() {
-    if (!newButton) {
+    if (!startWorkflowButton) {
         return;
     }
 
     const hasRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
     const shouldDisable = !hasRun || isProcessing || isStartingWorkflow;
 
-    newButton.disabled = shouldDisable;
+    startWorkflowButton.disabled = shouldDisable;
 
     if (shouldDisable) {
-        newButton.setAttribute('aria-disabled', 'true');
+        startWorkflowButton.setAttribute('aria-disabled', 'true');
     } else {
-        newButton.removeAttribute('aria-disabled');
+        startWorkflowButton.removeAttribute('aria-disabled');
     }
 }
 
 function clearWorkflowFeedback() {
-    if (!workflowFeedback) {
+    if (!statusBar) {
         return;
     }
 
-    workflowFeedback.textContent = '';
-    workflowFeedback.classList.remove(
+    statusBar.textContent = '';
+    statusBar.classList.remove(
         WORKFLOW_FEEDBACK_VISIBLE_CLASS,
         WORKFLOW_FEEDBACK_ERROR_CLASS,
         WORKFLOW_FEEDBACK_SUCCESS_CLASS,
         WORKFLOW_FEEDBACK_INFO_CLASS,
     );
-    workflowFeedback.setAttribute('hidden', 'hidden');
+    statusBar.setAttribute('hidden', 'hidden');
 }
 
 function showWorkflowFeedback(level, message) {
-    if (!workflowFeedback) {
+    if (!statusBar) {
         return;
     }
 
     const normalizedMessage = sanitizeLogMessage(message);
 
-    workflowFeedback.classList.remove(
+    statusBar.classList.remove(
         WORKFLOW_FEEDBACK_ERROR_CLASS,
         WORKFLOW_FEEDBACK_SUCCESS_CLASS,
         WORKFLOW_FEEDBACK_INFO_CLASS,
@@ -1122,9 +1122,9 @@ function showWorkflowFeedback(level, message) {
         className = WORKFLOW_FEEDBACK_SUCCESS_CLASS;
     }
 
-    workflowFeedback.textContent = normalizedMessage;
-    workflowFeedback.classList.add(WORKFLOW_FEEDBACK_VISIBLE_CLASS, className);
-    workflowFeedback.removeAttribute('hidden');
+    statusBar.textContent = normalizedMessage;
+    statusBar.classList.add(WORKFLOW_FEEDBACK_VISIBLE_CLASS, className);
+    statusBar.removeAttribute('hidden');
 }
 
 function setCurrentRun(runId, userId) {
@@ -1404,8 +1404,8 @@ async function startWorkflow() {
     isStartingWorkflow = true;
     updateWorkflowButtonState();
 
-    if (newButton) {
-        newButton.setAttribute('aria-busy', 'true');
+    if (startWorkflowButton) {
+        startWorkflowButton.setAttribute('aria-busy', 'true');
     }
 
     try {
@@ -1497,8 +1497,8 @@ async function startWorkflow() {
         setStatus('error', message);
     } finally {
         isStartingWorkflow = false;
-        if (newButton) {
-            newButton.removeAttribute('aria-busy');
+        if (startWorkflowButton) {
+            startWorkflowButton.removeAttribute('aria-busy');
         }
         updateWorkflowButtonState();
     }
@@ -2239,8 +2239,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupHistoryHandler();
     setupSidebarProfileMenu();
 
-    if (newButton) {
-        newButton.addEventListener('click', startWorkflow);
+    if (startWorkflowButton) {
+        startWorkflowButton.addEventListener('click', startWorkflow);
     }
 
     updateWorkflowButtonState();

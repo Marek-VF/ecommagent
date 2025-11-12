@@ -518,6 +518,38 @@ body {
     color: rgba(16, 18, 26, 0.7);
 }
 
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), #6f6bff);
+    color: #10121a;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition), filter var(--transition);
+    box-shadow: 0 12px 24px rgba(79, 140, 255, 0.28);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+    background: linear-gradient(135deg, var(--accent-hover), #8c7bff);
+    transform: translateY(-2px);
+    outline: none;
+}
+
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
+    background: linear-gradient(135deg, rgba(79, 140, 255, 0.45), rgba(140, 123, 255, 0.45));
+    color: rgba(16, 18, 26, 0.7);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .preview-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -639,10 +671,48 @@ body {
 .workflow-output {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
     opacity: 1;
     visibility: visible;
     transition: opacity var(--transition);
+}
+
+.workflow-header {
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+.workflow-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding-right: 0.25rem;
+}
+
+.workflow-body::-webkit-scrollbar {
+    width: 0.5rem;
+}
+
+.workflow-body::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+}
+
+.workflow-footer {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footer-row {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .workflow-output .field-group {
@@ -926,8 +996,7 @@ textarea {
     justify-content: flex-end;
 }
 
-.workflow-feedback {
-    margin-top: 12px;
+.status-bar {
     padding: 12px 16px;
     border-radius: var(--radius-md);
     border: 1px solid transparent;
@@ -940,25 +1009,25 @@ textarea {
     display: none;
 }
 
-.workflow-feedback--visible {
+.status-bar--visible {
     display: block;
     opacity: 1;
     transform: translateY(0);
 }
 
-.workflow-feedback--error {
+.status-bar--error {
     border-color: rgba(var(--status-error-rgb), 0.45);
     background: rgba(var(--status-error-rgb), 0.15);
     color: rgba(var(--status-error-rgb), 0.9);
 }
 
-.workflow-feedback--success {
+.status-bar--success {
     border-color: rgba(var(--status-success-rgb), 0.45);
     background: rgba(var(--status-success-rgb), 0.15);
     color: rgba(var(--status-success-rgb), 0.9);
 }
 
-.workflow-feedback--info {
+.status-bar--info {
     border-color: rgba(var(--status-info-rgb), 0.45);
     background: rgba(var(--status-info-rgb), 0.15);
     color: rgba(var(--status-info-rgb), 0.9);
