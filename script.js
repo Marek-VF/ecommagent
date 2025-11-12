@@ -32,6 +32,7 @@ const WORKFLOW_FEEDBACK_VISIBLE_CLASS = 'status-bar--visible';
 const WORKFLOW_FEEDBACK_ERROR_CLASS = 'status-bar--error';
 const WORKFLOW_FEEDBACK_SUCCESS_CLASS = 'status-bar--success';
 const WORKFLOW_FEEDBACK_INFO_CLASS = 'status-bar--info';
+const WORKFLOW_FEEDBACK_WARNING_CLASS = 'status-bar--warning';
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
     ? Number(window.currentRunId)
@@ -1091,6 +1092,7 @@ function clearWorkflowFeedback() {
         WORKFLOW_FEEDBACK_ERROR_CLASS,
         WORKFLOW_FEEDBACK_SUCCESS_CLASS,
         WORKFLOW_FEEDBACK_INFO_CLASS,
+        WORKFLOW_FEEDBACK_WARNING_CLASS,
     );
     statusBar.setAttribute('hidden', 'hidden');
 }
@@ -1106,6 +1108,7 @@ function showWorkflowFeedback(level, message) {
         WORKFLOW_FEEDBACK_ERROR_CLASS,
         WORKFLOW_FEEDBACK_SUCCESS_CLASS,
         WORKFLOW_FEEDBACK_INFO_CLASS,
+        WORKFLOW_FEEDBACK_WARNING_CLASS,
     );
 
     if (!normalizedMessage) {
@@ -1120,11 +1123,38 @@ function showWorkflowFeedback(level, message) {
         className = WORKFLOW_FEEDBACK_ERROR_CLASS;
     } else if (normalizedLevel === 'success') {
         className = WORKFLOW_FEEDBACK_SUCCESS_CLASS;
+    } else if (normalizedLevel === 'warning' || normalizedLevel === 'warn') {
+        className = WORKFLOW_FEEDBACK_WARNING_CLASS;
+    } else if (normalizedLevel === 'ok') {
+        className = WORKFLOW_FEEDBACK_SUCCESS_CLASS;
     }
 
     statusBar.textContent = normalizedMessage;
     statusBar.classList.add(WORKFLOW_FEEDBACK_VISIBLE_CLASS, className);
     statusBar.removeAttribute('hidden');
+}
+
+function setStatusMessage(html, type = 'info') {
+    const normalizedType = typeof type === 'string' ? type.trim().toLowerCase() : 'info';
+
+    if (html === undefined || html === null || String(html).trim() === '') {
+        clearWorkflowFeedback();
+        return;
+    }
+
+    let mappedType = normalizedType;
+
+    if (normalizedType === 'ok') {
+        mappedType = 'success';
+    } else if (normalizedType === 'warn') {
+        mappedType = 'warning';
+    }
+
+    showWorkflowFeedback(mappedType, html);
+
+    if (statusBar) {
+        statusBar.innerHTML = String(html);
+    }
 }
 
 function setCurrentRun(runId, userId) {

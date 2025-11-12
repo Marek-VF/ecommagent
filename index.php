@@ -212,7 +212,7 @@ $appConfig = [
                         <div class="field-group is-loading" id="article-name-group">
                             <div class="field-content output-panel">
                                 <div class="output-header">
-                                    <span class="output-title">Artikelname</span>
+                                    <span class="output-title">ARTIKELNAME</span>
                                     <button
                                         type="button"
                                         class="output-copy"
@@ -229,7 +229,7 @@ $appConfig = [
                         <div class="field-group is-loading" id="article-description-group">
                             <div class="field-content output-panel">
                                 <div class="output-header">
-                                    <span class="output-title">Artikelbeschreibung</span>
+                                    <span class="output-title">ARTIKELBESCHREIBUNG</span>
                                     <button
                                         type="button"
                                         class="output-copy"
