@@ -38,7 +38,7 @@ body {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    align-items: stretch;
+    align-items: flex-start;
     padding: 40px;
 }
 
@@ -60,7 +60,6 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
-    overflow: hidden;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -116,6 +115,25 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+.app__status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 40px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app__status-row .status-bar {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.app__status-row-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .app__message {
@@ -522,6 +540,7 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
+    margin-bottom: 1.5rem;
 }
 
 .original-image-wrapper {
@@ -531,6 +550,7 @@ body {
     align-items: flex-start;
     gap: 1rem;
     margin-top: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .original-image-wrapper img.original-image-preview {
@@ -661,16 +681,8 @@ body {
     transition: opacity 0.2s ease;
 }
 
-.workflow-output.is-idle .workflow-footer {
-    opacity: 1;
-    filter: none;
-    pointer-events: auto;
-}
-
 .workflow-body {
     flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
     padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
@@ -678,21 +690,7 @@ body {
     opacity: 1;
     filter: none;
     transition: opacity 0.2s ease;
-}
-
-.workflow-footer {
-    flex: 0 0 auto;
-    position: sticky;
-    bottom: 0;
-    z-index: 20;
-    background: rgba(10, 10, 15, 0.6);
-    backdrop-filter: blur(4px);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 0.75rem 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    align-items: flex-end;
+    overflow: visible;
 }
 
 .status-bar {
@@ -711,7 +709,6 @@ body {
     display: inline-block !important;
     visibility: visible !important;
     opacity: 1 !important;
-    align-self: flex-end;
     background: rgb(65, 90, 245);
     color: white;
     font-weight: 500;
