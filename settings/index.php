@@ -50,6 +50,10 @@ $content = ob_get_clean();
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
                 >Bildeinstellungen</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
+                    href="image_variants.php"
+                >Bildvarianten</a>
             </nav>
             <div class="settings-content">
                 <?php echo $content; ?>

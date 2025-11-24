@@ -117,6 +117,28 @@ CREATE TABLE IF NOT EXISTS `item_images` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
+-- PROMPT VARIANTS (Bildvarianten-Prompts je Benutzer + Kategorie)
+-- =========================================
+CREATE TABLE IF NOT EXISTS `prompt_variants` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT UNSIGNED NOT NULL,
+  `category` VARCHAR(100) NOT NULL,
+  `variant_slot` TINYINT UNSIGNED NOT NULL, -- 1, 2 oder 3
+  `location` TEXT NOT NULL,
+  `lighting` TEXT NOT NULL,
+  `mood` TEXT NOT NULL,
+  `season` VARCHAR(100) NOT NULL,
+  `model_type` VARCHAR(255) NOT NULL,
+  `model_pose` TEXT NOT NULL,
+  `view_mode` ENUM('full_body','garment_closeup') NOT NULL DEFAULT 'full_body',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_user_category_slot` (`user_id`,`category`,`variant_slot`),
+  CONSTRAINT `fk_prompt_variants_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =========================================
 -- (Optional) Minimaler Smoke-Test – nur ausführen, wenn user_id=1 existiert
 -- =========================================
 INSERT INTO `user_state` (`user_id`,`last_status`,`last_message`)
