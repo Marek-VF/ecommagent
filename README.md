@@ -1,155 +1,196 @@
-# Ecomm Agent
+# Ecomm Agent  
+PHP 8.2 · MySQL 8.4 · n8n Integration
 
-**Ecomm Agent** ist eine PHP 8.2 / MySQL 8.4 Webanwendung zur halbautomatischen Produkt- und Bildverarbeitung über einen externen **n8n-Workflow**.  
-Benutzer können Bilder hochladen, den Workflow starten und erhalten automatisch generierte Produktbeschreibungen und Bilder.  
-Alle Durchläufe („Runs“) werden in einer Historie gespeichert und sind jederzeit erneut abrufbar.
+Ecomm Agent ist eine Multi-User Webanwendung zur automatisierten Generierung von
+Produktdaten und KI-Bildern. Benutzer laden ein oder zwei Ausgangsbilder hoch,
+starten einen n8n-Workflow und erhalten anschließend automatisch generierte
+Produkttexte und Bilder zurück.  
 
----
-
-## 🚀 Funktionen
-
-- 📤 **Upload:** Benutzer lädt ein oder mehrere Bilder hoch. Dabei wird automatisch ein neuer Workflow-Run angelegt.
-- 🔗 **Workflow:** Über `start-workflow.php` werden Run-Daten und Bild-URLs an den konfigurierten n8n-Webhook übergeben.
-- 🔄 **Rückkanal:**  
-  - `receiver.php` empfängt Artikeldaten, Statusmeldungen und Abschluss-Informationen.  
-  - `webhook_image.php` empfängt von n8n generierte Bilder (multipart/form-data).
-- 🧠 **Polling:** Das Frontend fragt regelmäßig `api/get-latest-item.php` ab, um Run-Daten aktuell zu halten.
-- 🕓 **Verläufe:** Über `api/get-runs.php` und `api/get-run-details.php` können vergangene Runs geladen werden.
-- 👥 **Multi-User-System:** Benutzerverwaltung mit Registrierung, Login und Passwort-Reset.
-- ⚙️ **Benutzereinstellungen:** Profil- und Bild-Einstellungen (z. B. bevorzugtes Seitenverhältnis) im Bereich `/settings/`.
+Die Anwendung verwaltet Uploads, Workflow-Runs, Statusmeldungen und eine
+komplette Historie je Benutzer.
 
 ---
 
-## 📁 Projektstruktur
+## 🚀 Features
 
-```text
-.
-├── api/
-│   ├── get-latest-item.php
-│   ├── get-runs.php
-│   └── get-run-details.php
-├── auth/
-│   ├── login.php
-│   ├── register.php
-│   ├── verify.php
-│   ├── forgot.php
-│   ├── reset.php
-│   └── bootstrap.php
-├── settings/
-│   ├── index.php
-│   ├── profile.php
-│   ├── image.php
-│   └── update_image_settings.php
-├── docs/
-│   ├── technical_spec.txt
-│   └── codex_context.txt
-├── index.php
-├── upload.php
-├── start-workflow.php
-├── receiver.php
-├── webhook_image.php
-├── config.php
-├── db.php
-├── script.js
-├── style.css
-└── import.sql
+- Multi-User Login/Registrierung (Sessions, PHPMailer)
+- Upload von bis zu **zwei Originalbildern pro Run**
+- Übergabe der Run-Daten an einen externen n8n-Workflow
+- Rückkanäle für:
+  - Produktname, Beschreibung, Status
+  - generierte KI-Bilder
+- Live-Polling (alle 2 Sekunden)
+- Verlaufs-Sidebar mit vollständiger Run-Historie
+- Dark-Theme Frontend, dynamische Bildslots
+- Settings-Seite inkl. Bildratio-Präferenz (`image_ratio_preference`)
 
-⚙️ Installation
+---
 
-    Voraussetzungen
+## 🏗 Architekturüberblick
 
-        PHP ≥ 8.2 (z. B. XAMPP)
+Frontend (index.php + script.js)
+⇄ API (get-latest-item, get-runs, get-run-details)
+⇄ upload.php / start-workflow.php
+⇄ receiver.php / webhook_image.php
+⇄ MySQL 8.4
+⇄ n8n (Workflow-Webhook + Rückkanäle)
 
-        MySQL ≥ 8.4
 
-        Apache mit mod_rewrite
+Weitere Details findest du in der vollständigen technischen Spezifikation:  
+**`docs/technical_spec.txt`**
 
-    Datenbank importieren
+---
 
-        import.sql in eine leere Datenbank importieren.
+## 📦 Installation
 
-    Konfiguration anpassen
+### 1. Repository klonen
 
-        In config.php:
+```bash
+git clone <repo-url>
+cd ecommagent
 
-            base_url → Basis-URL der Installation
+2. Composer installieren (optional, falls PHPMailer nicht enthalten ist)
 
-            upload_dir → Pfad für hochgeladene Dateien
+composer install
 
-            workflow_webhook → n8n-Webhook-URL
+3. config.php einrichten
 
-            receiver_api_token → Token für n8n-Callbacks
+Kopiere ggf. config.example.php:
 
-    Benutzer registrieren
+cp config.example.php config.php
 
-        Registrierung über /auth/register.php oder direkt in der Datenbank.
+Wichtige Parameter:
 
-    Login
+$base_url = "https://example.com/ecommagent";
+$upload_dir = __DIR__ . "/uploads/";
+$workflow_webhook = "https://n8n.example.com/webhook/start";
 
-        Nach Login öffnet sich die Hauptoberfläche mit Upload- und Verlaufs-Modul.
+$receiver_api_token = "YOUR-SECURE-TOKEN";
+$receiver_api_allowed_ips = ["YOUR_N8N_IP"]; // optional
 
-🔌 n8n-Integration (Ablauf)
+4. Datenbank importieren
 
-    Upload → upload.php legt neuen Run und Upload-Datei an.
+Die Datei befindet sich hier:
 
-    Start-Button → start-workflow.php sendet Run- und Bilddaten an n8n.
+/mnt/data/import.sql
 
-    n8n ruft zurück:
+Import:
 
-        receiver.php überträgt Metadaten, Produktnamen, Beschreibung.
+mysql -u <user> -p <database> < import.sql
 
-        webhook_image.php überträgt generierte Bilder.
+5. Schreibrechte setzen
 
-    Frontend-Polling: ruft api/get-latest-item.php ab und aktualisiert Oberfläche.
+chmod -R 775 uploads/
 
-    Runs werden gespeichert in workflow_runs und sind über die Verlaufs-Sidebar wieder abrufbar.
+Oder je nach Hosting:
 
-🧠 Datenbankstruktur
-Tabelle	Zweck
-users	Benutzerkonten, Verifizierung, Reset, Präferenzen
-user_state	Letzter Status je Benutzer
-workflow_runs	Alle Durchläufe eines Benutzers
-item_notes	Von n8n gelieferte Produktnamen und Beschreibungen
-item_images	Von n8n generierte Bilder
-status_logs	Technische Statusmeldungen
-🧩 Code-Übersicht
+chown -R www-data:www-data uploads/
 
-    index.php – Hauptoberfläche mit Upload-Zone, Formular und Historie
+6. Webserver konfigurieren
 
-    upload.php – Empfängt Uploads und legt Runs an
+    Apache mit aktiviertem mod_rewrite
 
-    start-workflow.php – Startet externen n8n-Workflow
+    PHP ≥ 8.2 (PDO, GD, mbstring empfohlen)
 
-    receiver.php – Nimmt n8n-JSON-Daten entgegen
+🎛 Erster Start
 
-    webhook_image.php – Nimmt generierte Bilder von n8n entgegen
+    Aufruf der URL im Browser
 
-    script.js – Frontend-Logik: Upload, Polling, Sidebar, Fade-In-Animation
+    Registrierung über /auth/register.php
 
-    style.css – Dark-Theme, responsive Layout
+    Login und Upload von bis zu zwei Bildern
 
-    settings/ – Benutzerprofile & Bildverhältnis-Einstellungen
+    Workflow über „Starten“-Button auslösen
 
-    auth/ – Login, Registrierung, Passwort-Reset
+    n8n erledigt den Rest – Status & Ergebnisse erscheinen automatisch
 
-🔒 Sicherheit
+🧩 API Endpoints (Auszug)
+Endpoint	Methode	Beschreibung
+/api/get-latest-item.php	GET	Aggregiert Run + Text + generierte Bilder
+/api/get-runs.php	GET	Übersicht aller Runs eines Users
+/api/get-run-details.php	GET	Details eines spezifischen Runs
+/upload.php	POST	Erstellt neuen Run + speichert Originalbilder
+/start-workflow.php	POST	Startet den n8n-Workflow
+/receiver.php	POST	Nimmt JSON-Daten von n8n entgegen
+/webhook_image.php	POST	Nimmt generierte Bilder von n8n entgegen
 
-    Authentifizierung über Session-Tokens (Login erforderlich)
+Alle Endpoints außer Webhooks sind session-geschützt.
+🔐 Sicherheit
 
-    n8n-Callbacks prüfen Bearer-Token aus config.php
+    Password Hashing (password_hash)
 
-    Passwörter mit password_hash()
+    Session-basierte Auth
 
-    PDO-Prepared Statements gegen SQL-Injection
+    CSRF-sichere POST-Formulare
 
-    Keine externen Abhängigkeiten außer PHPMailer im Auth-Modul
+    Webhook-Schutz:
 
-🧾 Changelog (Stand 10.11.2025)
+        Bearer-Token
 
-    UI-Modernisierung (Dark Theme, Sidebar, Multi-Image-Layout)
+        optional: IP Whitelist (receiver_api_allowed_ips)
 
-    Erweiterung auf bis zu zwei Originalbilder je Run
+    PDO Prepared Statements für alle Datenbankoperationen
 
-    Überarbeitung der technischen Dokumentation
+🧱 Datenbankmodell
 
-    Aufnahme der Settings-Funktion pro Benutzer
+Wichtige Tabellen:
+
+    users – Benutzerkonten
+
+    user_state – letzter Status je User (für Polling optimiert)
+
+    workflow_runs – jeder Workflow-Durchlauf
+
+    run_images – Originalbilder (User-Uploads)
+
+    item_notes – Produktname/Beschreibung (aus n8n)
+
+    item_images – generierte Bilder
+
+    status_logs – Status-/Fehlerprotokoll
+
+DB-Schema:
+➡️ /mnt/data/import.sql
+🔄 Workflow-Ablauf
+
+    Upload → run_images
+
+    Neuer Run in workflow_runs
+
+    Start via start-workflow.php
+
+    Übergabe an n8n
+
+    Rückkanal (Produktdaten) → receiver.php
+
+    Rückkanal (Bilder) → webhook_image.php
+
+    UI-Polling → get-latest-item.php
+
+    Historie → get-runs.php + get-run-details.php
+
+🛠 Entwicklung
+Lokales Debugging
+
+    XAMPP / MAMP / Laragon geeignet
+
+    Zeitzone & Error Reporting in php.ini aktivieren
+
+    Browser-Konsole zeigt Statuswechsel (Polling)
+
+Änderungen entwickeln
+
+    Upload-Handler → upload.php
+
+    Workflow-Start → start-workflow.php
+
+    Rückkanäle → receiver.php & webhook_image.php
+
+    Frontend → index.php + script.js
+
+    Styles → style.css
+
+📄 Dokumentation
+
+Alle technischen Details stehen hier:
+➡️ docs/technical_spec.txt
