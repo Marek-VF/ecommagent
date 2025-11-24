@@ -131,12 +131,39 @@ body {
     justify-content: space-between;
     gap: 16px;
     padding: 0 40px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.app__status-row .status-bar {
+.status-bar {
     flex: 1 1 auto;
     margin: 0;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.status-bar--active {
+    padding: 0.5rem 1rem;
+    min-height: 2.25rem;
+    display: flex;
+    align-items: center;
+}
+
+.status-bar--info {
+    background: rgba(37, 99, 235, 0.25);
+    color: #e5f0ff;
+}
+
+.status-bar--success {
+    background: rgba(22, 163, 74, 0.25);
+    color: #dcfce7;
+}
+
+.status-bar--error {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fee2e2;
 }
 
 .app__status-row-button {

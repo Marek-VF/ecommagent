@@ -35,31 +35,29 @@ function setStatusMessage(text, type = 'info') {
         return;
     }
 
-    const normalizedText = text === null || text === undefined ? '' : String(text).trim();
+    const normalized = (text ?? '').toString().trim();
 
-    if (!normalizedText) {
+    bar.classList.remove('status-bar--active', 'status-bar--info', 'status-bar--success', 'status-bar--error');
+
+    if (!normalized) {
         bar.textContent = '';
-        bar.style.display = 'none';
         return;
     }
 
-    bar.style.display = 'block';
-    bar.textContent = normalizedText;
+    bar.textContent = normalized;
+    bar.classList.add('status-bar--active');
 
-    let background = 'rgba(255, 255, 255, 0.1)';
-    let borderColor = 'rgba(255, 255, 255, 0.2)';
-
-    if (type === 'ok') {
-        background = 'rgba(0, 128, 96, 0.25)';
-        borderColor = 'rgba(0, 128, 96, 0.35)';
-    } else if (type === 'error') {
-        background = 'rgba(180, 0, 0, 0.25)';
-        borderColor = 'rgba(180, 0, 0, 0.35)';
+    switch (type) {
+        case 'success':
+            bar.classList.add('status-bar--success');
+            break;
+        case 'error':
+            bar.classList.add('status-bar--error');
+            break;
+        default:
+            bar.classList.add('status-bar--info');
+            break;
     }
-
-    bar.style.background = background;
-    bar.style.borderColor = borderColor;
-    bar.style.color = 'rgba(255, 255, 255, 0.9)';
 }
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
@@ -1142,7 +1140,7 @@ function showWorkflowFeedback(level, message) {
     if (normalizedLevel === 'error') {
         statusType = 'error';
     } else if (normalizedLevel === 'success') {
-        statusType = 'ok';
+        statusType = 'success';
     }
 
     setStatusMessage(normalizedMessage, statusType);
