@@ -150,6 +150,10 @@ $appConfig = [
                 <h1>Ecomm Agent</h1>
             </div>
         </header>
+        <div class="app__status-row">
+            <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
+            <button id="start-workflow-btn" type="button" class="btn-primary app__status-row-button">Workflow starten</button>
+        </div>
         <?php if ($flashes !== []): ?>
         <div class="app__messages" aria-live="polite">
             <?php foreach ($flashes as $message): ?>
@@ -242,11 +246,6 @@ $appConfig = [
                                 <div class="skeleton-line medium"></div>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="workflow-footer">
-                        <button id="start-workflow-btn" type="button" class="btn-primary">Workflow starten</button>
-                        <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
                     </div>
                 </div>
             </section>

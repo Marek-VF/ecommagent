@@ -35,7 +35,15 @@ function setStatusMessage(text, type = 'info') {
         return;
     }
 
-    const normalizedText = text === null || text === undefined ? '' : String(text);
+    const normalizedText = text === null || text === undefined ? '' : String(text).trim();
+
+    if (!normalizedText) {
+        bar.textContent = '';
+        bar.style.display = 'none';
+        return;
+    }
+
+    bar.style.display = 'block';
     bar.textContent = normalizedText;
 
     let background = 'rgba(255, 255, 255, 0.1)';
