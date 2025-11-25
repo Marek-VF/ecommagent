@@ -16,25 +16,46 @@ if ($currentUser === null || !isset($currentUser['id'])) {
 
 $userId = (int) $currentUser['id'];
 
-$promptCategories = [
-    'fashion'    => 'Fashion',
-    'dekoration' => 'Dekoration',
-    'schmuck'    => 'Schmuck',
-];
+$categoryRows = db_get_prompt_categories($pdo);
+$promptCategories = [];
+
+foreach ($categoryRows as $catRow) {
+    $promptCategories[$catRow['category_key']] = $catRow['label'];
+}
+
+$userCategoryKey = null;
+
+if ($userId > 0) {
+    $userCategoryStmt = $pdo->prepare(
+        'SELECT pc.category_key
+           FROM users u
+           LEFT JOIN prompt_categories pc ON pc.id = u.prompt_category_id
+          WHERE u.id = :id
+          LIMIT 1'
+    );
+    $userCategoryStmt->execute([':id' => $userId]);
+    $userCategoryKey = $userCategoryStmt->fetchColumn() ?: null;
+}
+
+$defaultCategoryKey = $userCategoryKey;
+if ($defaultCategoryKey === null) {
+    $defaultCategoryKey = array_key_first($promptCategories) ?: '';
+}
 
 $promptLabels = include __DIR__ . '/prompt_labels.php';
 
 $variantStmt = $pdo->prepare(
-    'SELECT category, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode
-     FROM prompt_variants
-     WHERE user_id = :user_id'
+    'SELECT pv.category_id, pc.category_key, pv.variant_slot, pv.location, pv.lighting, pv.mood, pv.season, pv.model_type, pv.model_pose, pv.view_mode
+       FROM prompt_variants pv
+       INNER JOIN prompt_categories pc ON pc.id = pv.category_id
+      WHERE pv.user_id = :user_id'
 );
 $variantStmt->execute(['user_id' => $userId]);
 $rows = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $promptVariants = [];
 foreach ($rows as $row) {
-    $cat = $row['category'];
+    $cat = $row['category_key'];
     $slot = (int) $row['variant_slot'];
     if (!isset($promptVariants[$cat])) {
         $promptVariants[$cat] = [];
@@ -111,7 +132,10 @@ $activePage = 'image_variants';
                                 Kategorie
                                 <select id="prompt-category-select" name="prompt_category">
                                     <?php foreach ($promptCategories as $value => $label): ?>
-                                        <option value="<?php echo htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+                                        <option
+                                            value="<?php echo htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                            <?php echo ($value === $defaultCategoryKey) ? 'selected' : ''; ?>
+                                        >
                                             <?php echo htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -127,7 +151,7 @@ $activePage = 'image_variants';
 
                         <form id="prompt-variant-form" class="prompt-variant-form" autocomplete="off">
                             <input type="hidden" name="_token" value="<?php echo htmlspecialchars(auth_csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
-                            <input type="hidden" name="category" id="prompt-category-input" value="fashion">
+                            <input type="hidden" name="category" id="prompt-category-input" value="<?php echo htmlspecialchars($defaultCategoryKey, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
                             <input type="hidden" name="variant_slot" id="prompt-variant-slot-input" value="1">
 
                             <div class="prompt-variant-fields">

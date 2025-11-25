@@ -31,7 +31,7 @@ if ($currentUser === null || !isset($currentUser['id'])) {
 $pdo = auth_pdo();
 $userId = (int) $currentUser['id'];
 
-$category = trim((string) ($_POST['category'] ?? ''));
+$categoryKey = trim((string) ($_POST['category'] ?? ''));
 $slot = (int) ($_POST['variant_slot'] ?? 0);
 
 $location   = trim((string) ($_POST['location'] ?? ''));
@@ -42,7 +42,15 @@ $modelType  = trim((string) ($_POST['model_type'] ?? ''));
 $modelPose  = trim((string) ($_POST['model_pose'] ?? ''));
 $viewMode   = trim((string) ($_POST['view_mode'] ?? 'full_body'));
 
-if ($category === '' || mb_strlen($category) > 100) {
+if ($categoryKey === '' || mb_strlen($categoryKey) > 100) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Ungültige Kategorie.']);
+    exit;
+}
+
+$categoryId = db_get_prompt_category_id_by_key($pdo, $categoryKey);
+
+if ($categoryId === null) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Ungültige Kategorie.']);
     exit;
@@ -67,9 +75,9 @@ $modelPose = mb_substr($modelPose, 0, 5000);
 
 $stmt = $pdo->prepare(
     'INSERT INTO prompt_variants
-        (user_id, category, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode, created_at, updated_at)
+        (user_id, category_id, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode, created_at, updated_at)
      VALUES
-        (:user_id, :category, :slot, :location, :lighting, :mood, :season, :model_type, :model_pose, :view_mode, NOW(), NOW())
+        (:user_id, :category_id, :slot, :location, :lighting, :mood, :season, :model_type, :model_pose, :view_mode, NOW(), NOW())
      ON DUPLICATE KEY UPDATE
         location   = VALUES(location),
         lighting   = VALUES(lighting),
@@ -83,7 +91,7 @@ $stmt = $pdo->prepare(
 
 $stmt->execute([
     ':user_id'     => $userId,
-    ':category'    => $category,
+    ':category_id' => $categoryId,
     ':slot'        => $slot,
     ':location'    => $location,
     ':lighting'    => $lighting,
