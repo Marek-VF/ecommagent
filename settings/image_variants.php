@@ -16,8 +16,9 @@ if ($currentUser === null || !isset($currentUser['id'])) {
 $userId = (int) $currentUser['id'];
 
 $promptCategories = [
-    'fashion' => 'Fashion',
-    'deco'    => 'Deko',
+    'fashion'    => 'Fashion',
+    'dekoration' => 'Dekoration',
+    'schmuck'    => 'Schmuck',
 ];
 
 $promptLabels = include __DIR__ . '/prompt_labels.php';
@@ -48,35 +49,16 @@ foreach ($rows as $row) {
     ];
 }
 
-$defaultPromptVariants = [
-    1 => [
-        'location'   => 'a professional photo studio with a clean backdrop',
-        'lighting'   => 'soft, even studio lighting with subtle shadows',
-        'mood'       => 'minimal, high-end, editorial',
-        'season'     => 'all-season, neutral',
-        'model_type' => 'mid-20s, natural look, german',
-        'model_pose' => 'standing in a relaxed, confident posture, slightly angled towards the camera',
-        'view_mode'  => 'full_body',
-    ],
-    2 => [
-        'location'   => 'a cozy indoor café with large windows',
-        'lighting'   => 'soft diffused daylight',
-        'mood'       => 'calm, intimate, lifestyle',
-        'season'     => 'autumn',
-        'model_type' => 'mid-20s, natural look, german',
-        'model_pose' => 'sitting casually at a café table',
-        'view_mode'  => 'full_body',
-    ],
-    3 => [
-        'location'   => 'a modern city sidewalk in front of a café',
-        'lighting'   => 'golden hour light',
-        'mood'       => 'vibrant, urban, editorial',
-        'season'     => 'autumn',
-        'model_type' => 'mid-20s, natural look, german',
-        'model_pose' => 'walking casually, relaxed posture',
-        'view_mode'  => 'full_body',
-    ],
-];
+$defaultVariantsPath = __DIR__ . '/default_variants.json';
+$defaultPromptVariants = [];
+
+if (is_readable($defaultVariantsPath)) {
+    $json = file_get_contents($defaultVariantsPath);
+    $decoded = json_decode($json, true);
+    if (is_array($decoded)) {
+        $defaultPromptVariants = $decoded;
+    }
+}
 
 $promptVariantsJson = json_encode($promptVariants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $defaultPromptVariantsJson = json_encode($defaultPromptVariants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -372,9 +354,16 @@ $activePage = 'image_variants';
             return parseInt(variantSlotInput.value || '1', 10);
         }
 
+        function getDefaultVariant(cat, slot) {
+            if (!defaults || typeof defaults !== 'object') return null;
+            if (!defaults[cat]) return null;
+            if (!defaults[cat][slot]) return null;
+            return defaults[cat][slot];
+        }
+
         function getDataFor(cat, slot) {
             const fromUser = stored[cat] && stored[cat][slot] ? stored[cat][slot] : null;
-            const fromDefault = defaults[slot] || {};
+            const fromDefault = getDefaultVariant(cat, slot) || {};
             return fromUser || fromDefault;
         }
 
@@ -417,10 +406,28 @@ $activePage = 'image_variants';
             event.preventDefault();
             const cat = getCurrentCategory();
             const slot = getCurrentSlot();
-            const data = defaults[slot] || {};
-            stored[cat] = stored[cat] || {};
-            stored[cat][slot] = data;
-            loadVariantIntoForm();
+            const base = getDefaultVariant(cat, slot) || {};
+
+            fields.location.value   = base.location   || '';
+            fields.lighting.value   = base.lighting   || '';
+            fields.mood.value       = base.mood       || '';
+            fields.season.value     = base.season     || '';
+            fields.model_type.value = base.model_type || '';
+            fields.model_pose.value = base.model_pose || '';
+            fields.view_mode.value  = base.view_mode  || 'full_body';
+
+            if (!stored[cat]) {
+                stored[cat] = {};
+            }
+            stored[cat][slot] = {
+                location:   fields.location.value,
+                lighting:   fields.lighting.value,
+                mood:       fields.mood.value,
+                season:     fields.season.value,
+                model_type: fields.model_type.value,
+                model_pose: fields.model_pose.value,
+                view_mode:  fields.view_mode.value,
+            };
         });
 
         form.addEventListener('submit', function (event) {

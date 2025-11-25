@@ -1,0 +1,89 @@
+{
+  "fashion": {
+    "1": {
+      "location": "a professional photo studio with a clean backdrop",
+      "lighting": "soft, even studio lighting with subtle shadows",
+      "mood": "minimal, high-end, editorial",
+      "season": "all-season, neutral",
+      "model_type": "mid-20s, natural look, german",
+      "model_pose": "standing in a relaxed, confident posture, slightly angled towards the camera",
+      "view_mode": "full_body"
+    },
+    "2": {
+      "location": "a cozy indoor café with large windows",
+      "lighting": "soft diffused daylight",
+      "mood": "calm, intimate, lifestyle",
+      "season": "autumn",
+      "model_type": "mid-20s, natural look, german",
+      "model_pose": "sitting casually at a café table, relaxed posture",
+      "view_mode": "full_body"
+    },
+    "3": {
+      "location": "a modern city sidewalk in front of a café",
+      "lighting": "golden hour light with warm highlights",
+      "mood": "vibrant, urban, editorial",
+      "season": "autumn",
+      "model_type": "mid-20s, natural look, german",
+      "model_pose": "walking casually, relaxed posture, looking slightly away from the camera",
+      "view_mode": "full_body"
+    }
+  },
+  "dekoration": {
+    "1": {
+      "location": "a cozy living room with a soft fabric sofa and warm wooden elements",
+      "lighting": "warm indoor evening light with soft shadows",
+      "mood": "cozy, welcoming, homely",
+      "season": "autumn or winter",
+      "model_type": "no person, only interior decor",
+      "model_pose": "not applicable, focus on decor arrangement",
+      "view_mode": "garment_closeup"
+    },
+    "2": {
+      "location": "a bright, minimalistic Scandinavian-style living room",
+      "lighting": "natural daylight from large windows",
+      "mood": "clean, minimal, airy",
+      "season": "all-season, neutral",
+      "model_type": "no person, only interior decor",
+      "model_pose": "not applicable, focus on object composition",
+      "view_mode": "garment_closeup"
+    },
+    "3": {
+      "location": "a styled dining table in a modern kitchen",
+      "lighting": "soft overhead and ambient lighting",
+      "mood": "festive, inviting, slightly luxurious",
+      "season": "any, with subtle seasonal accents",
+      "model_type": "no person, focus on table decor",
+      "model_pose": "not applicable, focus on arrangement from slightly above",
+      "view_mode": "garment_closeup"
+    }
+  },
+  "schmuck": {
+    "1": {
+      "location": "a professional jewelry studio setup with a neutral backdrop",
+      "lighting": "focused softbox lighting with subtle reflections",
+      "mood": "luxurious, refined, high-end",
+      "season": "all-season, neutral",
+      "model_type": "no full model, only closeup of neck or hand",
+      "model_pose": "closeup of hand or neckline showing the jewelry clearly",
+      "view_mode": "garment_closeup"
+    },
+    "2": {
+      "location": "a lifestyle scene at a café table, showing a hand with jewelry while holding a cup",
+      "lighting": "soft natural daylight with gentle reflections on metal",
+      "mood": "casual, modern, aspirational",
+      "season": "spring or summer",
+      "model_type": "young adult, subtle manicure, natural look",
+      "model_pose": "hand resting or holding a cup, jewelry clearly visible",
+      "view_mode": "garment_closeup"
+    },
+    "3": {
+      "location": "an elegant evening setting with a dark blurred background",
+      "lighting": "dramatic, directional light with small highlights on the jewelry",
+      "mood": "elegant, sophisticated, evening glamour",
+      "season": "autumn or winter",
+      "model_type": "neck and shoulders of a model in eveningwear",
+      "model_pose": "slight profile view, neck and jewelry clearly emphasized",
+      "view_mode": "garment_closeup"
+    }
+  }
+}
