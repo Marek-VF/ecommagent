@@ -94,4 +94,7 @@ $stmt->execute([
     ':view_mode'   => $viewMode,
 ]);
 
-echo json_encode(['success' => true]);
+echo json_encode([
+    'success' => true,
+    'message' => 'Bildvariante wurde erfolgreich gespeichert.',
+]);

@@ -49,7 +49,7 @@ $content = ob_get_clean();
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
-                >Bildeinstellungen</a>
+                >Seitenverhältnisse</a>
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
                     href="image_variants.php"
