@@ -100,7 +100,7 @@ $activePage = 'image';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bildeinstellungen - Ecomm Agent</title>
+    <title>Seitenverhältnisse - Ecomm Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -125,11 +125,11 @@ $activePage = 'image';
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
-                >Bildeinstellungen</a>
+                >Seitenverhältnisse</a>
             </nav>
             <div class="settings-content">
                 <div class="settings-card">
-                    <h2>Bildeinstellungen</h2>
+                    <h2>Seitenverhältnisse</h2>
                     <p class="image-settings-description">Wählen Sie das Seitenverhältnis für zukünftige Bildgenerierungen.</p>
                     <form id="image-settings-form" class="image-settings-form" autocomplete="off">
                         <input type="hidden" name="_token" value="<?php echo htmlspecialchars(auth_csrf_token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">

@@ -111,19 +111,21 @@ $activePage = 'image_variants';
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
-                >Bildeinstellungen</a>
+                >Seitenverhältnisse</a>
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
                     href="image_variants.php"
                 >Bildvarianten</a>
             </nav>
             <div class="settings-content">
+                <div
+                    id="variant-status-message"
+                    class="settings-status-message"
+                    style="display:none;"
+                    role="status"
+                    aria-live="polite"
+                ></div>
                 <div class="settings-card">
-                    <h2>Bildvarianten</h2>
-                    <p class="settings-subtitle">
-                        Konfiguriere hier deine Prompts für die Bildgenerierung. Einstellungen werden pro Benutzer,
-                        Kategorie und Bildvariante gespeichert.
-                    </p>
 
                     <section class="prompt-variants-section">
                         <div class="prompt-variants-controls">
@@ -140,9 +142,9 @@ $activePage = 'image_variants';
                         </div>
 
                         <div class="prompt-variants-tabs" role="tablist">
-                            <button type="button" class="prompt-variant-tab is-active" data-variant-slot="1">Variante 1</button>
-                            <button type="button" class="prompt-variant-tab" data-variant-slot="2">Variante 2</button>
-                            <button type="button" class="prompt-variant-tab" data-variant-slot="3">Variante 3</button>
+                            <button type="button" class="prompt-variant-tab is-active" data-variant-slot="1">Bildvariante 1</button>
+                            <button type="button" class="prompt-variant-tab" data-variant-slot="2">Bildvariante 2</button>
+                            <button type="button" class="prompt-variant-tab" data-variant-slot="3">Bildvariante 3</button>
                         </div>
 
                         <form id="prompt-variant-form" class="prompt-variant-form" autocomplete="off">
@@ -168,12 +170,12 @@ $activePage = 'image_variants';
 
                                 <label class="prompt-field">
                                     <span>Season</span>
-                                    <input type="text" name="season" id="prompt-season">
+                                    <textarea name="season" id="prompt-season" rows="2"></textarea>
                                 </label>
 
                                 <label class="prompt-field">
                                     <span>Model Type</span>
-                                    <input type="text" name="model_type" id="prompt-model-type">
+                                    <textarea name="model_type" id="prompt-model-type" rows="2"></textarea>
                                 </label>
 
                                 <label class="prompt-field">
@@ -229,9 +231,30 @@ $activePage = 'image_variants';
         const tabs = Array.from(document.querySelectorAll('.prompt-variant-tab'));
         const form = document.getElementById('prompt-variant-form');
         const resetButton = document.getElementById('prompt-variant-reset');
+        const statusMessage = document.getElementById('variant-status-message');
+        let statusTimeoutId = null;
 
         const stored = window.PROMPT_VARIANTS || {};
         const defaults = window.DEFAULT_PROMPT_VARIANTS || {};
+
+        function showStatusMessage(text) {
+            if (!statusMessage) {
+                return;
+            }
+
+            statusMessage.textContent = text;
+            statusMessage.style.display = 'block';
+            statusMessage.classList.add('is-visible');
+
+            if (statusTimeoutId) {
+                clearTimeout(statusTimeoutId);
+            }
+
+            statusTimeoutId = window.setTimeout(function () {
+                statusMessage.classList.remove('is-visible');
+                statusMessage.style.display = 'none';
+            }, 3000);
+        }
 
         function getCurrentCategory() {
             return hiddenCategoryInput.value || categorySelect.value;
@@ -323,7 +346,7 @@ $activePage = 'image_variants';
                     model_pose: fields.model_pose.value,
                     view_mode:  fields.view_mode.value,
                 };
-                console.log('Variante gespeichert');
+                showStatusMessage(data.message || 'Bildvariante wurde erfolgreich gespeichert.');
             })
             .catch(function (error) {
                 console.error(error);
