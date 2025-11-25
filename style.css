@@ -570,6 +570,18 @@ body {
     color: rgba(16, 18, 26, 0.7);
 }
 
+.btn--secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--text);
+}
+
+.btn--secondary:hover,
+.btn--secondary:focus-visible {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
 .preview-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
