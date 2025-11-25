@@ -1,5 +1,24 @@
 -- Reapplied schema bootstrap after previous empty import.sql commit
 -- =========================================
+-- =========================================
+-- Prompt-Kategorien (Basis für Prompts und Nutzerpräferenzen)
+CREATE TABLE IF NOT EXISTS `prompt_categories` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `category_key` VARCHAR(64) NOT NULL UNIQUE,
+  `label` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `prompt_categories` (`category_key`, `label`)
+VALUES
+  ('fashion', 'Fashion'),
+  ('dekoration', 'Dekoration'),
+  ('schmuck', 'Schmuck')
+ON DUPLICATE KEY UPDATE
+  `label` = VALUES(`label`);
+
 -- USERS (Auth-Basis)
 -- =========================================
 CREATE TABLE IF NOT EXISTS `users` (
@@ -8,12 +27,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(255) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original',
+  `prompt_category_id` INT UNSIGNED NULL,
   `verification_token` VARCHAR(64) DEFAULT NULL,
   `verified` TINYINT(1) NOT NULL DEFAULT 0,
   `reset_token` VARCHAR(64) DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  CONSTRAINT `fk_users_prompt_category`
+    FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE SET NULL,
   KEY `idx_email` (`email`),
   KEY `idx_verification_token` (`verification_token`),
   KEY `idx_reset_token` (`reset_token`)
@@ -122,20 +144,21 @@ CREATE TABLE IF NOT EXISTS `item_images` (
 CREATE TABLE IF NOT EXISTS `prompt_variants` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
-  `category` VARCHAR(100) NOT NULL,
+  `category_id` INT UNSIGNED NOT NULL,
   `variant_slot` TINYINT UNSIGNED NOT NULL, -- 1, 2 oder 3
-  `location` TEXT NOT NULL,
-  `lighting` TEXT NOT NULL,
-  `mood` TEXT NOT NULL,
-  `season` VARCHAR(100) NOT NULL,
-  `model_type` VARCHAR(255) NOT NULL,
-  `model_pose` TEXT NOT NULL,
+  `location` TEXT,
+  `lighting` TEXT,
+  `mood` TEXT,
+  `season` VARCHAR(100),
+  `model_type` VARCHAR(255),
+  `model_pose` TEXT,
   `view_mode` ENUM('full_body','garment_closeup') NOT NULL DEFAULT 'full_body',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_user_category_slot` (`user_id`,`category`,`variant_slot`),
-  CONSTRAINT `fk_prompt_variants_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+  UNIQUE KEY `uniq_user_category_slot` (`user_id`,`category_id`,`variant_slot`),
+  CONSTRAINT `fk_prompt_variants_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_prompt_variants_category` FOREIGN KEY (`category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================
@@ -170,3 +193,10 @@ ALTER TABLE `workflow_runs`
 
 ALTER TABLE `users`
   ADD COLUMN IF NOT EXISTS `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original' AFTER `password_hash`;
+
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `prompt_category_id` INT UNSIGNED NULL AFTER `image_ratio_preference`;
+
+ALTER TABLE `users`
+  ADD CONSTRAINT IF NOT EXISTS `fk_users_prompt_category`
+    FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE SET NULL;

@@ -73,13 +73,26 @@ try {
         exit;
     }
 
-    $variantsStatement = $pdo->prepare(
-        'SELECT variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode
-           FROM prompt_variants
-          WHERE user_id = :user_id
-          ORDER BY variant_slot ASC'
-    );
-    $variantsStatement->execute([':user_id' => $userId]);
+    $userCategoryStmt = $pdo->prepare('SELECT prompt_category_id FROM users WHERE id = :id LIMIT 1');
+    $userCategoryStmt->execute([':id' => $userId]);
+    $preferredCategoryId = $userCategoryStmt->fetchColumn();
+
+    $variantSql = 'SELECT pv.variant_slot, pv.location, pv.lighting, pv.mood, pv.season, pv.model_type, pv.model_pose, pv.view_mode, pc.category_key
+                     FROM prompt_variants pv
+                     INNER JOIN prompt_categories pc ON pc.id = pv.category_id
+                    WHERE pv.user_id = :user_id';
+
+    $params = [':user_id' => $userId];
+
+    if ($preferredCategoryId !== false && $preferredCategoryId !== null) {
+        $variantSql .= ' AND pv.category_id = :category_id';
+        $params[':category_id'] = (int) $preferredCategoryId;
+    }
+
+    $variantSql .= ' ORDER BY pv.variant_slot ASC';
+
+    $variantsStatement = $pdo->prepare($variantSql);
+    $variantsStatement->execute($params);
     $variantRows = $variantsStatement->fetchAll(PDO::FETCH_ASSOC);
 
     $variants = [];
@@ -91,6 +104,7 @@ try {
 
         $variants[] = [
             'id'         => $slot,
+            'CATEGORY'   => $row['category_key'] ?? '',
             'LOCATION'   => $row['location'] ?? '',
             'LIGHTING'   => $row['lighting'] ?? '',
             'MOOD'       => $row['mood'] ?? '',

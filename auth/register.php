@@ -14,11 +14,16 @@ if (auth_is_logged_in()) {
 $errors = [];
 $name = '';
 $email = '';
+$promptCategoryKey = '';
+
+$pdo = auth_pdo();
+$categories = db_get_prompt_categories($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string) ($_POST['name'] ?? ''));
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
+    $promptCategoryKey = trim((string) ($_POST['prompt_category'] ?? ''));
     $token = $_POST['_token'] ?? null;
 
     if (!auth_validate_csrf(is_string($token) ? $token : null)) {
@@ -38,9 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Das Passwort muss mindestens 8 Zeichen lang sein und sowohl eine Zahl als auch ein Sonderzeichen enthalten.';
     }
 
-    if ($errors === []) {
-        $pdo = auth_pdo();
+    if ($promptCategoryKey === '') {
+        $errors[] = 'Bitte wählen Sie eine Kategorie aus.';
+    } elseif (db_get_prompt_category_id_by_key($pdo, $promptCategoryKey) === null) {
+        $errors[] = 'Bitte wählen Sie eine gültige Kategorie aus.';
+    }
 
+    if ($errors === []) {
         $statement = $pdo->prepare('SELECT id, verified FROM users WHERE email = :email LIMIT 1');
         $statement->execute(['email' => $email]);
         $existing = $statement->fetch();
@@ -57,10 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($errors === []) {
         $verificationToken = auth_generate_token();
         $passwordHash = auth_hash_password($password);
+        $promptCategoryId = db_get_prompt_category_id_by_key($pdo, $promptCategoryKey);
 
         $insert = $pdo->prepare(
-            'INSERT INTO users (name, email, password_hash, image_ratio_preference, verification_token, verified, created_at, updated_at)
-             VALUES (:name, :email, :password_hash, :image_ratio_preference, :verification_token, 0, NOW(), NOW())'
+            'INSERT INTO users (name, email, password_hash, image_ratio_preference, prompt_category_id, verification_token, verified, created_at, updated_at)
+             VALUES (:name, :email, :password_hash, :image_ratio_preference, :prompt_category_id, :verification_token, 0, NOW(), NOW())'
         );
 
         $insert->execute([
@@ -68,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'email'              => $email,
             'password_hash'      => $passwordHash,
             'image_ratio_preference' => 'original',
+            'prompt_category_id' => $promptCategoryId,
             'verification_token' => $verificationToken,
         ]);
 
@@ -78,13 +89,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($defaultPromptVariants)) {
             $insertVariantStmt = $pdo->prepare(
                 'INSERT INTO prompt_variants
-                    (user_id, category, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode, created_at, updated_at)
+                    (user_id, category_id, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode, created_at, updated_at)
                  VALUES
-                    (:user_id, :category, :slot, :location, :lighting, :mood, :season, :model_type, :model_pose, :view_mode, NOW(), NOW())'
+                    (:user_id, :category_id, :slot, :location, :lighting, :mood, :season, :model_type, :model_pose, :view_mode, NOW(), NOW())'
             );
 
             foreach ($defaultPromptVariants as $category => $slots) {
                 if (!is_array($slots)) {
+                    continue;
+                }
+
+                $categoryId = db_get_prompt_category_id_by_key($pdo, $category);
+
+                if ($categoryId === null) {
                     continue;
                 }
 
@@ -110,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $insertVariantStmt->execute([
                             ':user_id'    => $userId,
-                            ':category'   => $category,
+                            ':category_id' => $categoryId,
                             ':slot'       => $slotInt,
                             ':location'   => $location,
                             ':lighting'   => $lighting,
@@ -213,6 +230,20 @@ function renderMessages(array $flashes, array $errors): void
                 <label for="password">Passwort</label>
                 <input type="password" id="password" name="password" minlength="8" required aria-describedby="password-help">
                 <small id="password-help" class="input-help">Mindestens 8 Zeichen, eine Zahl und ein Sonderzeichen.</small>
+            </div>
+            <div class="form-group">
+                <label for="prompt_category">Kategorie für Bild-/Prompt-Varianten</label>
+                <select id="prompt_category" name="prompt_category" required>
+                    <option value="">Bitte auswählen …</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option
+                            value="<?php echo htmlspecialchars($cat['category_key'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                            <?php echo ($promptCategoryKey === $cat['category_key']) ? 'selected' : ''; ?>
+                        >
+                            <?php echo htmlspecialchars($cat['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="form-actions form-actions--stacked">
                 <button type="submit" class="btn btn--primary">Registrieren</button>
