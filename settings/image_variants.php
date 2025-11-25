@@ -121,12 +121,14 @@ $activePage = 'image_variants';
                 <div
                     id="variant-status-message"
                     class="settings-status-message"
-                    style="display:none;"
                     role="status"
                     aria-live="polite"
                 ></div>
                 <div class="settings-card">
-
+                    <h2 class="settings-section-title">Bildvarianten</h2>
+                    <p class="settings-section-subtitle">
+                        Konfiguriere hier deine Prompts für die Bildgenerierung. Die Einstellungen gelten pro Kategorie und Bildvariante.
+                    </p>
                     <section class="prompt-variants-section">
                         <div class="prompt-variants-controls">
                             <label class="prompt-variants-category">
@@ -193,8 +195,8 @@ $activePage = 'image_variants';
                             </div>
 
                             <div class="prompt-variant-actions">
-                                <button type="submit" class="btn-primary">Variante speichern</button>
-                                <button type="button" class="btn-secondary" id="prompt-variant-reset">
+                                <button type="submit" class="btn btn--primary">Variante speichern</button>
+                                <button type="button" class="btn btn--secondary" id="prompt-variant-reset">
                                     Auf Standard zurücksetzen
                                 </button>
                             </div>
@@ -232,8 +234,6 @@ $activePage = 'image_variants';
         const form = document.getElementById('prompt-variant-form');
         const resetButton = document.getElementById('prompt-variant-reset');
         const statusMessage = document.getElementById('variant-status-message');
-        let statusTimeoutId = null;
-
         const stored = window.PROMPT_VARIANTS || {};
         const defaults = window.DEFAULT_PROMPT_VARIANTS || {};
 
@@ -243,16 +243,11 @@ $activePage = 'image_variants';
             }
 
             statusMessage.textContent = text;
-            statusMessage.style.display = 'block';
             statusMessage.classList.add('is-visible');
 
-            if (statusTimeoutId) {
-                clearTimeout(statusTimeoutId);
-            }
-
-            statusTimeoutId = window.setTimeout(function () {
+            window.clearTimeout(statusMessage._hideTimeout);
+            statusMessage._hideTimeout = window.setTimeout(function () {
                 statusMessage.classList.remove('is-visible');
-                statusMessage.style.display = 'none';
             }, 3000);
         }
 

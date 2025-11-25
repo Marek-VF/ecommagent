@@ -93,6 +93,17 @@
     gap: 24px;
 }
 
+.settings-section-title {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.settings-section-subtitle {
+    margin: -6px 0 8px;
+    color: var(--text-muted);
+    font-size: 0.98rem;
+}
+
 .settings-card h2 {
     margin: 0;
     font-size: 1.6rem;
@@ -119,20 +130,26 @@
 }
 
 .settings-status-message {
-    display: block;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--status-success-rgb), 0.4);
-    background: rgba(var(--status-success-rgb), 0.18);
-    color: var(--text);
+    position: fixed;
+    top: 80px;
+    right: 40px;
+    z-index: 1000;
+    display: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 163, 74, 0.65);
+    background: rgba(22, 163, 74, 0.95);
+    color: #ecfdf5;
     font-size: 0.95rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity var(--transition), transform var(--transition);
+    transform: translateY(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .settings-status-message.is-visible {
     opacity: 1;
+    display: block;
     transform: translateY(0);
 }
 
@@ -395,7 +412,7 @@
     border-top: 0.5px solid rgba(255, 255, 255, 0.18);
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 20px;
 }
 
 .prompt-variants-controls {
@@ -441,14 +458,14 @@
 .prompt-variant-form {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    margin-top: 6px;
+    gap: 16px;
+    margin-top: 12px;
 }
 
 .prompt-variant-fields {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 16px 20px;
 }
 
 .prompt-field {
@@ -461,20 +478,7 @@
 .prompt-field textarea,
 .prompt-field input,
 .prompt-field select {
-    background: rgba(15, 23, 42, 0.9);
-    border-radius: 12px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    padding: 12px 14px;
-    color: var(--text);
-    resize: vertical;
-    transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
-}
-
-.prompt-field textarea:focus,
-.prompt-field input:focus,
-.prompt-field select:focus {
-    border-color: rgba(59, 130, 246, 0.7);
-    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+    width: 100%;
 }
 
 .prompt-variant-actions {
