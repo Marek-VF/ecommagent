@@ -18,26 +18,36 @@ $userId = (int) $currentUser['id'];
 
 $categoryRows = db_get_prompt_categories($pdo);
 $promptCategories = [];
+$categoryIdToKey = [];
 
 foreach ($categoryRows as $catRow) {
+    $id = (int) $catRow['id'];
     $promptCategories[$catRow['category_key']] = $catRow['label'];
+    $categoryIdToKey[$id] = $catRow['category_key'];
 }
 
-$userCategoryKey = null;
+$currentPromptCategoryId = isset($currentUser['prompt_category_id'])
+    ? (int) $currentUser['prompt_category_id']
+    : null;
 
-if ($userId > 0) {
+if ($currentPromptCategoryId === 0) {
+    $currentPromptCategoryId = null;
+}
+
+if ($currentPromptCategoryId === null && $userId > 0) {
     $userCategoryStmt = $pdo->prepare(
-        'SELECT pc.category_key
-           FROM users u
-           LEFT JOIN prompt_categories pc ON pc.id = u.prompt_category_id
-          WHERE u.id = :id
-          LIMIT 1'
+        'SELECT prompt_category_id FROM users WHERE id = :id LIMIT 1'
     );
     $userCategoryStmt->execute([':id' => $userId]);
-    $userCategoryKey = $userCategoryStmt->fetchColumn() ?: null;
+    $fetchedPromptCategoryId = $userCategoryStmt->fetchColumn();
+    $currentPromptCategoryId = $fetchedPromptCategoryId ? (int) $fetchedPromptCategoryId : null;
 }
 
-$defaultCategoryKey = $userCategoryKey;
+$defaultCategoryKey = null;
+if ($currentPromptCategoryId !== null && isset($categoryIdToKey[$currentPromptCategoryId])) {
+    $defaultCategoryKey = $categoryIdToKey[$currentPromptCategoryId];
+}
+
 if ($defaultCategoryKey === null) {
     $defaultCategoryKey = array_key_first($promptCategories) ?: '';
 }
@@ -105,6 +115,10 @@ $activePage = 'image_variants';
                     class="settings-nav-item<?php echo $activePage === 'profile' ? ' active' : ''; ?>"
                     href="index.php"
                 >Profil</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'industry' ? ' active' : ''; ?>"
+                    href="industry.php"
+                >Branche</a>
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
