@@ -123,6 +123,10 @@ $activePage = 'image';
                     href="index.php"
                 >Profil</a>
                 <a
+                    class="settings-nav-item<?php echo $activePage === 'industry' ? ' active' : ''; ?>"
+                    href="industry.php"
+                >Branche</a>
+                <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
                 >Seitenverhältnisse</a>
