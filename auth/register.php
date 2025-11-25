@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/mail.php';
+require_once __DIR__ . '/../settings/prompt_defaults.php';
 
 use function AuthModule\sendMail;
 
@@ -72,17 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $userId = (int) $pdo->lastInsertId();
 
-        $defaultVariantsPath = __DIR__ . '/../settings/default_variants.json';
-        $defaultPromptVariants = [];
-
-        if (is_readable($defaultVariantsPath)) {
-            $json = file_get_contents($defaultVariantsPath);
-            $decoded = json_decode($json, true);
-
-            if (is_array($decoded)) {
-                $defaultPromptVariants = $decoded;
-            }
-        }
+        $defaultPromptVariants = load_default_prompt_variants();
 
         if (!empty($defaultPromptVariants)) {
             $insertVariantStmt = $pdo->prepare(

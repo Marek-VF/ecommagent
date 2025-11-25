@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth/bootstrap.php';
+require_once __DIR__ . '/prompt_defaults.php';
 
 auth_require_login();
 
@@ -49,16 +50,7 @@ foreach ($rows as $row) {
     ];
 }
 
-$defaultVariantsPath = __DIR__ . '/default_variants.json';
-$defaultPromptVariants = [];
-
-if (is_readable($defaultVariantsPath)) {
-    $json = file_get_contents($defaultVariantsPath);
-    $decoded = json_decode($json, true);
-    if (is_array($decoded)) {
-        $defaultPromptVariants = $decoded;
-    }
-}
+$defaultPromptVariants = load_default_prompt_variants();
 
 $promptVariantsJson = json_encode($promptVariants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 $defaultPromptVariantsJson = json_encode($defaultPromptVariants, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
