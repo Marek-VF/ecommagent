@@ -158,85 +158,144 @@ $activePage = 'image_variants';
 
                             <div class="prompt-variant-fields">
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['LOCATION']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['LOCATION']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['LOCATION']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="location"
                                         id="prompt-location"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['LOCATION']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['LIGHTING']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['LIGHTING']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['LIGHTING']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="lighting"
                                         id="prompt-lighting"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['LIGHTING']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['MOOD']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['MOOD']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['MOOD']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="mood"
                                         id="prompt-mood"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['MOOD']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['SEASON']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['SEASON']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['SEASON']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="season"
                                         id="prompt-season"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['SEASON']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="model_type"
                                         id="prompt-model-type"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['MODEL_POSE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['MODEL_POSE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['MODEL_POSE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <textarea
                                         name="model_pose"
                                         id="prompt-model-pose"
                                         rows="2"
                                         class="settings-textarea"
                                     ></textarea>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['MODEL_POSE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span><?php echo htmlspecialchars($promptLabels['VIEW_MODE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <div class="prompt-field-label">
+                                        <span>
+                                            <?php echo htmlspecialchars($promptLabels['VIEW_MODE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                        </span>
+                                        <span
+                                            class="tooltip-icon"
+                                            data-tooltip="<?php echo htmlspecialchars($promptLabels['VIEW_MODE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+                                        >
+                                            ⓘ
+                                        </span>
+                                    </div>
+
                                     <select
                                         name="view_mode"
                                         id="prompt-view-mode"
@@ -245,9 +304,6 @@ $activePage = 'image_variants';
                                         <option value="full_body">full_body</option>
                                         <option value="garment_closeup">garment_closeup</option>
                                     </select>
-                                    <small class="prompt-hint">
-                                        <?php echo htmlspecialchars($promptLabels['VIEW_MODE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
-                                    </small>
                                 </label>
                             </div>
 
@@ -404,6 +460,83 @@ $activePage = 'image_variants';
                 console.error(error);
                 alert(error.message || 'Fehler beim Speichern der Variante.');
             });
+        });
+
+        // ---------------------------------------------
+        // Tooltip-Logik für .tooltip-icon
+        // ---------------------------------------------
+        let activeTooltip = null;
+
+        function showTooltip(target) {
+            const text = target.getAttribute('data-tooltip');
+            if (!text) return;
+
+            // Bereits vorhandenes Bubble entfernen
+            if (activeTooltip) {
+                activeTooltip.remove();
+                activeTooltip = null;
+            }
+
+            const bubble = document.createElement('div');
+            bubble.classList.add('tooltip-bubble');
+            bubble.textContent = text;
+            document.body.appendChild(bubble);
+
+            const rect = target.getBoundingClientRect();
+            const bubbleRect = bubble.getBoundingClientRect();
+
+            // Position: oberhalb des Icons, horizontal zentriert
+            const top = window.scrollY + rect.top - bubbleRect.height - 8;
+            const left = rect.left + rect.width / 2 - bubbleRect.width / 2;
+
+            bubble.style.top = top + 'px';
+            bubble.style.left = left + 'px';
+
+            requestAnimationFrame(function () {
+                bubble.classList.add('visible');
+            });
+
+            activeTooltip = bubble;
+        }
+
+        function hideTooltip() {
+            if (!activeTooltip) return;
+            const bubble = activeTooltip;
+            bubble.classList.remove('visible');
+            setTimeout(function () {
+                bubble.remove();
+                if (activeTooltip === bubble) {
+                    activeTooltip = null;
+                }
+            }, 150);
+        }
+
+        // Hover-Events
+        document.querySelectorAll('.tooltip-icon').forEach(function (icon) {
+            icon.addEventListener('mouseenter', function () {
+                showTooltip(icon);
+            });
+            icon.addEventListener('mouseleave', function () {
+                hideTooltip();
+            });
+        });
+
+        // Klick/Tap Events (für Mobile)
+        document.querySelectorAll('.tooltip-icon').forEach(function (icon) {
+            icon.addEventListener('click', function (event) {
+                event.stopPropagation();
+
+                if (activeTooltip) {
+                    hideTooltip();
+                } else {
+                    showTooltip(icon);
+                }
+            });
+        });
+
+        // Tooltip schließen beim Klick irgendwo anders
+        document.addEventListener('click', function () {
+            hideTooltip();
         });
 
         hiddenCategoryInput.value = categorySelect.value;

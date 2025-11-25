@@ -10,11 +10,11 @@ return [
     ],
     'LIGHTING' => [
         'label' => 'Licht / Beleuchtung',
-        'hint'  => 'Beschreibe die Lichtstimmung, z. B. warmes Sonnenlicht, diffuses Tageslicht, Studiolicht.',
+        'hint'  => 'Beschreibe die Lichtstimmung, z. B. warmes Sonnenlicht, diffuses Tageslicht oder Studiolicht.',
     ],
     'MOOD' => [
         'label' => 'Stimmung / Atmosphäre',
-        'hint'  => 'Welche Stimmung soll das Bild transportieren? Z. B. ruhig, lebhaft, elegant, editorial, lifestyle.',
+        'hint'  => 'Welche Stimmung soll das Bild transportieren? Z. B. ruhig, lebhaft, elegant, editorial oder lifestyle.',
     ],
     'SEASON' => [
         'label' => 'Jahreszeit',
@@ -26,7 +26,7 @@ return [
     ],
     'MODEL_POSE' => [
         'label' => 'Pose / Körperhaltung',
-        'hint'  => 'Z. B. stehend, gehend, sitzend, entspannt, zur Kamera gewandt, leicht im Profil usw.',
+        'hint'  => 'Z. B. stehend, gehend, sitzend, entspannt, zur Kamera gewandt oder leicht im Profil.',
     ],
     'VIEW_MODE' => [
         'label' => 'Bildansicht',
