@@ -20,6 +20,8 @@ $promptCategories = [
     'deco'    => 'Deko',
 ];
 
+$promptLabels = include __DIR__ . '/prompt_labels.php';
+
 $variantStmt = $pdo->prepare(
     'SELECT category, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode
      FROM prompt_variants
@@ -156,41 +158,96 @@ $activePage = 'image_variants';
 
                             <div class="prompt-variant-fields">
                                 <label class="prompt-field">
-                                    <span>Location</span>
-                                    <textarea name="location" id="prompt-location" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['LOCATION']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="location"
+                                        id="prompt-location"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['LOCATION']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>Lighting</span>
-                                    <textarea name="lighting" id="prompt-lighting" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['LIGHTING']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="lighting"
+                                        id="prompt-lighting"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['LIGHTING']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>Mood</span>
-                                    <textarea name="mood" id="prompt-mood" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['MOOD']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="mood"
+                                        id="prompt-mood"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['MOOD']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>Season</span>
-                                    <textarea name="season" id="prompt-season" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['SEASON']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="season"
+                                        id="prompt-season"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['SEASON']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>Model Type</span>
-                                    <textarea name="model_type" id="prompt-model-type" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="model_type"
+                                        id="prompt-model-type"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['MODEL_TYPE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>Model Pose</span>
-                                    <textarea name="model_pose" id="prompt-model-pose" rows="2"></textarea>
+                                    <span><?php echo htmlspecialchars($promptLabels['MODEL_POSE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <textarea
+                                        name="model_pose"
+                                        id="prompt-model-pose"
+                                        rows="2"
+                                        class="settings-textarea"
+                                    ></textarea>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['MODEL_POSE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
 
                                 <label class="prompt-field">
-                                    <span>View Mode</span>
-                                    <select name="view_mode" id="prompt-view-mode">
+                                    <span><?php echo htmlspecialchars($promptLabels['VIEW_MODE']['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
+                                    <select
+                                        name="view_mode"
+                                        id="prompt-view-mode"
+                                        class="settings-input"
+                                    >
                                         <option value="full_body">full_body</option>
                                         <option value="garment_closeup">garment_closeup</option>
                                     </select>
+                                    <small class="prompt-hint">
+                                        <?php echo htmlspecialchars($promptLabels['VIEW_MODE']['hint'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                                    </small>
                                 </label>
                             </div>
 
