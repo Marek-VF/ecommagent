@@ -70,6 +70,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'verification_token' => $verificationToken,
         ]);
 
+        $userId = (int) $pdo->lastInsertId();
+
+        $defaultVariantsPath = __DIR__ . '/../settings/default_variants.json';
+        $defaultPromptVariants = [];
+
+        if (is_readable($defaultVariantsPath)) {
+            $json = file_get_contents($defaultVariantsPath);
+            $decoded = json_decode($json, true);
+
+            if (is_array($decoded)) {
+                $defaultPromptVariants = $decoded;
+            }
+        }
+
+        if (!empty($defaultPromptVariants)) {
+            $insertVariantStmt = $pdo->prepare(
+                'INSERT INTO prompt_variants
+                    (user_id, category, variant_slot, location, lighting, mood, season, model_type, model_pose, view_mode, created_at, updated_at)
+                 VALUES
+                    (:user_id, :category, :slot, :location, :lighting, :mood, :season, :model_type, :model_pose, :view_mode, NOW(), NOW())'
+            );
+
+            foreach ($defaultPromptVariants as $category => $slots) {
+                if (!is_array($slots)) {
+                    continue;
+                }
+
+                foreach ($slots as $slot => $data) {
+                    $slotInt = (int) $slot;
+
+                    if ($slotInt < 1 || $slotInt > 3) {
+                        continue;
+                    }
+
+                    $location = (string) ($data['location'] ?? '');
+                    $lighting = (string) ($data['lighting'] ?? '');
+                    $mood = (string) ($data['mood'] ?? '');
+                    $season = (string) ($data['season'] ?? '');
+                    $modelType = (string) ($data['model_type'] ?? '');
+                    $modelPose = (string) ($data['model_pose'] ?? '');
+                    $viewMode = (string) ($data['view_mode'] ?? 'full_body');
+
+                    if (!in_array($viewMode, ['full_body', 'garment_closeup'], true)) {
+                        $viewMode = 'full_body';
+                    }
+
+                    try {
+                        $insertVariantStmt->execute([
+                            ':user_id'    => $userId,
+                            ':category'   => $category,
+                            ':slot'       => $slotInt,
+                            ':location'   => $location,
+                            ':lighting'   => $lighting,
+                            ':mood'       => $mood,
+                            ':season'     => $season,
+                            ':model_type' => $modelType,
+                            ':model_pose' => $modelPose,
+                            ':view_mode'  => $viewMode,
+                        ]);
+                    } catch (Throwable $variantException) {
+                        error_log('Failed to insert default prompt variant: ' . $variantException->getMessage());
+                    }
+                }
+            }
+        }
+
         $verificationLink = auth_url('/auth/verify.php?token=' . urlencode($verificationToken));
 
         $htmlBody = '<p>Hallo ' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ',</p>' .
