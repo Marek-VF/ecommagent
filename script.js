@@ -136,14 +136,12 @@ const resolveIsRunningFromPayload = (payload) => {
     return false;
 };
 
-// 4-State Statusanimation: "", ".", "..", "..."
-const animateStatus = () => {
+// Render current frame of 4-State Statusanimation: "", ".", "..", "..." – jeweils 1 Sekunde
+const renderStatusAnimationFrame = () => {
     const bar = statusBar || document.getElementById('status-bar');
     if (!bar) {
         return;
     }
-
-    statusDotCount = (statusDotCount + 1) % 4;
 
     if (statusDotCount === 0) {
         bar.textContent = baseStatusMessage;
@@ -153,14 +151,27 @@ const animateStatus = () => {
     bar.textContent = `${baseStatusMessage} ${'.'.repeat(statusDotCount)}`;
 };
 
+// 4-State Statusanimation: "", ".", "..", "..." – jeweils 1 Sekunde
+const animateStatus = () => {
+    statusDotCount = (statusDotCount + 1) % 4;
+    renderStatusAnimationFrame();
+};
+
 const startStatusAnimation = (message) => {
     baseStatusMessage = typeof message === 'string' ? message.trim() : '';
     statusDotCount = 0;
 
     setStatusMessage(baseStatusMessage, { force: true });
+    renderStatusAnimationFrame();
+
     if (statusAnimationInterval === null) {
         statusAnimationInterval = window.setInterval(animateStatus, 1000);
     }
+};
+
+const updateStatusAnimationMessage = (message) => {
+    baseStatusMessage = typeof message === 'string' ? message.trim() : '';
+    renderStatusAnimationFrame();
 };
 
 const stopStatusAnimation = (message) => {
@@ -172,7 +183,7 @@ const stopStatusAnimation = (message) => {
     statusDotCount = 0;
     baseStatusMessage = typeof message === 'string' ? message.trim() : '';
 
-    setStatusMessage(baseStatusMessage, { force: true });
+    renderStatusAnimationFrame();
 };
 
 const applyStatusBarMessage = (payload, options = {}) => {
@@ -181,7 +192,11 @@ const applyStatusBarMessage = (payload, options = {}) => {
     const isRunning = hasExplicitIsRunning ? Boolean(options.isRunning) : resolveIsRunningFromPayload(payload);
 
     if (isRunning) {
-        startStatusAnimation(message);
+        if (isStatusAnimationActive()) {
+            updateStatusAnimationMessage(message);
+        } else {
+            startStatusAnimation(message);
+        }
         return;
     }
 
