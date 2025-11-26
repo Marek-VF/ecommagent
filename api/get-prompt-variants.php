@@ -5,6 +5,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 $config = require __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../status_logger.php';
 
 $expectedToken = isset($config['receiver_api_token']) ? (string) $config['receiver_api_token'] : '';
 $providedToken = isset($_SERVER['HTTP_X_API_TOKEN']) ? (string) $_SERVER['HTTP_X_API_TOKEN'] : '';
@@ -17,6 +18,7 @@ if ($providedToken === '' || $expectedToken === '' || !hash_equals($expectedToke
 
 $rawInput = file_get_contents('php://input');
 $inputData = json_decode($rawInput, true);
+$statusMessageFromRequest = is_array($inputData) ? extract_status_message($inputData) : null;
 
 $runId = null;
 $userId = null;
@@ -71,6 +73,20 @@ try {
         http_response_code(404);
         echo json_encode(['error' => 'run_user_mismatch'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    if ($statusMessageFromRequest !== null) {
+        // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
+        log_status_message($pdo, $runId, $userId, $statusMessageFromRequest);
+
+        $updateRunStatus = $pdo->prepare(
+            'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
+        );
+        $updateRunStatus->execute([
+            ':message' => $statusMessageFromRequest,
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
     }
 
     $userCategoryStmt = $pdo->prepare('SELECT prompt_category_id FROM users WHERE id = :id LIMIT 1');

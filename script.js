@@ -29,13 +29,14 @@ const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 
 let workflowOutputController = null;
 
-function setStatusMessage(text, type = 'info') {
+function setStatusMessage(text) {
     const bar = statusBar || document.getElementById('status-bar');
     if (!bar) {
         return;
     }
 
-    const normalized = (text ?? '').toString().trim();
+    const rawText = typeof text === 'string' ? text : '';
+    const normalized = rawText.trim();
 
     bar.classList.remove('status-bar--active', 'status-bar--info', 'status-bar--success', 'status-bar--error');
 
@@ -44,21 +45,47 @@ function setStatusMessage(text, type = 'info') {
         return;
     }
 
-    bar.textContent = normalized;
+    bar.textContent = rawText;
     bar.classList.add('status-bar--active');
-
-    switch (type) {
-        case 'success':
-            bar.classList.add('status-bar--success');
-            break;
-        case 'error':
-            bar.classList.add('status-bar--error');
-            break;
-        default:
-            bar.classList.add('status-bar--info');
-            break;
-    }
 }
+
+const resolveStatusBarMessage = (payload) => {
+    const candidates = [];
+
+    if (payload && typeof payload === 'object') {
+        if (typeof payload.last_status_message === 'string') {
+            candidates.push(payload.last_status_message);
+        }
+
+        if (payload.run && typeof payload.run === 'object') {
+            const runPayload = payload.run;
+            if (typeof runPayload.last_status_message === 'string') {
+                candidates.push(runPayload.last_status_message);
+            }
+
+            if (typeof runPayload.last_message === 'string') {
+                candidates.push(runPayload.last_message);
+            }
+        }
+
+        if (typeof payload.message === 'string') {
+            candidates.push(payload.message);
+        }
+    }
+
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim() !== '') {
+            return candidate;
+        }
+    }
+
+    return '';
+};
+
+const applyStatusBarMessage = (payload) => {
+    const message = resolveStatusBarMessage(payload);
+    setStatusMessage(message);
+};
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
     ? Number(window.currentRunId)
@@ -679,6 +706,8 @@ const updateUiWithData = (payload) => {
     const data = payload && typeof payload === 'object' ? { ...payload } : {};
     const imageMap = normalizeLatestImagesObject(payload && typeof payload === 'object' ? payload.images : null);
     data.images = imageMap;
+
+    applyStatusBarMessage(data);
 
     applyLatestItemData(data);
     const normalized = mapLatestItemPayloadToLegacy(data);
@@ -1616,6 +1645,7 @@ const applyRunDataToUI = (payload) => {
         ? originalImagesFromPayload
         : (originalImage ? [originalImage] : []);
     renderOriginalImagePreviews(originalImagesToDisplay);
+    applyStatusBarMessage(data);
     let runIsRunning = false;
     let statusRaw = '';
     let indicatorMessage = '';
@@ -1989,6 +2019,7 @@ async function fetchLatestItem() {
 
         const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
         const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : toBoolean(payload.isrunning);
+        const statusBarText = resolveStatusBarMessage(payload);
 
         const statusLabelRaw =
             (normalized && typeof normalized.status === 'string' && normalized.status.trim() !== '')
@@ -1999,20 +2030,27 @@ async function fetchLatestItem() {
         if (!isRunning) {
             if (statusLabel === 'pending') {
                 setStatus('info', 'Bereit für Workflow-Start');
-                showWorkflowFeedback('info', 'Workflow bereit zum Start.');
+                if (!statusBarText) {
+                    showWorkflowFeedback('info', 'Workflow bereit zum Start.');
+                }
                 updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
                 if (payload.run_id !== undefined && payload.run_id !== null) {
                     setCurrentRun(payload.run_id);
                 }
             } else {
                 setStatus('success', 'Workflow abgeschlossen');
-                showWorkflowFeedback('success', 'Workflow abgeschlossen.');
+                if (!statusBarText) {
+                    showWorkflowFeedback('success', 'Workflow abgeschlossen.');
+                }
                 stopPolling();
                 activeRunId = null;
                 setCurrentRun(null);
             }
         } else {
             setStatus('info', 'Verarbeitung läuft …');
+            if (!statusBarText) {
+                showWorkflowFeedback('info', 'Verarbeitung läuft …');
+            }
         }
     } catch (error) {
         console.error('Polling-Fehler:', error);

@@ -146,14 +146,25 @@ $images = array_map(function ($row) use ($resolvePublicPath) {
 }, $images);
 
 $logStmt = $pdo->prepare('
-    SELECT level, status_code, message, created_at
-    FROM status_logs
+    SELECT message, created_at, '"'"'info'"'"' AS level, NULL AS status_code
+    FROM status_logs_new
     WHERE user_id = :user_id AND run_id = :run_id
     ORDER BY created_at DESC
     LIMIT 20
 ');
 $logStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $logs = $logStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$lastStatusStmt = $pdo->prepare('
+    SELECT message
+    FROM status_logs_new
+    WHERE user_id = :user_id AND run_id = :run_id
+    ORDER BY created_at DESC
+    LIMIT 1
+');
+$lastStatusStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
+$lastStatusMessage = (string) ($lastStatusStmt->fetchColumn() ?: '');
+$run['last_status_message'] = $lastStatusMessage;
 
 echo json_encode([
     'ok' => true,
@@ -165,5 +176,6 @@ echo json_encode([
         'original_image' => $originalImage,
         'original_images' => $originalImages,
         'isrunning' => $isRunning,
+        'last_status_message' => $lastStatusMessage,
     ],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
