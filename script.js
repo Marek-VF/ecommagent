@@ -26,6 +26,12 @@ const SIDEBAR_PROFILE_TRIGGER =
         : null;
 
 const FIELD_GROUP_LOADING_CLASS = 'is-loading';
+const FIELD_GROUP_STATE = {
+    idle: 'idle',
+    running: 'running',
+    ready: 'ready',
+};
+const SKELETON_SHINE_CLASS = 'skeleton-shine';
 
 let workflowOutputController = null;
 let statusAnimationInterval = null;
@@ -148,15 +154,13 @@ const animateStatus = () => {
 };
 
 const startStatusAnimation = (message) => {
-    if (statusAnimationInterval !== null) {
-        return;
-    }
-
     baseStatusMessage = typeof message === 'string' ? message.trim() : '';
     statusDotCount = 0;
 
     setStatusMessage(baseStatusMessage, { force: true });
-    statusAnimationInterval = window.setInterval(animateStatus, 1000);
+    if (statusAnimationInterval === null) {
+        statusAnimationInterval = window.setInterval(animateStatus, 1000);
+    }
 };
 
 const stopStatusAnimation = (message) => {
@@ -177,9 +181,7 @@ const applyStatusBarMessage = (payload, options = {}) => {
     const isRunning = hasExplicitIsRunning ? Boolean(options.isRunning) : resolveIsRunningFromPayload(payload);
 
     if (isRunning) {
-        if (statusAnimationInterval === null) {
-            startStatusAnimation(message);
-        }
+        startStatusAnimation(message);
         return;
     }
 
@@ -523,18 +525,35 @@ const sanitizeLatestItemString = (value) => {
     return String(value);
 };
 
-const setFieldGroupLoading = (group, isLoading) => {
+const setFieldGroupState = (group, state = FIELD_GROUP_STATE.idle) => {
     if (!(group instanceof HTMLElement)) {
         return;
     }
 
-    group.classList.toggle(FIELD_GROUP_LOADING_CLASS, Boolean(isLoading));
+    const normalizedState = Object.values(FIELD_GROUP_STATE).includes(state)
+        ? state
+        : FIELD_GROUP_STATE.idle;
+    const isLoadingState = normalizedState === FIELD_GROUP_STATE.idle || normalizedState === FIELD_GROUP_STATE.running;
+
+    group.classList.toggle(FIELD_GROUP_LOADING_CLASS, isLoadingState);
+
+    const skeleton = group.querySelector('.skeleton-text');
+    if (skeleton) {
+        skeleton.classList.toggle(SKELETON_SHINE_CLASS, normalizedState === FIELD_GROUP_STATE.running);
+    }
+};
+
+const setFieldGroupLoading = (group, isLoading) => {
+    setFieldGroupState(group, isLoading ? FIELD_GROUP_STATE.running : FIELD_GROUP_STATE.idle);
 };
 
 const setArticleFieldsLoading = (isLoading) => {
     setFieldGroupLoading(articleNameGroup, isLoading);
     setFieldGroupLoading(articleDescriptionGroup, isLoading);
 };
+
+setFieldGroupState(articleNameGroup, FIELD_GROUP_STATE.idle);
+setFieldGroupState(articleDescriptionGroup, FIELD_GROUP_STATE.idle);
 
 const collectArticleFieldSources = (input) => {
     const sources = [];
@@ -630,15 +649,23 @@ const updateArticleFieldsFromData = (data) => {
         articleNameOutput.textContent = hasName ? articleName : '';
     }
 
-    const shouldLoadName = isProcessing && !hasName;
-    setFieldGroupLoading(articleNameGroup, shouldLoadName);
+    const nameState = hasName
+        ? FIELD_GROUP_STATE.ready
+        : isProcessing
+            ? FIELD_GROUP_STATE.running
+            : FIELD_GROUP_STATE.idle;
+    setFieldGroupState(articleNameGroup, nameState);
 
     if (articleDescriptionOutput) {
         articleDescriptionOutput.textContent = hasDescription ? articleDescription : '';
     }
 
-    const shouldLoadDescription = isProcessing && !hasDescription;
-    setFieldGroupLoading(articleDescriptionGroup, shouldLoadDescription);
+    const descriptionState = hasDescription
+        ? FIELD_GROUP_STATE.ready
+        : isProcessing
+            ? FIELD_GROUP_STATE.running
+            : FIELD_GROUP_STATE.idle;
+    setFieldGroupState(articleDescriptionGroup, descriptionState);
 
     if (workflowOutputController) {
         workflowOutputController.sync();
