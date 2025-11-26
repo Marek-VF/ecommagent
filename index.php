@@ -74,7 +74,7 @@ $appConfig = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ecomm Agent</title>
+    <title>Ecom Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -147,7 +147,7 @@ $appConfig = [
                     aria-controls="history-sidebar"
                     aria-expanded="false"
                 >&#9776;</button>
-                <h1>Ecomm Agent</h1>
+                <h1>Ecom Studio</h1>
             </div>
         </header>
         <div class="app__status-row">
