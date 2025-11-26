@@ -935,6 +935,7 @@ const clearSlotContent = (slot) => {
     slot.container.dataset.hasContent = 'false';
     slot.container.dataset.currentSrc = '';
     slot.container.classList.remove('has-image');
+    slot.container.classList.remove('has-shadow');
     slot.container.classList.remove('first-active');
 
     const existingImage = slot.container.querySelector('img');
@@ -994,6 +995,7 @@ const setSlotImageSource = (slot, src) => {
     imageElement.src = resolved;
     imageElement.alt = imageElement.alt || `Produktbild ${slot.index + 1}`;
     slot.container.classList.add('has-image');
+    slot.container.classList.add('has-shadow');
     slot.container.classList.remove('is-hidden');
     applyFadeInAnimation(imageElement);
 };
@@ -1218,6 +1220,7 @@ function renderGeneratedImages(images) {
                 imageElement.alt = altText;
 
                 slot.container.classList.add('has-image');
+                slot.container.classList.add('has-shadow');
                 slot.container.classList.remove('is-hidden');
                 slot.container.dataset.hasContent = 'true';
                 slot.container.dataset.currentSrc = resolvedUrl;

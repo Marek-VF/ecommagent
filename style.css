@@ -736,7 +736,7 @@ body {
     padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.5rem;
     opacity: 1;
     filter: none;
     transition: opacity 0.2s ease;
@@ -786,12 +786,14 @@ body {
 .generated-grid {
     display: flex;
     flex-direction: row;
-    gap: 1rem;
+    /* Mehr Abstand zwischen den Bild-Slots */
+    --generated-gap: 1.25rem;
+    gap: var(--generated-gap);
     width: 100%;
 }
 
 .generated-slot {
-    flex: 0 0 calc(33.333% - 0.666rem);
+    flex: 0 0 calc((100% - 2 * var(--generated-gap)) / 3);
     aspect-ratio: 3 / 4;
     border-radius: 14px;
     background: rgba(0, 0, 0, 0.1);
@@ -804,7 +806,8 @@ body {
     transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition),
         height 0.4s ease, opacity 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+    /* PRE-WORKFLOW: Kein Shadow sichtbar */
+    box-shadow: none;
 }
 
 .generated-slot:not(.has-image) {
@@ -815,6 +818,11 @@ body {
 .generated-slot.has-image {
     pointer-events: auto;
     cursor: pointer;
+}
+
+/* Shadow nur bei echtem Content aktivieren */
+.generated-slot.has-shadow {
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
 .generated-slot.is-hidden {
@@ -831,7 +839,7 @@ body {
     outline-offset: 4px;
 }
 
-.generated-slot:hover {
+.generated-slot.has-image.has-shadow:hover {
     transform: translateY(-4px);
     box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32);
     border-color: var(--accent);
@@ -848,10 +856,15 @@ body {
 .render-box {
     width: 100%;
     height: 100%;
-    background-color: rgb(232, 232, 232);
+    /* PRE-WORKFLOW: Neutraler Hintergrund bis Content eintrifft */
+    background-color: rgb(27, 30, 38);
     position: relative;
     overflow: hidden;
     border-radius: 12px;
+}
+
+.generated-slot.has-image .render-box {
+    background-color: transparent;
 }
 
 .generated-slot.preload .render-box,
@@ -906,6 +919,14 @@ body {
 .field-group {
     position: relative;
     margin-bottom: 1rem;
+}
+
+#article-name-group {
+    margin-bottom: 1.35rem;
+}
+
+#article-description-group {
+    margin-bottom: 1.6rem;
 }
 
 .field-group .field-content {
@@ -978,6 +999,14 @@ body {
 
 .skeleton-line.short {
     width: 35%;
+}
+
+.skeleton-line.shorter {
+    width: 28%;
+}
+
+.skeleton-line.long {
+    width: 80%;
 }
 
 .skeleton-line.medium {

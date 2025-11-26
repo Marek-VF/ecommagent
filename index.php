@@ -225,6 +225,7 @@ $appConfig = [
                             </div>
                             <div class="skeleton-text" aria-hidden="true">
                                 <div class="skeleton-line short"></div>
+                                <div class="skeleton-line shorter"></div>
                             </div>
                         </div>
 
@@ -241,9 +242,10 @@ $appConfig = [
                                 <pre class="output-body" id="article-description-content"></pre>
                             </div>
                             <div class="skeleton-text" aria-hidden="true">
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-line"></div>
+                                <div class="skeleton-line long"></div>
                                 <div class="skeleton-line medium"></div>
+                                <div class="skeleton-line"></div>
+                                <div class="skeleton-line short"></div>
                             </div>
                         </div>
                     </div>
