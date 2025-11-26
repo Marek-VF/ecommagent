@@ -851,8 +851,12 @@ body {
     background-color: rgb(232, 232, 232);
     position: relative;
     overflow: hidden;
-    animation: preload 1.8s ease-out 0s infinite;
     border-radius: 12px;
+}
+
+.generated-slot.preload .render-box,
+.render-box.preload {
+    animation: preload 1.8s ease-out 0s infinite;
 }
 
 .generated-slot.has-image .render-shell {

@@ -531,6 +531,11 @@ const setFieldGroupLoading = (group, isLoading) => {
     group.classList.toggle(FIELD_GROUP_LOADING_CLASS, Boolean(isLoading));
 };
 
+const setArticleFieldsLoading = (isLoading) => {
+    setFieldGroupLoading(articleNameGroup, isLoading);
+    setFieldGroupLoading(articleDescriptionGroup, isLoading);
+};
+
 const collectArticleFieldSources = (input) => {
     const sources = [];
     const visited = new Set();
@@ -625,13 +630,15 @@ const updateArticleFieldsFromData = (data) => {
         articleNameOutput.textContent = hasName ? articleName : '';
     }
 
-    setFieldGroupLoading(articleNameGroup, !hasName);
+    const shouldLoadName = isProcessing && !hasName;
+    setFieldGroupLoading(articleNameGroup, shouldLoadName);
 
     if (articleDescriptionOutput) {
         articleDescriptionOutput.textContent = hasDescription ? articleDescription : '';
     }
 
-    setFieldGroupLoading(articleDescriptionGroup, !hasDescription);
+    const shouldLoadDescription = isProcessing && !hasDescription;
+    setFieldGroupLoading(articleDescriptionGroup, shouldLoadDescription);
 
     if (workflowOutputController) {
         workflowOutputController.sync();
@@ -846,6 +853,13 @@ const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).ma
     container.dataset.hasContent = 'false';
     container.dataset.isLoading = 'false';
 
+    container.classList.remove('is-hidden', 'preload', 'is-pulsing');
+
+    const renderBox = container.querySelector('.render-box');
+    if (renderBox) {
+        renderBox.classList.remove('preload');
+    }
+
     if (!container.hasAttribute('tabindex')) {
         container.setAttribute('tabindex', '0');
     }
@@ -910,7 +924,13 @@ const setSlotLoadingState = (slot, loading) => {
     }
 
     slot.container.dataset.isLoading = loading ? 'true' : 'false';
-    setPulseState(slot, Boolean(loading));
+
+    slot.container.classList.toggle('preload', Boolean(loading));
+
+    const renderBox = slot.container.querySelector('.render-box');
+    if (renderBox) {
+        renderBox.classList.toggle('preload', Boolean(loading));
+    }
 };
 
 const setSlotImageSource = (slot, src) => {
@@ -936,7 +956,7 @@ const setSlotImageSource = (slot, src) => {
     slot.container.dataset.currentSrc = resolved;
     slot.container.dataset.hasContent = 'true';
     slot.container.dataset.isLoading = 'false';
-    setPulseState(slot, false);
+    setSlotLoadingState(slot, false);
 
     let imageElement = slot.container.querySelector('img');
     if (!imageElement) {
@@ -1003,16 +1023,13 @@ const createWorkflowOutputController = () => {
 
             const hasImage = slot.container.dataset.hasContent === 'true';
             const shouldLoad = nextIndex !== null && index === nextIndex;
-            const shouldBeInactive = !hasImage && !shouldLoad;
 
-            slot.container.classList.toggle('is-hidden', shouldBeInactive);
+            slot.container.classList.remove('is-hidden');
 
             if (hasImage) {
                 setSlotLoadingState(slot, false);
-            } else if (shouldLoad) {
-                setSlotLoadingState(slot, true);
             } else {
-                setSlotLoadingState(slot, false);
+                setSlotLoadingState(slot, shouldLoad);
             }
         });
 
@@ -1042,7 +1059,8 @@ const createWorkflowOutputController = () => {
             applyState('idle');
             gallerySlots.forEach((slot) => {
                 if (slot?.container) {
-                    slot.container.classList.add('is-hidden');
+                    slot.container.classList.remove('is-hidden', 'preload', 'first-active');
+                    setSlotLoadingState(slot, false);
                 }
             });
         },
@@ -1086,7 +1104,6 @@ const createWorkflowOutputController = () => {
                         return;
                     }
 
-                    slot.container.classList.add('is-hidden');
                     setSlotLoadingState(slot, false);
                 });
             }
@@ -1105,8 +1122,8 @@ const createWorkflowOutputController = () => {
                 }
 
                 clearSlotContent(slot);
-                slot.container.classList.add('is-hidden');
                 setSlotLoadingState(slot, false);
+                slot.container.classList.remove('is-hidden', 'preload', 'first-active');
             });
         },
     };
@@ -1304,6 +1321,8 @@ const updateProcessingIndicator = (text, state = 'idle') => {
 
 const setLoadingState = (loading, options = {}) => {
     isProcessing = loading;
+
+    setArticleFieldsLoading(Boolean(loading));
 
     if (loading) {
         hasObservedActiveRun = true;
@@ -1637,7 +1656,7 @@ async function startWorkflow() {
         showWorkflowFeedback('success', successMessage);
         setStatus('info', 'Verarbeitung läuft …');
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
-        clearProductFields();
+        clearProductFields({ loading: true });
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
         if (hasPreviewImage) {
             setScanOverlayActive(true);
@@ -2295,7 +2314,9 @@ gallerySlots.forEach((slot) => {
     });
 });
 
-function clearProductFields() {
+function clearProductFields(options = {}) {
+    const shouldLoad = Boolean(options.loading);
+
     if (articleNameOutput) {
         articleNameOutput.textContent = '';
     }
@@ -2304,8 +2325,7 @@ function clearProductFields() {
         articleDescriptionOutput.textContent = '';
     }
 
-    setFieldGroupLoading(articleNameGroup, true);
-    setFieldGroupLoading(articleDescriptionGroup, true);
+    setArticleFieldsLoading(shouldLoad);
 }
 
 function showPlaceholderImages(withPulse = false) {
@@ -2373,7 +2393,7 @@ function resetFrontendState(options = {}) {
     stopPolling();
     activeRunId = null;
     setStatus('ready', 'Bereit zum Upload');
-    clearProductFields();
+    clearProductFields({ loading: false });
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
     showPlaceholderImages(withPulse);
     hasShownCompletion = false;
