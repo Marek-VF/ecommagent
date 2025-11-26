@@ -1,380 +1,241 @@
-# Technische Spezifikation – Ecomm Agent
-Stand: 24.11.2025
+# 📄 **TECHNICAL_SPEC.md**
 
-## 1. Überblick
-
-Ecomm Agent ist eine PHP-8.2-Anwendung mit MySQL-8.4-Datenbank zur Steuerung eines externen n8n-Workflows.
-Ziel ist die halbautomatische Generierung von Produktdaten und KI-Bildern aus Benutzer-Uploads.
-
-Kernfunktionen:
-- Multi-User-fähige Weboberfläche mit Login / Registrierung
-- Upload von Ausgangsbildern (eins oder zwei Originalbilder pro Lauf)
-- Übergabe der Daten an einen n8n-Workflow
-- Rückkanal für generierte Produkttexte und Bilder
-- Live-Statusanzeige (Polling) und Run-Historie je Benutzer
-
-Die Anwendung dient als Schnittstelle zwischen Benutzer-Uploads und einer KI-gestützten Content-Pipeline im
-E-Commerce-Kontext.
+```markdown
+# Technische Spezifikation – Ecomm Agent  
+Version 1.0 · Stand: aktuelle Projektstruktur aus ZIP Archiv
 
 ---
 
-## 2. Systemarchitektur
+## 1. Zielsetzung
 
-[Browser / Frontend]
-   ⇄ index.php + script.js
-   ⇄ API (get-latest-item, get-runs, get-run-details)
-   ⇄ Backend-Controller (upload, start-workflow, receiver, webhook_image)
-   ⇄ MySQL 8.4
-   ⇄ n8n-Webhooks (eingehend/ausgehend)
+Die Anwendung soll automatisiert:
 
-### 2.1 Komponentenübersicht
+- Produktbilder generieren  
+- Bildanalysen bereitstellen  
+- Promptvarianten aus der DB liefern  
+- Produkte visuell & textuell darstellen  
+- Workflows orchestrieren, überwachen und loggen  
 
-**Frontend (index.php + script.js)**
-
-- Drag-&-Drop-Uploadzone
-- Formularfelder für Artikelname und Beschreibung
-- Dynamische Bild-Slots für generierte Ergebnisse (Anzahl abhängig von Datenlage)
-- Sidebar mit Verlaufsübersicht aller Runs des eingeloggten Users
-- Status-Anzeige (Polling ca. alle 2 Sekunden)
-- Fade-in-Effekte für Bilder und Statuswechsel
-- Unterstützung von Mehrfach-Uploads (max. zwei Originalbilder pro Run)
-- Dark-Theme-CSS
-
-**Backend / Controller**
-
-- `upload.php`
-  - Nimmt Datei-Uploads entgegen
-  - Legt neuen Eintrag in `workflow_runs` an
-  - Speichert Originalbilder in `run_images`
-- `start-workflow.php`
-  - Liest Run-Daten und Originalbilder
-  - Ruft konfigurierten n8n-Webhook (`workflow_webhook`) auf
-- `receiver.php`
-  - Nimmt JSON-Daten von n8n entgegen (Produktname, -beschreibung, Status, Nachrichten)
-  - Schreibt in `item_notes`, `workflow_runs`, `user_state`, `status_logs`
-- `webhook_image.php`
-  - Nimmt generierte Bilder (multipart/form-data) von n8n entgegen
-  - Speichert Bilder im Dateisystem
-  - Legt Einträge in `item_images` an (mit `run_id`, `note_id`, `position`)
-- `api/get-latest-item.php`
-  - Aggregiert die aktuell relevanten Daten für die UI:
-    - Letzter Run des Users (`workflow_runs`)
-    - Status (`user_state`, `status_logs`)
-    - Produktdaten (`item_notes`)
-    - Bilder (`item_images`)
-- `api/get-runs.php`
-  - Listet alle Runs eines Benutzers mit Basis-Metadaten
-- `api/get-run-details.php`
-  - Liefert Detailansicht eines Runs inkl. zugehöriger Notizen und Bilder
-
-**Auth-Schicht (auth/\*)**
-
-- Login, Registrierung, E-Mail-Verifizierung
-- Passwort-Reset via Token
-- Session-Verwaltung
-- Versand von Mails über PHPMailer
-- Schutz aller relevanten Endpunkte (Frontend und API) vor nicht authentifiziertem Zugriff
-
-**Settings-Modul (settings/\*)**
-
-- Bearbeitung von Benutzerprofilen (Name, E-Mail)
-- Speicherung der Bildverhältnis-Präferenz `image_ratio_preference` pro User
-- Grundlage für spätere Steuerung der Bildgenerierung (z. B. „original“, „3:4“, „9:16“)
+Sie dient als zentraler Hub zwischen Nutzer und einem externen **n8n Workflow**.
 
 ---
 
-## 3. Datenbankmodell
+## 2. Systemkomponenten
 
-Die Datenbank ist in sieben Kern-Tabellen strukturiert:
+### 2.1 Frontend
+- `index.php` als UI-Container  
+- `script.js` steuert:
+  - Upload
+  - Polling
+  - Statusanzeigen
+  - Bildslidere
+  - Dynamische Layouts
 
-- `users`
-- `user_state`
-- `workflow_runs`
-- `item_notes`
-- `item_images`
-- `run_images`
-- `status_logs`
+### 2.2 Backend (PHP)
+Hauptaufgaben:
+- Authentifizierung
+- Orchestrierung des Workflows
+- Eingang der n8n-Callbacks
+- Datenpersistenz (Runs, Images, Logs)
+- Prompt-Variantenbereitstellung
+- Settings-Funktionen für User
 
-### 3.1 users
-
-Repräsentiert Benutzerkonten.
-
-Wichtige Felder:
-- `id` (PK)
-- `name`
-- `email` (unique)
-- `password_hash`
-- `image_ratio_preference` (z. B. `original`, `3:4`, `9:16`)
-- `verification_token`, `verified`
-- `reset_token`
-- `created_at`, `updated_at`
-
-Beziehungen:
-- 1:n zu `workflow_runs`
-- 1:n zu `item_notes`
-- 1:n zu `item_images`
-- 1:1 zu `user_state`
-- 1:n zu `status_logs`
-
-### 3.2 user_state
-
-Speichert den letzten Status je Benutzer (für schnelle UI-Abfragen).
-
-Wichtige Felder:
-- `user_id` (PK, FK → users.id)
-- `last_status` (z. B. `idle`, `running`, `finished`, `error`)
-- `last_message` (letzte Statusmeldung)
-- `last_image_url` (optional, Kurzreferenz auf letztes Bild)
-- `last_payload_summary` (Kurzfassung der letzten n8n-Payload)
-- `current_run_id` (FK → workflow_runs.id)
-- `updated_at`
-
-Zweck:
-- UI-Polling kann schnell den aktuellen Stand laden, ohne große JOINs.
-
-### 3.3 workflow_runs
-
-Repräsentiert einen kompletten Workflow-Durchlauf.
-
-Wichtige Felder:
-- `id` (PK)
-- `user_id` (FK → users.id)
-- `started_at`, `finished_at`
-- `status` (z. B. `new`, `pending`, `running`, `finished`, `error`)
-- `last_message` (letzte human-readable Nachricht)
-- `original_image` (historisch, aktuell durch `run_images` ersetzt)
-- `created_at`
-
-Zweck:
-- Logischer Container für:
-  - Originalbilder (`run_images`)
-  - Produktnotizen (`item_notes`)
-  - generierte Bilder (`item_images`)
-  - Statuslogs (`status_logs`)
-
-### 3.4 item_notes
-
-Speichert Produktdaten (Titel, Beschreibung), vor allem aus n8n.
-
-Wichtige Felder:
-- `id` (PK)
-- `user_id` (FK → users.id)
-- `run_id` (FK → workflow_runs.id, optional, aber in der Praxis immer gesetzt)
-- `product_name`
-- `product_description`
-- `source` (`n8n` oder `user`)
-- `created_at`
-
-Zweck:
-- Textuelle Produktbeschreibung
-- Kann pro Run mehrere Notizen enthalten (z. B. Varianten oder Versionen)
-
-### 3.5 item_images
-
-Speichert generierte Bilder.
-
-Wichtige Felder:
-- `id` (PK)
-- `user_id` (FK → users.id)
-- `run_id` (FK → workflow_runs.id, technisch `DEFAULT NULL`)
-- `note_id` (FK → item_notes.id)
-- `url` (Pfad/URL zum Bild)
-- `position` (Sortierindex für Darstellung)
-- `created_at`
-
-Wichtige fachliche Regel:
-- Obwohl `run_id` in der DB nullable ist, soll **jedes Bild in der Anwendung immer einer `run_id` zugeordnet werden**.
-- Damit sind alle Bilder eindeutig einem Workflow-Durchlauf zugeordnet und können in Historien & Detailansicht konsistent dargestellt werden.
-
-### 3.6 run_images
-
-Speichert Originalbilder, die vom Benutzer hochgeladen wurden.
-
-Wichtige Felder:
-- `id` (PK)
-- `run_id` (FK → workflow_runs.id)
-- `file_path` (Pfad zur Datei im Upload-Verzeichnis)
-- `original_name` (originaler Dateiname aus dem Upload)
-- `created_at`
-
-Zweck:
-- Exakte Abbildung der User-Uploads
-- Grundlage für n8n-Weiterverarbeitung (z. B. max. zwei Bilder pro Run)
-
-### 3.7 status_logs
-
-Detailliertes Log der Statusentwicklung je Run.
-
-Wichtige Felder:
-- `id` (PK)
-- `user_id` (FK → users.id)
-- `run_id` (FK → workflow_runs.id, optional)
-- `level` (`info`, `warn`, `error`)
-- `status_code` (optional, z. B. HTTP-Code oder interner Code)
-- `message` (Kurzbeschreibung)
-- `payload_excerpt` (Textauszug aus der empfangenen Payload)
-- `source` (z. B. `receiver`, `webhook_image`, `system`)
-- `created_at`
-
-Zweck:
-- Audit-Logging für Debugging und Nachvollziehbarkeit
-- Grundlage für spätere erweiterte Status-/Fehleransichten
+### 2.3 n8n Automationsserver
+Nutzen:
+- AI Bildanalyse
+- Bildgenerierung via Diffusion Models
+- Textgenerierung
+- Multi-Image Logik (abhängig von eingehenden Payloads)
+- Rückgabe an `receiver.php`
 
 ---
 
-## 4. Ablauf / Datenflüsse
+## 3. Workflow Definition (technisch)
 
-### 4.1 Authentifizierung
+### 3.1 Upload
+`upload.php`
 
-1. User registriert sich über `/auth/register.php`.
-2. E-Mail-Verifizierung (optional, abhängig von Konfiguration).
-3. Login über `/auth/login.php` → Session wird gesetzt.
-4. Alle relevanten UI- und API-Aufrufe prüfen, ob eine gültige Session existiert.
+Ablauf:
+- Dateiannahme  
+- Validierung  
+- Speicherung im `/uploads`  
+- Eintrag in `workflow_runs`  
+- Rückgabe `run_id`
 
-### 4.2 Upload & Run-Erstellung
+### 3.2 Workflow Start
+`start-workflow.php`
 
-1. Authentifizierter Benutzer lädt ein oder zwei Bilder über `upload.php` hoch.
-2. `upload.php`:
-   - erstellt einen neuen Eintrag in `workflow_runs` mit Status `new`.
-   - speichert die Originalbilder im Upload-Verzeichnis.
-   - legt pro Bild einen Eintrag in `run_images` an (`run_id`, `file_path`, `original_name`).
-   - aktualisiert `user_state.current_run_id` und `user_state.last_status`.
+Payload an n8n:
 
-### 4.3 Workflow-Start
+```json
+{
+  "run_id": <int>,
+  "user_id": <int>,
+  "image_url_1": "string",
+  "image_url_2": "string|optional",
+  "receiver_api_token": "string"
+}
 
-1. Benutzer klickt im Frontend auf „Start“.
-2. `start-workflow.php`:
-   - liest den entsprechenden Run aus `workflow_runs`.
-   - lädt die zugehörigen Originalbilder aus `run_images` (typischerweise max. zwei).
-   - baut eine JSON-Payload inklusive Bild-URLs, User- und Run-Informationen.
-   - ruft den konfigurierten `workflow_webhook` (n8n) auf.
-   - setzt Status in `workflow_runs` (z. B. `running`) und schreibt einen Eintrag in `status_logs`.
+3.3 Prompt Variants Fetch
 
-### 4.4 n8n-Rückkanal – Produktdaten
+api/get-prompt-variants.php
 
-1. n8n verarbeitet Input und ruft `receiver.php` auf.
-2. `receiver.php`:
-   - prüft Bearer-Token und ggf. IP-Whitelist.
-   - parst die JSON-Payload (Produktname, Beschreibung, Status, Nachrichten).
-   - legt einen Eintrag in `item_notes` an (mit `user_id` und `run_id`).
-   - aktualisiert `workflow_runs.status` und `workflow_runs.last_message`.
-   - aktualisiert `user_state` (Status, Nachricht, `current_run_id`).
-   - schreibt einen Eintrag in `status_logs`.
+N8n ruft diese API auf:
 
-### 4.5 n8n-Rückkanal – Bilder
+    User wird anhand des prompt_category_id gemappt
 
-1. n8n generiert Bilder (z. B. aus einem Diffusionsmodell) und ruft `webhook_image.php` auf.
-2. `webhook_image.php`:
-   - prüft Bearer-Token und ggf. IP-Whitelist.
-   - verarbeitet Multipart-Formulardaten (Bilddateien + Metadaten wie `run_id`, `note_id`, `position`).
-   - speichert Bilddateien im Upload-/Output-Verzeichnis.
-   - legt Einträge in `item_images` an:
-     - `user_id`
-     - `run_id` (soll immer gesetzt sein)
-     - `note_id`
-     - `url`
-     - `position`
-   - schreibt optional Status in `status_logs`.
+    passende Varianten geladen
 
-### 4.6 UI / Polling
+3.4 n8n AI Prozess (aus Code abgeleitet)
 
-1. Das Frontend ruft zyklisch `api/get-latest-item.php` auf (z. B. alle 2 Sekunden).
-2. `get-latest-item.php`:
-   - liest `user_state.current_run_id` und `user_state.last_status`.
-   - lädt den entsprechenden Run aus `workflow_runs`.
-   - zieht passende `item_notes` (z. B. jüngste für diesen Run).
-   - lädt zugehörige `item_images` (mit Sortierung nach `position`).
-   - liefert eine komprimierte JSON-Struktur zurück, die alle Informationen enthält,
-     die für die UI benötigt werden.
+    Garment Analyse
 
-3. Zusätzlich kann der Benutzer über die Sidebar:
-   - `api/get-runs.php` aufrufen → Liste seiner Runs.
-   - `api/get-run-details.php?run_id=...` → Detailansicht eines Runs inkl. Notizen & Bilder.
+    Kombination (wenn mehrere Bilder)
 
----
+    Generierung verschiedener Bildtypen
 
-## 5. Frontend-Verhalten
+    Bewertung & Selektion
 
-- Single-Page-ähnliches Verhalten über `index.php` + `script.js`.
-- Liest grundlegende Konfiguration über `APP_CONFIG` (in PHP eingebettet).
-- Drag-&-Drop-Upload und klassischer File-Input werden unterstützt.
-- Maximal zwei Originalbilder pro Run werden zugelassen.
-- Polling-Intervall auf ca. 2 Sekunden eingestellt (ggf. konfigurierbar).
-- Zustand „Workflow abgeschlossen“:
-  - Anzeige der generierten Produktdaten aus `item_notes`.
-  - Anzeige aller generierten Bilder aus `item_images`, sortiert nach `position`.
-- Layout und Animationen sind in CSS (Dark Theme) gekapselt; kein Frontend-Framework notwendig.
+    Textgenerierung
 
----
+    Rückgabe an Backend
 
-## 6. Sicherheit
+3.5 Callback-Handling
 
-- Session-basierte Authentifizierung:
-  - Login via `auth/login.php`
-  - geschützte Bereiche und API-Endpunkte prüfen, ob User eingeloggt ist.
-- Passwort-Hashing via `password_hash()` und `password_verify()`.
-- Datenbankzugriff ausschließlich über PDO mit Prepared Statements.
-- CSRF-Risiken werden durch Session-Check und serverseitige Validierung reduziert.
-- Webhook-Security:
-  - Bearer-Token-Header für `receiver.php` und `webhook_image.php`.
-  - Optionale IP-Whitelist (`receiver_api_allowed_ips`) zur Beschränkung auf n8n-Server.
-- Upload-Sicherheit:
-  - Einschränkung auf Bilddateitypen (Server-seitige Validierung).
-  - Speicherung der Dateien außerhalb sensibler Pfade, Pfade werden in der DB abgelegt.
-- Logging:
-  - `status_logs` dient dem systematischen Festhalten von Statusänderungen,
-    inkl. Fehlern und Auszügen aus problematischen Payloads.
+receiver.php
 
----
+Verarbeitet:
 
-## 7. Konfiguration & Deployment
+    statusmeldung
 
-Konfiguration zentral in `config.php`:
+    images
 
-- `base_url` – Basis-URL der Anwendung
-- `upload_dir` – Pfad zum Upload-Verzeichnis
-- `workflow_webhook` – URL des n8n-Webhooks für den Workflow-Start
-- `receiver_api_token` – Shared-Secret für n8n → `receiver.php`
-- `image_webhook_token` (oder gemeinsam genutztes Token) – Shared-Secret für n8n → `webhook_image.php`
-- `receiver_api_allowed_ips` – optionale IP-Whitelist für eingehende Webhooks
+    text
 
-Deployment-Voraussetzungen:
+    garment analysis
 
-- PHP ≥ 8.2
-- MySQL ≥ 8.4
-- Apache mit aktiviertem Rewrite-Modul
-- Schreibrechte für:
-  - Upload-Verzeichnis
-  - ggf. Log-Verzeichnis (wenn zusätzliches Logging aktiviert wird)
-- Datenbank initial mit `import.sql` erstellen.
-- Erster Benutzer wird über `/auth/register.php` angelegt.
+    final product images
 
----
+Speichert:
 
-## 8. Erweiterungen (geplant)
+    Images in item_images
 
-- Erweiterte Statusanzeige mit Fortschrittsbalken und kategorisierten Logs über `status_logs`
-- Option zum erneuten Ausführen eines abgeschlossenen Runs (Re-Run mit gleichen oder leicht modifizierten Parametern)
-- Export-Funktion (JSON / CSV) für generierte Artikeldaten (`item_notes` + `item_images`)
-- Erweiterte Settings:
-  - Feinsteuerung der Bildverhältnisse je Slot
-  - User-spezifische Workflow-Parameter (z. B. n8n-Varianten)
-- Admin-Oberfläche:
-  - Einsicht in alle Users, Runs, Logs
-  - Konfiguration von Feature-Flags
+    Status in workflow_runs
 
----
+    Logs in status_logs
 
-## 9. Zusammenfassung
+3.6 Frontend Polling
 
-Ecomm Agent bildet eine robuste, multi-user-fähige Brücke zwischen Benutzer-Uploads und einem KI-basierten
-n8n-Workflow. Das System kapselt:
+Regelmäßig:
 
-- Upload und Speicherung von Originalbildern (`run_images`)
-- orchestrierte Workflow-Durchläufe (`workflow_runs`)
-- Rückführung von Produktdaten (`item_notes`) und generierten Bildern (`item_images`)
-- Status- und Fehler-Tracking (`user_state`, `status_logs`)
+    get-runs.php
 
-Durch die klar getrennte Architektur (Frontend, API, Controller, DB) und die Token-gesicherte Webhook-Anbindung
-eignet sich Ecomm Agent als Grundlage für wiederverwendbare Content-Pipelines und kann mit weiteren Workflows und
-Features iterativ ausgebaut werden.
+    get-run-details.php
+
+Dient zur Live-Anzeige des Fortschritts.
+4. Datenstrukturen
+4.1 Run
+
+id
+user_id
+created_at
+status
+original_image
+last_message
+
+4.2 Image
+
+id
+run_id
+user_id
+image_url | image_base64
+type
+created_at
+
+4.3 Prompt Variant
+
+id
+category_id
+label
+LOCATION
+LIGHTING
+MOOD
+SEASON
+MODEL_TYPE
+MODEL_POSE
+VIEW_MODE
+
+4.4 Status Log
+
+id
+run_id
+user_id
+message
+created_at
+
+5. Konfiguration (Technisch)
+
+Die Konfigurationsdatei wird via:
+
+$config = require __DIR__ . '/config.php';
+
+geladen.
+
+Sie enthält:
+• Pfade
+
+base_url, upload_dir, asset_base_url
+• n8n Integration
+
+    workflow_webhook
+
+    receiver_api_token
+
+    receiver_api_allowed_ips
+
+• DB (PDO)
+
+DSN + Credentials
+• SMTP
+
+E-Mail Versand (Verifizierung / Reset)
+6. Sicherheit
+6.1 API Tokens
+
+n8n → Backend nutzt Header:
+
+X-API-TOKEN: <receiver_api_token>
+
+6.2 Berechtigungen
+
+Nur authentifizierte User haben Zugriff auf:
+
+    Upload
+
+    Start Workflow
+
+    Settings
+
+    Run Details
+
+6.3 SQL Sicherheit
+
+Alle Queries via PDO Prepared Statements.
+6.4 Upload Sicherheit
+
+    mime-type check
+
+    size checks
+
+    unique filenames
+
+7. Performance
+
+    Frontend Polling kann später per WebSocket ersetzt werden
+
+    Base64 Images → können sehr groß werden
+
+    Caching für Prompt-Varianten möglich
+
+    Asynchrone Verarbeitung über n8n skaliert gut
+

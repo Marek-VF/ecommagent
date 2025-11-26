@@ -1,202 +1,361 @@
--- Reapplied schema bootstrap after previous empty import.sql commit
--- =========================================
--- =========================================
--- Prompt-Kategorien (Basis für Prompts und Nutzerpräferenzen)
-CREATE TABLE IF NOT EXISTS `prompt_categories` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `category_key` VARCHAR(64) NOT NULL UNIQUE,
-  `label` VARCHAR(255) NOT NULL,
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+-- phpMyAdmin SQL Dump
+-- version 5.2.3
+-- https://www.phpmyadmin.net/
+--
+-- Host: db003363.mydbserver.com
+-- Erstellungszeit: 26. Nov 2025 um 11:59
+-- Server-Version: 8.4.6-6
+-- PHP-Version: 8.4.13
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Datenbank: `usr_p689217_4`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `item_images`
+--
+
+CREATE TABLE `item_images` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED DEFAULT NULL,
+  `note_id` int UNSIGNED NOT NULL,
+  `url` varchar(1024) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `position` tinyint UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `prompt_categories` (`category_key`, `label`)
-VALUES
-  ('fashion', 'Fashion'),
-  ('dekoration', 'Dekoration'),
-  ('schmuck', 'Schmuck')
-ON DUPLICATE KEY UPDATE
-  `label` = VALUES(`label`);
+-- --------------------------------------------------------
 
--- USERS (Auth-Basis)
--- =========================================
-CREATE TABLE IF NOT EXISTS `users` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(100) NOT NULL,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
-  `password_hash` VARCHAR(255) NOT NULL,
-  `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original',
-  `prompt_category_id` INT UNSIGNED NULL,
-  `verification_token` VARCHAR(64) DEFAULT NULL,
-  `verified` TINYINT(1) NOT NULL DEFAULT 0,
-  `reset_token` VARCHAR(64) DEFAULT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `fk_users_prompt_category`
-    FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE SET NULL,
-  KEY `idx_email` (`email`),
-  KEY `idx_verification_token` (`verification_token`),
-  KEY `idx_reset_token` (`reset_token`)
+--
+-- Tabellenstruktur für Tabelle `item_notes`
+--
+
+CREATE TABLE `item_notes` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED DEFAULT NULL,
+  `product_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `product_description` mediumtext COLLATE utf8mb4_unicode_ci,
+  `source` enum('n8n','user') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'n8n',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- USER STATE (aktueller Zustand je User)
--- =========================================
-CREATE TABLE IF NOT EXISTS `user_state` (
-  `user_id` INT UNSIGNED NOT NULL,
-  `last_status` ENUM('ok','warn','error','running','finished','idle','pending') NULL,
-  `last_message` VARCHAR(255) NULL,
-  `last_image_url` TEXT NULL,
-  `last_payload_summary` TEXT NULL,
-  `current_run_id` INT UNSIGNED NULL,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`user_id`),
-  CONSTRAINT `fk_user_state_user`
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `prompt_categories`
+--
+
+CREATE TABLE `prompt_categories` (
+  `id` int UNSIGNED NOT NULL,
+  `category_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `label` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- WORKFLOW RUNS (Historie je Benutzer)
--- =========================================
-CREATE TABLE IF NOT EXISTS `workflow_runs` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
-  `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `finished_at` DATETIME NULL,
-  `status` ENUM('pending','running','finished','error') NOT NULL DEFAULT 'pending',
-  `last_message` TEXT NULL,
-  `original_image` VARCHAR(1024) NULL,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_workflow_runs_user` (`user_id`),
-  KEY `idx_workflow_runs_status` (`status`),
-  CONSTRAINT `fk_workflow_runs_user`
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `prompt_variants`
+--
+
+CREATE TABLE `prompt_variants` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `category_id` int UNSIGNED NOT NULL,
+  `variant_slot` tinyint UNSIGNED NOT NULL,
+  `location` text COLLATE utf8mb4_unicode_ci,
+  `lighting` text COLLATE utf8mb4_unicode_ci,
+  `mood` text COLLATE utf8mb4_unicode_ci,
+  `season` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `model_type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `model_pose` text COLLATE utf8mb4_unicode_ci,
+  `view_mode` enum('full_body','garment_closeup') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'full_body',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- STATUS LOGS (Historie von Events)
--- =========================================
-CREATE TABLE IF NOT EXISTS `status_logs` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
-  `run_id` INT UNSIGNED NULL,
-  `level` ENUM('info','warn','error') NOT NULL DEFAULT 'info',
-  `status_code` INT NULL,
-  `message` VARCHAR(255) NOT NULL,
-  `payload_excerpt` TEXT NULL,
-  `source` VARCHAR(50) NOT NULL DEFAULT 'receiver',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_logs_user_created` (`user_id`,`created_at`),
-  KEY `idx_logs_level` (`level`),
-  KEY `idx_logs_source` (`source`),
-  KEY `idx_logs_run` (`run_id`),
-  CONSTRAINT `fk_status_logs_user`
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_status_logs_run`
-    FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `run_images`
+--
+
+CREATE TABLE `run_images` (
+  `id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED NOT NULL,
+  `file_path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `original_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- ITEM NOTES (Produktinformationen je Lauf)
--- =========================================
-CREATE TABLE IF NOT EXISTS `item_notes` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
-  `run_id` INT UNSIGNED NULL,
-  `product_name` VARCHAR(255) NULL,
-  `product_description` MEDIUMTEXT NULL,
-  `source` ENUM('n8n','user') NOT NULL DEFAULT 'n8n',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_notes_user_created` (`user_id`,`created_at`),
-  KEY `idx_notes_run` (`run_id`),
-  CONSTRAINT `fk_item_notes_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_item_notes_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `status_logs`
+--
+
+CREATE TABLE `status_logs` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED DEFAULT NULL,
+  `level` enum('info','warn','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info',
+  `status_code` int DEFAULT NULL,
+  `message` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload_excerpt` text COLLATE utf8mb4_unicode_ci,
+  `source` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'receiver',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- ITEM IMAGES (Bild-URLs zu einer Note)
--- =========================================
-CREATE TABLE IF NOT EXISTS `item_images` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
-  `run_id` INT UNSIGNED NULL,
-  `note_id` INT UNSIGNED NULL,
-  `url` VARCHAR(1024) NOT NULL,
-  `position` TINYINT UNSIGNED NULL,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_images_note_pos` (`note_id`,`position`),
-  KEY `idx_images_user_created` (`user_id`,`created_at`),
-  KEY `idx_images_run_created` (`run_id`,`created_at`),
-  CONSTRAINT `fk_item_images_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_item_images_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_item_images_note` FOREIGN KEY (`note_id`) REFERENCES `item_notes`(`id`) ON DELETE SET NULL
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `users`
+--
+
+CREATE TABLE `users` (
+  `id` int UNSIGNED NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `image_ratio_preference` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'original',
+  `prompt_category_id` int UNSIGNED DEFAULT NULL,
+  `verification_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `verified` tinyint(1) NOT NULL DEFAULT '0',
+  `reset_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- PROMPT VARIANTS (Bildvarianten-Prompts je Benutzer + Kategorie)
--- =========================================
-CREATE TABLE IF NOT EXISTS `prompt_variants` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL,
-  `category_id` INT UNSIGNED NOT NULL,
-  `variant_slot` TINYINT UNSIGNED NOT NULL, -- 1, 2 oder 3
-  `location` TEXT,
-  `lighting` TEXT,
-  `mood` TEXT,
-  `season` VARCHAR(100),
-  `model_type` VARCHAR(255),
-  `model_pose` TEXT,
-  `view_mode` ENUM('full_body','garment_closeup') NOT NULL DEFAULT 'full_body',
-  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_user_category_slot` (`user_id`,`category_id`,`variant_slot`),
-  CONSTRAINT `fk_prompt_variants_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_prompt_variants_category` FOREIGN KEY (`category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `user_state`
+--
+
+CREATE TABLE `user_state` (
+  `user_id` int UNSIGNED NOT NULL,
+  `last_status` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'idle',
+  `last_message` text COLLATE utf8mb4_unicode_ci,
+  `last_image_url` text COLLATE utf8mb4_unicode_ci,
+  `last_payload_summary` text COLLATE utf8mb4_unicode_ci,
+  `current_run_id` int UNSIGNED DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- (Optional) Minimaler Smoke-Test – nur ausführen, wenn user_id=1 existiert
--- =========================================
-INSERT INTO `user_state` (`user_id`,`last_status`,`last_message`)
-SELECT 1, 'ok', 'Init'
-WHERE EXISTS (SELECT 1 FROM `users` WHERE `id`=1)
-ON DUPLICATE KEY UPDATE
-  `last_status`=VALUES(`last_status`),
-  `last_message`=VALUES(`last_message`),
-  `updated_at`=CURRENT_TIMESTAMP;
+-- --------------------------------------------------------
 
-INSERT INTO `status_logs` (`user_id`,`level`,`status_code`,`message`,`source`)
-SELECT 1, 'info', 200, 'DB-Basis angelegt', 'migration'
-WHERE EXISTS (SELECT 1 FROM `users` WHERE `id`=1);
+--
+-- Tabellenstruktur für Tabelle `workflow_runs`
+--
 
--- =========================================
--- ALTERS (Bestandsdatenbanken aktualisieren)
--- =========================================
-ALTER TABLE `item_notes`
-  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+CREATE TABLE `workflow_runs` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `finished_at` datetime DEFAULT NULL,
+  `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
+  `last_message` text COLLATE utf8mb4_unicode_ci,
+  `original_image` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Indizes der exportierten Tabellen
+--
+
+--
+-- Indizes für die Tabelle `item_images`
+--
 ALTER TABLE `item_images`
-  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_images_note_pos` (`note_id`,`position`),
+  ADD KEY `idx_images_user_created` (`user_id`,`created_at`);
 
+--
+-- Indizes für die Tabelle `item_notes`
+--
+ALTER TABLE `item_notes`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_notes_user_created` (`user_id`,`created_at`);
+
+--
+-- Indizes für die Tabelle `prompt_categories`
+--
+ALTER TABLE `prompt_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `category_key` (`category_key`);
+
+--
+-- Indizes für die Tabelle `prompt_variants`
+--
+ALTER TABLE `prompt_variants`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_user_category_slot` (`user_id`,`category_id`,`variant_slot`),
+  ADD KEY `fk_prompt_variants_category` (`category_id`);
+
+--
+-- Indizes für die Tabelle `run_images`
+--
+ALTER TABLE `run_images`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_run_images_run` (`run_id`);
+
+--
+-- Indizes für die Tabelle `status_logs`
+--
 ALTER TABLE `status_logs`
-  ADD COLUMN IF NOT EXISTS `run_id` INT UNSIGNED NULL AFTER `user_id`;
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_logs_user_created` (`user_id`,`created_at`),
+  ADD KEY `idx_logs_level` (`level`),
+  ADD KEY `idx_logs_source` (`source`);
 
+--
+-- Indizes für die Tabelle `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`),
+  ADD KEY `idx_email` (`email`),
+  ADD KEY `idx_verification_token` (`verification_token`),
+  ADD KEY `idx_reset_token` (`reset_token`),
+  ADD KEY `fk_users_prompt_category` (`prompt_category_id`);
+
+--
+-- Indizes für die Tabelle `user_state`
+--
+ALTER TABLE `user_state`
+  ADD PRIMARY KEY (`user_id`);
+
+--
+-- Indizes für die Tabelle `workflow_runs`
+--
 ALTER TABLE `workflow_runs`
-  ADD COLUMN IF NOT EXISTS `original_image` VARCHAR(1024) NULL AFTER `last_message`;
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_workflow_runs_user` (`user_id`),
+  ADD KEY `idx_workflow_runs_status` (`status`);
 
-ALTER TABLE `users`
-  ADD COLUMN IF NOT EXISTS `image_ratio_preference` VARCHAR(50) NOT NULL DEFAULT 'original' AFTER `password_hash`;
+--
+-- AUTO_INCREMENT für exportierte Tabellen
+--
 
-ALTER TABLE `users`
-  ADD COLUMN IF NOT EXISTS `prompt_category_id` INT UNSIGNED NULL AFTER `image_ratio_preference`;
+--
+-- AUTO_INCREMENT für Tabelle `item_images`
+--
+ALTER TABLE `item_images`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
+--
+-- AUTO_INCREMENT für Tabelle `item_notes`
+--
+ALTER TABLE `item_notes`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `prompt_categories`
+--
+ALTER TABLE `prompt_categories`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `prompt_variants`
+--
+ALTER TABLE `prompt_variants`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `run_images`
+--
+ALTER TABLE `run_images`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `status_logs`
+--
+ALTER TABLE `status_logs`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `users`
+--
 ALTER TABLE `users`
-  ADD CONSTRAINT IF NOT EXISTS `fk_users_prompt_category`
-    FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories`(`id`) ON DELETE SET NULL;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT für Tabelle `workflow_runs`
+--
+ALTER TABLE `workflow_runs`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints der exportierten Tabellen
+--
+
+--
+-- Constraints der Tabelle `item_images`
+--
+ALTER TABLE `item_images`
+  ADD CONSTRAINT `fk_item_images_note` FOREIGN KEY (`note_id`) REFERENCES `item_notes` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_item_images_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `item_notes`
+--
+ALTER TABLE `item_notes`
+  ADD CONSTRAINT `fk_item_notes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `prompt_variants`
+--
+ALTER TABLE `prompt_variants`
+  ADD CONSTRAINT `fk_prompt_variants_category` FOREIGN KEY (`category_id`) REFERENCES `prompt_categories` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_prompt_variants_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `run_images`
+--
+ALTER TABLE `run_images`
+  ADD CONSTRAINT `fk_run_images_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `status_logs`
+--
+ALTER TABLE `status_logs`
+  ADD CONSTRAINT `fk_status_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `users`
+--
+ALTER TABLE `users`
+  ADD CONSTRAINT `fk_users_prompt_category` FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints der Tabelle `user_state`
+--
+ALTER TABLE `user_state`
+  ADD CONSTRAINT `fk_user_state_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints der Tabelle `workflow_runs`
+--
+ALTER TABLE `workflow_runs`
+  ADD CONSTRAINT `fk_workflow_runs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
