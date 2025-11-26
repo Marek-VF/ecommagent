@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth/bootstrap.php';
+require_once __DIR__ . '/status_logger.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -110,6 +111,8 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+    $statusMessageFromRequest = extract_status_message($_POST);
+
     $storedFilePath = null;
     $imageUrl = null;
     $runId = null;
@@ -198,6 +201,20 @@ try {
             ':run_id'   => $runId,
             ':user_id'  => $userId,
         ]);
+
+        if ($statusMessageFromRequest !== null) {
+            $updateStatusMessage = $pdo->prepare(
+                'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
+            );
+            $updateStatusMessage->execute([
+                ':message' => $statusMessageFromRequest,
+                ':run_id'  => $runId,
+                ':user_id' => $userId,
+            ]);
+
+            // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
+            log_status_message($pdo, $runId, $userId, $statusMessageFromRequest);
+        }
 
         $pdo->commit();
     } catch (Throwable $databaseException) {

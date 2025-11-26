@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth/bootstrap.php';
+require_once __DIR__ . '/status_logger.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -172,6 +173,7 @@ function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
 }
 
 $storedFilePath = null;
+$statusMessageFromRequest = extract_status_message($_POST);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -416,15 +418,20 @@ try {
             ':position' => $position,
         ]);
 
-        $insertLog = $pdo->prepare('INSERT INTO status_logs (user_id, run_id, level, status_code, message, source, created_at) VALUES (:user, :run, :level, :code, :message, :source, NOW())');
-        $insertLog->execute([
-            ':user'    => $userId,
-            ':run'     => $runId,
-            ':level'   => 'info',
-            ':code'    => 200,
-            ':message' => 'image received',
-            ':source'  => 'webhook_image',
-        ]);
+        $loggedMessage = $statusMessageFromRequest !== null ? $statusMessageFromRequest : 'image received';
+        // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
+        log_status_message($pdo, $runId, $userId, $loggedMessage);
+
+        if ($loggedMessage !== '') {
+            $updateRunMessage = $pdo->prepare(
+                'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
+            );
+            $updateRunMessage->execute([
+                ':message' => $loggedMessage,
+                ':run_id'  => $runId,
+                ':user_id' => $userId,
+            ]);
+        }
 
         $stateSql = <<<'SQL'
 INSERT INTO user_state (user_id, last_image_url, current_run_id, updated_at)

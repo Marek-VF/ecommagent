@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth/bootstrap.php';
+require_once __DIR__ . '/status_logger.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -138,6 +139,8 @@ $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
 
+$statusMessageFromPayload = extract_status_message($payload);
+
 $nameRaw = $payload['product_name'] ?? $payload['produktname'] ?? null;
 $descRaw = $payload['product_description'] ?? $payload['produktbeschreibung'] ?? null;
 $statusRaw = $payload['statusmessage'] ?? $payload['message'] ?? $payload['status'] ?? null;
@@ -155,7 +158,7 @@ if ($hasDescField) {
     $desc = $descRaw !== null ? trim((string) $descRaw) : '';
 }
 
-$message = $statusRaw !== null ? trim((string) $statusRaw) : '';
+$message = $statusMessageFromPayload !== null ? $statusMessageFromPayload : ($statusRaw !== null ? trim((string) $statusRaw) : '');
 if ($message === '') {
     $message = 'aktualisiert';
 }
@@ -277,6 +280,11 @@ try {
         ':status'  => $statusStr,
         ':message' => $message,
     ]);
+
+    // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
+    if ($statusMessageFromPayload !== null) {
+        log_status_message($pdo, $runId, $userId, $statusMessageFromPayload);
+    }
 
     $pdo->commit();
 } catch (RuntimeException $runtimeException) {
