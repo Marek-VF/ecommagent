@@ -130,25 +130,33 @@ const resolveIsRunningFromPayload = (payload) => {
     return false;
 };
 
-// Animation für Statuspunkte während Workflow läuft
-const renderStatusAnimationFrame = () => {
-    const dotCount = (statusDotCount % 3) + 1;
-    const dots = '.'.repeat(dotCount);
-    statusDotCount = dotCount % 3;
-    setStatusMessage(`${baseStatusMessage}${dots}`, { force: true });
-};
-
-const startStatusAnimation = (message) => {
-    baseStatusMessage = typeof message === 'string' ? message.trim() : '';
-    statusDotCount = 0;
-
-    if (statusAnimationInterval !== null) {
-        renderStatusAnimationFrame();
+// 4-State Statusanimation: "", ".", "..", "..."
+const animateStatus = () => {
+    const bar = statusBar || document.getElementById('status-bar');
+    if (!bar) {
         return;
     }
 
-    renderStatusAnimationFrame();
-    statusAnimationInterval = window.setInterval(renderStatusAnimationFrame, 1000);
+    statusDotCount = (statusDotCount + 1) % 4;
+
+    if (statusDotCount === 0) {
+        bar.textContent = baseStatusMessage;
+        return;
+    }
+
+    bar.textContent = `${baseStatusMessage} ${'.'.repeat(statusDotCount)}`;
+};
+
+const startStatusAnimation = (message) => {
+    if (statusAnimationInterval !== null) {
+        return;
+    }
+
+    baseStatusMessage = typeof message === 'string' ? message.trim() : '';
+    statusDotCount = 0;
+
+    setStatusMessage(baseStatusMessage, { force: true });
+    statusAnimationInterval = window.setInterval(animateStatus, 1000);
 };
 
 const stopStatusAnimation = (message) => {
@@ -169,10 +177,13 @@ const applyStatusBarMessage = (payload, options = {}) => {
     const isRunning = hasExplicitIsRunning ? Boolean(options.isRunning) : resolveIsRunningFromPayload(payload);
 
     if (isRunning) {
-        startStatusAnimation(message);
-    } else {
-        stopStatusAnimation(message);
+        if (statusAnimationInterval === null) {
+            startStatusAnimation(message);
+        }
+        return;
     }
+
+    stopStatusAnimation(message);
 };
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
