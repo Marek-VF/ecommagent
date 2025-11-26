@@ -211,7 +211,7 @@ $appConfig = [
                             </div>
                         </div>
 
-                        <div class="field-group is-loading" id="article-name-group">
+                        <div class="field-group" id="article-name-group">
                             <div class="field-content output-panel">
                                 <div class="output-header">
                                     <span class="output-title">Artikelname</span>
@@ -228,7 +228,7 @@ $appConfig = [
                             </div>
                         </div>
 
-                        <div class="field-group is-loading" id="article-description-group">
+                        <div class="field-group" id="article-description-group">
                             <div class="field-content output-panel">
                                 <div class="output-header">
                                     <span class="output-title">Artikelbeschreibung</span>
