@@ -36,6 +36,12 @@
     color: var(--accent-hover);
 }
 
+.settings-back-button {
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding-inline: 18px;
+}
+
 .settings-main {
     display: flex;
     gap: 0;

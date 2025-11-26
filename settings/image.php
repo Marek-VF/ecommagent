@@ -114,7 +114,7 @@ $activePage = 'image';
     <div class="settings-app">
         <header class="settings-header">
             <h1>Einstellungen</h1>
-            <a class="settings-back-link" href="../index.php">Zurück zu Artikelverwaltung</a>
+            <a class="btn-primary app__status-row-button settings-back-button" href="../index.php">Zurück</a>
         </header>
         <div class="settings-main">
             <nav class="settings-nav" aria-label="Einstellungsnavigation">
@@ -129,7 +129,11 @@ $activePage = 'image';
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
-                >Seitenverhältnisse</a>
+                >Seitenverhältnis</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
+                    href="image_variants.php"
+                >Bildvarianten</a>
             </nav>
             <div class="settings-content">
                 <div class="settings-card">
@@ -161,7 +165,6 @@ $activePage = 'image';
                                 </span>
                                 <span class="ratio-row-cell ratio-row-ratio">
                                     <div class="ratio-icon <?php echo htmlspecialchars($option['icon_class'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>" aria-hidden="true"></div>
-                                    <span class="ratio-row-ratio-text"><?php echo htmlspecialchars($option['ratio_text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
                                 </span>
                                 <span class="ratio-row-cell ratio-row-resolution"><?php echo htmlspecialchars($option['resolution'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span>
                             </label>

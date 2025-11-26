@@ -122,7 +122,7 @@ $activePage = 'image_variants';
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image' ? ' active' : ''; ?>"
                     href="image.php"
-                >Seitenverhältnisse</a>
+                >Seitenverhältnis</a>
                 <a
                     class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
                     href="image_variants.php"

@@ -555,6 +555,35 @@ body {
     box-shadow: none;
 }
 
+.btn-primary {
+    align-self: center;
+    padding: 12px 20px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), #6f6bff);
+    color: #10121a;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background var(--transition), transform var(--transition);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+    background: linear-gradient(135deg, var(--accent-hover), #8c7bff);
+    transform: translateY(-2px);
+}
+
+.btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.2);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
 .btn--primary {
     background: linear-gradient(135deg, var(--accent), #6f6bff);
     border: none;
