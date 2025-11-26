@@ -145,13 +145,15 @@ $images = array_map(function ($row) use ($resolvePublicPath) {
     return $row;
 }, $images);
 
-$logStmt = $pdo->prepare('
-    SELECT message, created_at, '"'"'info'"'"' AS level, NULL AS status_code
+// Statuslogs für diesen Run laden, 'info' als statisches level-Feld
+$logStmt = $pdo->prepare(<<<'SQL'
+    SELECT message, created_at, 'info' AS level, NULL AS status_code
     FROM status_logs_new
     WHERE user_id = :user_id AND run_id = :run_id
     ORDER BY created_at DESC
     LIMIT 20
-');
+SQL
+);
 $logStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $logs = $logStmt->fetchAll(PDO::FETCH_ASSOC);
 
