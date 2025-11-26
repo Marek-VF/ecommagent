@@ -28,10 +28,20 @@ const SIDEBAR_PROFILE_TRIGGER =
 const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 
 let workflowOutputController = null;
+let statusAnimationInterval = null;
+let statusDotCount = 0;
+let baseStatusMessage = '';
 
-function setStatusMessage(text) {
+const isStatusAnimationActive = () => statusAnimationInterval !== null;
+
+function setStatusMessage(text, options = {}) {
     const bar = statusBar || document.getElementById('status-bar');
     if (!bar) {
+        return;
+    }
+
+    const forceUpdate = Boolean(options && typeof options === 'object' && options.force === true);
+    if (!forceUpdate && isStatusAnimationActive()) {
         return;
     }
 
@@ -82,9 +92,87 @@ const resolveStatusBarMessage = (payload) => {
     return '';
 };
 
-const applyStatusBarMessage = (payload) => {
+const asRunningBoolean = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value === 1;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'ja'].includes(normalized)) {
+            return true;
+        }
+        if (['false', '0', 'no', 'nein'].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return false;
+};
+
+const resolveIsRunningFromPayload = (payload) => {
+    if (!payload || typeof payload !== 'object') {
+        return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'isrunning')) {
+        return asRunningBoolean(payload.isrunning);
+    }
+
+    if (payload.run && typeof payload.run === 'object' && Object.prototype.hasOwnProperty.call(payload.run, 'isrunning')) {
+        return asRunningBoolean(payload.run.isrunning);
+    }
+
+    return false;
+};
+
+// Animation für Statuspunkte während Workflow läuft
+const renderStatusAnimationFrame = () => {
+    const dotCount = (statusDotCount % 3) + 1;
+    const dots = '.'.repeat(dotCount);
+    statusDotCount = dotCount % 3;
+    setStatusMessage(`${baseStatusMessage}${dots}`, { force: true });
+};
+
+const startStatusAnimation = (message) => {
+    baseStatusMessage = typeof message === 'string' ? message.trim() : '';
+    statusDotCount = 0;
+
+    if (statusAnimationInterval !== null) {
+        renderStatusAnimationFrame();
+        return;
+    }
+
+    renderStatusAnimationFrame();
+    statusAnimationInterval = window.setInterval(renderStatusAnimationFrame, 1000);
+};
+
+const stopStatusAnimation = (message) => {
+    if (statusAnimationInterval !== null) {
+        window.clearInterval(statusAnimationInterval);
+    }
+
+    statusAnimationInterval = null;
+    statusDotCount = 0;
+    baseStatusMessage = typeof message === 'string' ? message.trim() : '';
+
+    setStatusMessage(baseStatusMessage, { force: true });
+};
+
+const applyStatusBarMessage = (payload, options = {}) => {
     const message = resolveStatusBarMessage(payload);
-    setStatusMessage(message);
+    const hasExplicitIsRunning = Object.prototype.hasOwnProperty.call(options, 'isRunning');
+    const isRunning = hasExplicitIsRunning ? Boolean(options.isRunning) : resolveIsRunningFromPayload(payload);
+
+    if (isRunning) {
+        startStatusAnimation(message);
+    } else {
+        stopStatusAnimation(message);
+    }
 };
 
 window.currentRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0
@@ -707,11 +795,13 @@ const updateUiWithData = (payload) => {
     const imageMap = normalizeLatestImagesObject(payload && typeof payload === 'object' ? payload.images : null);
     data.images = imageMap;
 
-    applyStatusBarMessage(data);
-
     applyLatestItemData(data);
     const normalized = mapLatestItemPayloadToLegacy(data);
     updateInterfaceFromData(normalized);
+
+    const hasIsRunning = Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
+    const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : false;
+    applyStatusBarMessage(data, { isRunning });
 
     if (data.images) {
         renderGeneratedImages(data.images);
@@ -1645,7 +1735,6 @@ const applyRunDataToUI = (payload) => {
         ? originalImagesFromPayload
         : (originalImage ? [originalImage] : []);
     renderOriginalImagePreviews(originalImagesToDisplay);
-    applyStatusBarMessage(data);
     let runIsRunning = false;
     let statusRaw = '';
     let indicatorMessage = '';
@@ -1721,6 +1810,8 @@ const applyRunDataToUI = (payload) => {
     } else if (Object.prototype.hasOwnProperty.call(data, 'isrunning')) {
         runIsRunning = toBoolean(data.isrunning);
     }
+
+    applyStatusBarMessage(data, { isRunning: runIsRunning });
 
     if (previewList) {
         previewList.innerHTML = '';
