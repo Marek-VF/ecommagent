@@ -289,8 +289,8 @@ try {
     if ($executedSuccessfully === false) {
         // Fehlerfall: Bild konnte nicht generiert werden. Statusmeldung speichern, aber keine Credits berechnen.
         $loggedMessage = $statusMessageFromRequest !== null
-            ? '[image_failed] ' . $statusMessageFromRequest
-            : '[image_failed] Bild konnte nicht generiert werden.';
+            ? $statusMessageFromRequest
+            : 'Bild konnte nicht generiert werden.';
 
         log_status_message($pdo, $runId, $userId, $loggedMessage);
 
@@ -302,6 +302,17 @@ try {
             ':run_id'  => $runId,
             ':user_id' => $userId,
         ]);
+
+        if ($runId !== null && $userId > 0) {
+            $updateStepStatus = $pdo->prepare(
+                'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
+            );
+            $updateStepStatus->execute([
+                ':status'  => 'error',
+                ':run_id'  => $runId,
+                ':user_id' => $userId,
+            ]);
+        }
 
         jsonResponse(200, [
             'ok'       => false,
@@ -558,6 +569,17 @@ SQL;
     } catch (Throwable $transactionException) {
         $pdo->rollBack();
         throw $transactionException;
+    }
+
+    if ($executedSuccessfully && $runId !== null && $userId > 0) {
+        $updateStepStatus = $pdo->prepare(
+            'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
+        );
+        $updateStepStatus->execute([
+            ':status'  => 'success',
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
     }
 
     if ($executedSuccessfully && $stepType !== null && $stepTypeRaw !== null && $userId > 0 && $runIdValue !== null) {

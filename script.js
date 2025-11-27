@@ -218,8 +218,7 @@ let pollInterval = null;
 let workflowIsRunning = false;
 let activeRunId = null;
 let profileMenuInitialized = false;
-let lastHandledImageErrorMessage = null;
-let lastHandledRunIdForImageError = null;
+const lastHandledStepStatusByRun = {};
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -980,25 +979,39 @@ const setSlotLoadingState = (slot, loading) => {
 
 // Preload-Animation vom aktuellen Bild-Slot entfernen und ggf. auf den nächsten Slot verschieben
 function movePreloadToNextSlot() {
-    // alle Vorschauboxen in der Anzeigereihenfolge holen
-    const boxes = Array.from(document.querySelectorAll('.generated-grid .render-box'));
+    const boxes = Array.from(document.querySelectorAll('.generated-grid .render-shell .render-box'));
     if (!boxes.length) return;
 
-    // aktive Preload-Box finden
     const currentIndex = boxes.findIndex((box) => box.classList.contains('preload'));
     if (currentIndex === -1) {
         return;
     }
 
-    // aktuelle Preload-Klasse entfernen
-    boxes[currentIndex].classList.remove('preload');
+    const currentBox = boxes[currentIndex];
+    const currentContainer = currentBox.closest('.generated-slot');
+    const currentShell = currentBox.closest('.render-shell');
 
-    // optional: boxes[currentIndex].classList.add('is-failed');
+    currentBox.classList.remove('preload');
+    if (currentContainer) {
+        currentContainer.classList.remove('preload');
+    }
+    if (currentShell) {
+        currentShell.classList.remove('preload');
+    }
 
-    // nächste Box bestimmen und Preload verschieben, falls vorhanden
     const nextIndex = currentIndex + 1;
     if (nextIndex < boxes.length) {
-        boxes[nextIndex].classList.add('preload');
+        const nextBox = boxes[nextIndex];
+        const nextContainer = nextBox.closest('.generated-slot');
+        const nextShell = nextBox.closest('.render-shell');
+
+        nextBox.classList.add('preload');
+        if (nextContainer) {
+            nextContainer.classList.add('preload');
+        }
+        if (nextShell) {
+            nextShell.classList.add('preload');
+        }
     }
 }
 
@@ -1970,26 +1983,6 @@ const loadRunDetails = async (runId) => {
 
         const data = json.data && typeof json.data === 'object' ? json.data : {};
 
-        // Bildfehler anhand der letzten Statusmeldung erkennen und Preload-Animation weiterwandern lassen
-        const run = data.run || {};
-        const runId = run.id || null;
-        const lastMessage = typeof run.last_message === 'string' ? run.last_message : '';
-
-        const hasImageFailedPrefix = lastMessage.startsWith('[image_failed]');
-        const looksLikeImageError =
-            /konnte.*nicht.*generiert werden/i.test(lastMessage) || /bild .*fehler/i.test(lastMessage);
-        const isImageError = hasImageFailedPrefix || looksLikeImageError;
-
-        if (isImageError) {
-            const errorKey = runId + '::' + lastMessage;
-
-            if (errorKey !== lastHandledImageErrorMessage || runId !== lastHandledRunIdForImageError) {
-                movePreloadToNextSlot();
-                lastHandledImageErrorMessage = errorKey;
-                lastHandledRunIdForImageError = runId;
-            }
-        }
-
         applyRunDataToUI(data);
         setActiveRun(numericId);
     } catch (error) {
@@ -2099,7 +2092,28 @@ const fetchRuns = async () => {
             return;
         }
 
-        renderRuns(json.data || []);
+        const runs = Array.isArray(json.data) ? json.data : [];
+
+        const activeIdCandidate = [activeRunId, window.currentRunId, selectedHistoryRunId]
+            .map((value) => (Number.isFinite(Number(value)) ? Number(value) : null))
+            .find((value) => value !== null && value > 0);
+
+        if (activeIdCandidate) {
+            const activeRun = runs.find((run) => Number(run?.id) === Number(activeIdCandidate));
+            if (activeRun) {
+                const key = String(activeRun.id);
+                const previousStatus = lastHandledStepStatusByRun[key] || null;
+                const currentStatus = activeRun.last_step_status || null;
+
+                if (currentStatus === 'error' && previousStatus !== 'error') {
+                    movePreloadToNextSlot();
+                }
+
+                lastHandledStepStatusByRun[key] = currentStatus;
+            }
+        }
+
+        renderRuns(runs);
     } catch (error) {
         console.error('Runs laden fehlgeschlagen', error);
         renderRuns([], { emptyMessage: 'Verläufe konnten nicht geladen werden.' });
