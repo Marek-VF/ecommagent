@@ -245,6 +245,12 @@ try {
 
     $userId = resolveUserId();
 
+    // Form-Data Felder explizit auslesen, um sie später für die Kreditabbuchung zu verwenden
+    $userIdFromPost = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+    if ($userIdFromPost > 0) {
+        $userId = $userIdFromPost;
+    }
+
     if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
         jsonResponse(400, [
             'ok'      => false,
@@ -332,7 +338,7 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $runIdValue = normalizeRunId($_POST['run_id'] ?? ($_GET['run_id'] ?? null));
+    $runIdValue = normalizeRunId($_POST['run_id'] ?? null);
     if ($runIdValue === null) {
         jsonResponse(400, [
             'ok'      => false,
@@ -341,16 +347,16 @@ try {
     }
 
     $runId = (int) $runIdValue;
-    $stepTypeInput = $_POST['step_type'] ?? ($_GET['step_type'] ?? null);
-    if (is_string($stepTypeInput) || is_numeric($stepTypeInput)) {
-        $stepType = trim((string) $stepTypeInput);
+    $stepTypeRaw = $_POST['step_type'] ?? null;
+    if (is_string($stepTypeRaw) || is_numeric($stepTypeRaw)) {
+        $stepType = trim((string) $stepTypeRaw);
         if ($stepType === '') {
             $stepType = null;
         }
     }
-    $executedFlag = $_POST['executed_successfully'] ?? ($_GET['executed_successfully'] ?? null);
-    if ($executedFlag !== null) {
-        $executedSuccessfully = toBooleanFlag($executedFlag);
+    $executedRaw = $_POST['executed_successfully'] ?? null;
+    if ($executedRaw !== null) {
+        $executedSuccessfully = in_array($executedRaw, ['true', '1', 1, true], true);
     }
     if (!runBelongsToUser($pdo, $userId, $runId)) {
         jsonResponse(404, [
@@ -524,13 +530,15 @@ SQL;
         throw $transactionException;
     }
 
-    if ($executedSuccessfully && $stepType !== null) {
+    if ($executedSuccessfully && $stepType !== null && $stepTypeRaw !== null && $userId > 0 && $runIdValue !== null) {
+        // Credits für erfolgreich generiertes Bild gemäß step_type aus Form-Data abbuchen
         try {
             $meta = [
                 'source'    => 'webhook_image.php',
                 'image_url' => $relativeUrl,
+                'step_type' => $stepTypeRaw,
             ];
-            charge_credits($pdo, $config, $userId, $runId, $stepType, $meta);
+            charge_credits($pdo, $config, $userId, $runId, $stepTypeRaw, $meta);
         } catch (Throwable $creditException) {
             error_log('[webhook_image][credits] ' . $creditException->getMessage());
         }
