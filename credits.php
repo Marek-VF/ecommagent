@@ -51,6 +51,19 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
             ':user_id' => $userId,
         ]);
 
+        if ($runId !== null) {
+            // Gesamtkosten dieses Runs (credits_spent) um den Preis des aktuellen Steps erhöhen
+            $updateRunStmt = $pdo->prepare('
+                UPDATE workflow_runs
+                SET credits_spent = credits_spent + :price
+                WHERE id = :run_id
+            ');
+            $updateRunStmt->execute([
+                ':price' => $price,
+                ':run_id' => $runId,
+            ]);
+        }
+
         $metaJson = !empty($meta) ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
 
         $insertStmt = $pdo->prepare('

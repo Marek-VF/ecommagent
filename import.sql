@@ -171,6 +171,7 @@ CREATE TABLE `workflow_runs` (
   `finished_at` datetime DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
   `last_message` text COLLATE utf8mb4_unicode_ci,
+  `credits_spent` decimal(10,3) NOT NULL DEFAULT 0.000,
   `original_image` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

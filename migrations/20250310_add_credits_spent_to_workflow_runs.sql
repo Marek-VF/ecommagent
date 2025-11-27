@@ -1,0 +1,2 @@
+ALTER TABLE workflow_runs
+  ADD COLUMN credits_spent DECIMAL(10,3) NOT NULL DEFAULT 0.000;
