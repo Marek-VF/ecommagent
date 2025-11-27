@@ -223,6 +223,8 @@ $storedFilePath = null;
 $statusMessageFromRequest = extract_status_message($_POST);
 $executedSuccessfully = false;
 $stepType = null;
+$stepTypeRaw = null;
+$runIdValue = null;
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -249,6 +251,62 @@ try {
     $userIdFromPost = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
     if ($userIdFromPost > 0) {
         $userId = $userIdFromPost;
+    }
+
+    $executedRaw = $_POST['executed_successfully'] ?? null;
+    if ($executedRaw !== null) {
+        $executedSuccessfully = in_array($executedRaw, ['true', '1', 1, true], true);
+    }
+
+    $stepTypeRaw = $_POST['step_type'] ?? null;
+    if (is_string($stepTypeRaw) || is_numeric($stepTypeRaw)) {
+        $stepType = trim((string) $stepTypeRaw);
+        if ($stepType === '') {
+            $stepType = null;
+        }
+    }
+
+    $runIdValue = normalizeRunId($_POST['run_id'] ?? null);
+    $runId = $runIdValue !== null ? (int) $runIdValue : null;
+
+    $pdo = auth_pdo();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    if ($runIdValue === null) {
+        jsonResponse(400, [
+            'ok'      => false,
+            'message' => 'run_id required',
+        ]);
+    }
+
+    if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
+        jsonResponse(404, [
+            'ok'      => false,
+            'message' => 'run_id does not belong to user',
+        ]);
+    }
+
+    if ($executedSuccessfully === false) {
+        // Fehlerfall: Bild konnte nicht generiert werden. Statusmeldung speichern, aber keine Credits berechnen.
+        $loggedMessage = $statusMessageFromRequest !== null ? $statusMessageFromRequest : 'image generation failed';
+
+        log_status_message($pdo, $runId, $userId, $loggedMessage);
+
+        $updateRunMessage = $pdo->prepare(
+            'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
+        );
+        $updateRunMessage->execute([
+            ':message' => $loggedMessage,
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
+
+        jsonResponse(200, [
+            'ok'       => false,
+            'message'  => $loggedMessage,
+            'run_id'   => $runId,
+            'image_ok' => false,
+        ]);
     }
 
     if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
@@ -332,36 +390,6 @@ try {
         jsonResponse(413, [
             'ok'      => false,
             'message' => 'Bildauflösung zu hoch (maximal 12 Megapixel).',
-        ]);
-    }
-
-    $pdo = auth_pdo();
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    $runIdValue = normalizeRunId($_POST['run_id'] ?? null);
-    if ($runIdValue === null) {
-        jsonResponse(400, [
-            'ok'      => false,
-            'message' => 'run_id required',
-        ]);
-    }
-
-    $runId = (int) $runIdValue;
-    $stepTypeRaw = $_POST['step_type'] ?? null;
-    if (is_string($stepTypeRaw) || is_numeric($stepTypeRaw)) {
-        $stepType = trim((string) $stepTypeRaw);
-        if ($stepType === '') {
-            $stepType = null;
-        }
-    }
-    $executedRaw = $_POST['executed_successfully'] ?? null;
-    if ($executedRaw !== null) {
-        $executedSuccessfully = in_array($executedRaw, ['true', '1', 1, true], true);
-    }
-    if (!runBelongsToUser($pdo, $userId, $runId)) {
-        jsonResponse(404, [
-            'ok'      => false,
-            'message' => 'run_id does not belong to user',
         ]);
     }
 
