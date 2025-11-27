@@ -22,6 +22,7 @@ $runsStmt = $pdo->prepare(
         wr.finished_at,
         wr.status,
         wr.last_message,
+        wr.last_step_status,
         (
             SELECT inotes.product_name
               FROM item_notes inotes
@@ -93,6 +94,7 @@ foreach ($runs as $run) {
         'title'           => $rawTitle,
         'status'          => $run['status'] ?? null,
         'last_message'    => $run['last_message'] ?? null,
+        'last_step_status'=> $run['last_step_status'] ?? null,
         'started_at'      => $startedAtRaw,
         'started_at_iso'  => $startedAtIso,
         'finished_at'     => $finishedAtRaw,
