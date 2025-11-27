@@ -16,6 +16,33 @@ set_error_handler(static function (int $severity, string $message, string $file,
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
+function slugify_filename(string $name): string
+{
+    $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+    if ($normalized === false) {
+        $normalized = $name;
+    }
+
+    $normalized = strtolower($normalized);
+    $normalized = strtr($normalized, [
+        'ä' => 'ae',
+        'ö' => 'oe',
+        'ü' => 'ue',
+        'ß' => 'ss',
+    ]);
+
+    $normalized = preg_replace('/[^a-z0-9\-\s]+/u', ' ', $normalized ?? '');
+    $normalized = preg_replace('/[\s]+/', '-', $normalized ?? '');
+    $normalized = preg_replace('/-{2,}/', '-', $normalized ?? '');
+    $normalized = trim($normalized ?? '', '-');
+
+    if ($normalized === '') {
+        $normalized = 'image';
+    }
+
+    return substr($normalized, 0, 80);
+}
+
 function jsonResponse(int $statusCode, array $payload): never
 {
     http_response_code($statusCode);
@@ -301,15 +328,16 @@ try {
 
     $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
     $noteId = null;
+    $productName = '';
 
     if ($noteIdInput !== null) {
-        $noteCheck = $pdo->prepare('SELECT id FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+        $noteCheck = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
         $noteCheck->execute([
             ':id'   => $noteIdInput,
             ':user' => $userId,
             ':run'  => $runId,
         ]);
-        $noteRow = $noteCheck->fetchColumn();
+        $noteRow = $noteCheck->fetch(PDO::FETCH_ASSOC);
         if ($noteRow === false) {
             jsonResponse(400, [
                 'ok'      => false,
@@ -317,17 +345,19 @@ try {
             ]);
         }
 
-        $noteId = (int) $noteRow;
+        $noteId = (int) $noteRow['id'];
+        $productName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
     } else {
-        $existingNote = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+        $existingNote = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
         $existingNote->execute([
             ':user' => $userId,
             ':run'  => $runId,
         ]);
-        $existingNoteId = $existingNote->fetchColumn();
+        $existingNoteRow = $existingNote->fetch(PDO::FETCH_ASSOC);
 
-        if ($existingNoteId !== false) {
-            $noteId = (int) $existingNoteId;
+        if ($existingNoteRow !== false) {
+            $noteId = (int) $existingNoteRow['id'];
+            $productName = isset($existingNoteRow['product_name']) ? (string) $existingNoteRow['product_name'] : '';
         } else {
             $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
             $createNote->execute([
@@ -364,7 +394,14 @@ try {
         }
     }
 
-    $filename = sprintf('ts%d_%s.%s', time(), bin2hex(random_bytes(4)), $extension);
+    $sluggedName = trim($productName) !== '' ? slugify_filename($productName) : null;
+    if ($sluggedName !== null) {
+        // Dateiname aus item_notes.product_name generieren und für gespeichertes Bild verwenden
+        $filename = sprintf('%s-%d-%d-%s.%s', $sluggedName, $runId, $userId, bin2hex(random_bytes(3)), $extension);
+    } else {
+        $filename = sprintf('ts%d_%s.%s', time(), bin2hex(random_bytes(4)), $extension);
+    }
+
     $targetPath = $targetDirectory . '/' . $filename;
 
     if (!move_uploaded_file($tmpPath, $targetPath)) {
