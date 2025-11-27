@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 $config = require __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../status_logger.php';
+require_once __DIR__ . '/../credits.php';
 
 $expectedToken = isset($config['receiver_api_token']) ? (string) $config['receiver_api_token'] : '';
 $providedToken = isset($_SERVER['HTTP_X_API_TOKEN']) ? (string) $_SERVER['HTTP_X_API_TOKEN'] : '';
@@ -22,6 +23,8 @@ $statusMessageFromRequest = is_array($inputData) ? extract_status_message($input
 
 $runId = null;
 $userId = null;
+$stepType = null;
+$executedSuccessfully = false;
 
 if (is_array($inputData)) {
     if (isset($inputData['run_id'])) {
@@ -39,6 +42,16 @@ if (is_array($inputData)) {
             $userId = (int) trim($inputData['user_id']);
         }
     }
+
+    $stepTypeRaw = $inputData['step_type'] ?? null;
+    if (is_string($stepTypeRaw) || is_numeric($stepTypeRaw)) {
+        $stepType = trim((string) $stepTypeRaw);
+        if ($stepType === '') {
+            $stepType = null;
+        }
+    }
+
+    $executedSuccessfully = filter_var($inputData['executed_successfully'] ?? false, FILTER_VALIDATE_BOOLEAN);
 }
 
 if ($runId === null || $userId === null || $runId <= 0 || $userId <= 0) {
@@ -135,6 +148,15 @@ try {
         http_response_code(404);
         echo json_encode(['error' => 'no_prompt_variants'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    if ($executedSuccessfully && $stepType !== null) {
+        try {
+            $meta = ['source' => 'get-prompt-variants.php'];
+            charge_credits($pdo, $config, $userId, $runId, $stepType, $meta);
+        } catch (Throwable $creditException) {
+            error_log('[get-prompt-variants][credits] ' . $creditException->getMessage());
+        }
     }
 
     http_response_code(200);

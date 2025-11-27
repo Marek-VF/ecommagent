@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth/bootstrap.php';
 require_once __DIR__ . '/status_logger.php';
+require_once __DIR__ . '/credits.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -135,6 +136,11 @@ if ($authCheck['error'] !== null) {
 $payload = read_json_body();
 $userId = isset($payload['user_id']) ? (int) $payload['user_id'] : 0;
 $runId = normalize_positive_int($payload['run_id'] ?? null);
+$stepType = isset($payload['step_type']) ? trim((string) $payload['step_type']) : null;
+if ($stepType === '') {
+    $stepType = null;
+}
+$executed = isset($payload['executed_successfully']) ? to_bool($payload['executed_successfully'], false) : false;
 $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
@@ -308,6 +314,15 @@ try {
         'status'  => $statusStr,
     ], 500);
     return;
+}
+
+if ($executed && $stepType !== null) {
+    try {
+        $meta = ['source' => 'receiver.php'];
+        charge_credits($pdo, $config, $userId, $runId, $stepType, $meta);
+    } catch (Throwable $creditException) {
+        error_log('[receiver][credits] ' . $creditException->getMessage());
+    }
 }
 
 json_response(true, 'state updated', [
