@@ -288,7 +288,9 @@ try {
 
     if ($executedSuccessfully === false) {
         // Fehlerfall: Bild konnte nicht generiert werden. Statusmeldung speichern, aber keine Credits berechnen.
-        $loggedMessage = $statusMessageFromRequest !== null ? $statusMessageFromRequest : 'image generation failed';
+        $loggedMessage = $statusMessageFromRequest !== null
+            ? '[image_failed] ' . $statusMessageFromRequest
+            : '[image_failed] Bild konnte nicht generiert werden.';
 
         log_status_message($pdo, $runId, $userId, $loggedMessage);
 
