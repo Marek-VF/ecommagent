@@ -218,6 +218,7 @@ let pollInterval = null;
 let workflowIsRunning = false;
 let activeRunId = null;
 let profileMenuInitialized = false;
+let lastHandledFailedMessage = null;
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -975,6 +976,26 @@ const setSlotLoadingState = (slot, loading) => {
         renderBox.classList.toggle('preload', Boolean(loading));
     }
 };
+
+// Preload-Animation vom aktuellen Slot entfernen und zum nächsten Bild-Slot weitergeben
+function movePreloadToNextSlot() {
+    const slots = Array.from(document.querySelectorAll('.generated-slot'));
+    if (!slots.length) {
+        return;
+    }
+
+    const currentIndex = slots.findIndex((slot) => slot.classList.contains('preload'));
+    if (currentIndex === -1) {
+        return;
+    }
+
+    slots[currentIndex].classList.remove('preload');
+
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < slots.length) {
+        slots[nextIndex].classList.add('preload');
+    }
+}
 
 const setSlotImageSource = (slot, src) => {
     if (!slot || !slot.container || !src) {
@@ -1943,6 +1964,14 @@ const loadRunDetails = async (runId) => {
         }
 
         const data = json.data && typeof json.data === 'object' ? json.data : {};
+        const lastMessage = data.run && typeof data.run.last_message === 'string' ? data.run.last_message : '';
+        const isImageFailed = typeof lastMessage === 'string' && lastMessage.startsWith('[image_failed]');
+
+        if (isImageFailed && lastMessage !== lastHandledFailedMessage) {
+            movePreloadToNextSlot();
+            lastHandledFailedMessage = lastMessage;
+        }
+
         applyRunDataToUI(data);
         setActiveRun(numericId);
     } catch (error) {
