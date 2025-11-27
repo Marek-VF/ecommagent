@@ -134,6 +134,10 @@ $activePage = 'image';
                     class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
                     href="image_variants.php"
                 >Bildvarianten</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'credits' ? ' active' : ''; ?>"
+                    href="credits.php"
+                >Credits</a>
             </nav>
             <div class="settings-content">
                 <div class="settings-card">

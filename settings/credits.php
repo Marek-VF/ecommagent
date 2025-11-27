@@ -13,18 +13,24 @@ if ($currentUser === null || !isset($currentUser['id'])) {
     auth_redirect('/auth/login.php');
 }
 
-$activePage = 'profile';
+$userId = (int) $currentUser['id'];
 
-ob_start();
-require __DIR__ . '/profile.php';
-$content = ob_get_clean();
+$statement = $pdo->prepare('SELECT credits_balance FROM users WHERE id = :id LIMIT 1');
+$statement->execute(['id' => $userId]);
+$creditsBalance = $statement->fetchColumn();
+
+$creditsBalance = is_numeric($creditsBalance) ? (float) $creditsBalance : 0.0;
+
+$formattedCredits = number_format($creditsBalance, 3, ',', '.');
+
+$activePage = 'credits';
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Einstellungen - Ecomm Agent</title>
+    <title>Credits - Ecomm Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -64,7 +70,20 @@ $content = ob_get_clean();
                 >Credits</a>
             </nav>
             <div class="settings-content">
-                <?php echo $content; ?>
+                <div class="settings-card credits-card">
+                    <div class="credits-card-header">
+                        <div>
+                            <h2 class="settings-section-title">Credits</h2>
+                            <p class="settings-section-subtitle">
+                                Hier sehen Sie Ihren aktuellen Credit-Kontostand für die Nutzung der KI-Workflows.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="credits-balance-panel">
+                        <div class="credits-label">Aktueller Kontostand</div>
+                        <div class="credits-value"><?php echo htmlspecialchars($formattedCredits, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
