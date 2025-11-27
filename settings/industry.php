@@ -100,7 +100,7 @@ $activePage = 'industry';
     <div class="settings-app">
         <header class="settings-header">
             <h1>Einstellungen</h1>
-            <a class="settings-back-link" href="../index.php">Zurück zu Artikelverwaltung</a>
+            <a class="btn-primary app__status-row-button settings-back-button" href="../index.php">Zurück</a>
         </header>
         <div class="settings-main">
             <nav class="settings-nav" aria-label="Einstellungsnavigation">
@@ -120,6 +120,10 @@ $activePage = 'industry';
                     class="settings-nav-item<?php echo $activePage === 'image_variants' ? ' active' : ''; ?>"
                     href="image_variants.php"
                 >Bildvarianten</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'credits' ? ' active' : ''; ?>"
+                    href="credits.php"
+                >Credits</a>
             </nav>
             <div class="settings-content">
                 <div class="settings-card">
