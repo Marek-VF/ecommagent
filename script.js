@@ -220,6 +220,9 @@ let activeRunId = null;
 let profileMenuInitialized = false;
 const lastHandledStepStatusByRun = {};
 
+// Index des aktuell laufenden Bild-Slots (0-basiert: 0 = erstes Bild, 1 = zweites, 2 = drittes)
+let currentImageSlotIndex = 0;
+
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
 
@@ -962,58 +965,56 @@ const clearSlotContent = (slot) => {
     ensurePlaceholderForSlot(slot);
 };
 
+function updatePreloadSlotsFromIndex() {
+    const slots = Array.from(document.querySelectorAll('.generated-grid .generated-slot'));
+
+    slots.forEach((slot) => {
+        slot.classList.remove('preload');
+        slot.dataset.isLoading = 'false';
+
+        const shell = slot.querySelector('.render-shell');
+        if (shell) {
+            shell.classList.remove('preload');
+        }
+
+        const renderBox = slot.querySelector('.render-box');
+        if (renderBox) {
+            renderBox.classList.remove('preload');
+        }
+    });
+
+    if (currentImageSlotIndex < 0 || currentImageSlotIndex >= slots.length) {
+        return;
+    }
+
+    const activeSlot = slots[currentImageSlotIndex];
+    const activeShell = activeSlot.querySelector('.render-shell');
+    const activeBox = activeSlot.querySelector('.render-box');
+
+    activeSlot.classList.add('preload');
+    activeSlot.dataset.isLoading = 'true';
+
+    if (activeShell) {
+        activeShell.classList.add('preload');
+    }
+
+    if (activeBox) {
+        activeBox.classList.add('preload');
+    }
+}
+
+const advanceImageSlotIndex = () => {
+    currentImageSlotIndex += 1;
+    updatePreloadSlotsFromIndex();
+};
+
 const setSlotLoadingState = (slot, loading) => {
     if (!slot || !slot.container) {
         return;
     }
 
     slot.container.dataset.isLoading = loading ? 'true' : 'false';
-
-    slot.container.classList.toggle('preload', Boolean(loading));
-
-    const renderBox = slot.container.querySelector('.render-box');
-    if (renderBox) {
-        renderBox.classList.toggle('preload', Boolean(loading));
-    }
 };
-
-// Preload-Animation vom aktuellen Bild-Slot entfernen und ggf. auf den nächsten Slot verschieben
-function movePreloadToNextSlot() {
-    const boxes = Array.from(document.querySelectorAll('.generated-grid .render-shell .render-box'));
-    if (!boxes.length) return;
-
-    const currentIndex = boxes.findIndex((box) => box.classList.contains('preload'));
-    if (currentIndex === -1) {
-        return;
-    }
-
-    const currentBox = boxes[currentIndex];
-    const currentContainer = currentBox.closest('.generated-slot');
-    const currentShell = currentBox.closest('.render-shell');
-
-    currentBox.classList.remove('preload');
-    if (currentContainer) {
-        currentContainer.classList.remove('preload');
-    }
-    if (currentShell) {
-        currentShell.classList.remove('preload');
-    }
-
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < boxes.length) {
-        const nextBox = boxes[nextIndex];
-        const nextContainer = nextBox.closest('.generated-slot');
-        const nextShell = nextBox.closest('.render-shell');
-
-        nextBox.classList.add('preload');
-        if (nextContainer) {
-            nextContainer.classList.add('preload');
-        }
-        if (nextShell) {
-            nextShell.classList.add('preload');
-        }
-    }
-}
 
 const setSlotImageSource = (slot, src) => {
     if (!slot || !slot.container || !src) {
@@ -1097,7 +1098,7 @@ const createWorkflowOutputController = () => {
 
     const ensureSequentialSlots = () => {
         const filledCount = getFilledCount();
-        const nextIndex = currentState === 'running' && filledCount < gallerySlots.length ? filledCount : null;
+        const isRunningState = currentState === 'running';
 
         gallerySlots.forEach((slot, index) => {
             if (!slot?.container) {
@@ -1105,7 +1106,7 @@ const createWorkflowOutputController = () => {
             }
 
             const hasImage = slot.container.dataset.hasContent === 'true';
-            const shouldLoad = nextIndex !== null && index === nextIndex;
+            const shouldLoad = isRunningState && currentImageSlotIndex === index;
 
             slot.container.classList.remove('is-hidden');
 
@@ -1118,13 +1119,15 @@ const createWorkflowOutputController = () => {
 
         const firstSlot = gallerySlots[0];
         if (firstSlot?.container) {
-            const shouldHighlightFirst = currentState === 'running' && filledCount === 0;
+            const shouldHighlightFirst = isRunningState && filledCount === 0;
             firstSlot.container.classList.toggle('first-active', shouldHighlightFirst);
         }
 
-        if (currentState === 'running' && nextIndex === null) {
+        if (isRunningState && currentImageSlotIndex >= gallerySlots.length) {
             applyState('complete');
         }
+
+        updatePreloadSlotsFromIndex();
     };
 
     return {
@@ -1249,6 +1252,8 @@ function renderGeneratedImages(images) {
         }
 
         const rawData = imageList[index];
+        const previousSrc = lastKnownImages[slot.key];
+        const hadContentBefore = slot.container.dataset.hasContent === 'true';
 
         if (rawData) {
             let imageUrl = '';
@@ -1280,6 +1285,10 @@ function renderGeneratedImages(images) {
                 slot.container.dataset.currentSrc = resolvedUrl;
                 slot.container.dataset.isLoading = 'false';
                 lastKnownImages[slot.key] = resolvedUrl;
+
+                if (workflowIsRunning && (resolvedUrl !== previousSrc || !hadContentBefore)) {
+                    advanceImageSlotIndex();
+                }
 
                 applyFadeInAnimation(imageElement);
                 return;
@@ -1407,6 +1416,11 @@ const setLoadingState = (loading, options = {}) => {
     isProcessing = loading;
 
     setArticleFieldsLoading(Boolean(loading));
+
+    if (loading && currentImageSlotIndex < 0) {
+        currentImageSlotIndex = 0;
+        updatePreloadSlotsFromIndex();
+    }
 
     if (loading) {
         hasObservedActiveRun = true;
@@ -1739,6 +1753,8 @@ async function startWorkflow() {
 
         showWorkflowFeedback('success', successMessage);
         setStatus('info', 'Verarbeitung läuft …');
+        currentImageSlotIndex = 0;
+        updatePreloadSlotsFromIndex();
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
         clearProductFields({ loading: true });
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
@@ -2105,8 +2121,8 @@ const fetchRuns = async () => {
                 const previousStatus = lastHandledStepStatusByRun[key] || null;
                 const currentStatus = activeRun.last_step_status || null;
 
-                if (currentStatus === 'error' && previousStatus !== 'error') {
-                    movePreloadToNextSlot();
+                if (workflowIsRunning && currentStatus === 'error' && previousStatus !== 'error') {
+                    advanceImageSlotIndex();
                 }
 
                 lastHandledStepStatusByRun[key] = currentStatus;
@@ -2501,6 +2517,8 @@ function resetFrontendState(options = {}) {
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields({ loading: false });
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
+    currentImageSlotIndex = -1;
+    updatePreloadSlotsFromIndex();
     showPlaceholderImages(withPulse);
     hasShownCompletion = false;
     hasObservedActiveRun = false;
