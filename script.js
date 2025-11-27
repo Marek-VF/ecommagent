@@ -218,7 +218,8 @@ let pollInterval = null;
 let workflowIsRunning = false;
 let activeRunId = null;
 let profileMenuInitialized = false;
-let lastHandledFailedMessage = null;
+let lastHandledImageErrorMessage = null;
+let lastHandledRunIdForImageError = null;
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
@@ -977,23 +978,27 @@ const setSlotLoadingState = (slot, loading) => {
     }
 };
 
-// Preload-Animation vom aktuellen Slot entfernen und zum nächsten Bild-Slot weitergeben
+// Preload-Animation vom aktuellen Bild-Slot entfernen und ggf. auf den nächsten Slot verschieben
 function movePreloadToNextSlot() {
-    const slots = Array.from(document.querySelectorAll('.generated-slot'));
-    if (!slots.length) {
-        return;
-    }
+    // alle Vorschauboxen in der Anzeigereihenfolge holen
+    const boxes = Array.from(document.querySelectorAll('.generated-grid .render-box'));
+    if (!boxes.length) return;
 
-    const currentIndex = slots.findIndex((slot) => slot.classList.contains('preload'));
+    // aktive Preload-Box finden
+    const currentIndex = boxes.findIndex((box) => box.classList.contains('preload'));
     if (currentIndex === -1) {
         return;
     }
 
-    slots[currentIndex].classList.remove('preload');
+    // aktuelle Preload-Klasse entfernen
+    boxes[currentIndex].classList.remove('preload');
 
+    // optional: boxes[currentIndex].classList.add('is-failed');
+
+    // nächste Box bestimmen und Preload verschieben, falls vorhanden
     const nextIndex = currentIndex + 1;
-    if (nextIndex < slots.length) {
-        slots[nextIndex].classList.add('preload');
+    if (nextIndex < boxes.length) {
+        boxes[nextIndex].classList.add('preload');
     }
 }
 
@@ -1964,12 +1969,25 @@ const loadRunDetails = async (runId) => {
         }
 
         const data = json.data && typeof json.data === 'object' ? json.data : {};
-        const lastMessage = data.run && typeof data.run.last_message === 'string' ? data.run.last_message : '';
-        const isImageFailed = typeof lastMessage === 'string' && lastMessage.startsWith('[image_failed]');
 
-        if (isImageFailed && lastMessage !== lastHandledFailedMessage) {
-            movePreloadToNextSlot();
-            lastHandledFailedMessage = lastMessage;
+        // Bildfehler anhand der letzten Statusmeldung erkennen und Preload-Animation weiterwandern lassen
+        const run = data.run || {};
+        const runId = run.id || null;
+        const lastMessage = typeof run.last_message === 'string' ? run.last_message : '';
+
+        const hasImageFailedPrefix = lastMessage.startsWith('[image_failed]');
+        const looksLikeImageError =
+            /konnte.*nicht.*generiert werden/i.test(lastMessage) || /bild .*fehler/i.test(lastMessage);
+        const isImageError = hasImageFailedPrefix || looksLikeImageError;
+
+        if (isImageError) {
+            const errorKey = runId + '::' + lastMessage;
+
+            if (errorKey !== lastHandledImageErrorMessage || runId !== lastHandledRunIdForImageError) {
+                movePreloadToNextSlot();
+                lastHandledImageErrorMessage = errorKey;
+                lastHandledRunIdForImageError = runId;
+            }
         }
 
         applyRunDataToUI(data);
