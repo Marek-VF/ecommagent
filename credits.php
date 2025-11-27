@@ -10,6 +10,32 @@ function get_credit_price(array $config, string $stepType): ?float
 }
 
 /**
+ * Ermittelt, wie viele Credits ein vollständiger Workflow voraussichtlich benötigt.
+ *
+ * Aktuell: Summe aller positiven Preise aus $config['credits']['prices'].
+ *
+ * @param array $config Globale Konfiguration aus config.php
+ *
+ * @return float Benötigte Credits für einen vollständigen Run
+ */
+function get_required_credits_for_run(array $config): float
+{
+    $prices = $config['credits']['prices'] ?? [];
+
+    $total = 0.0;
+    foreach ($prices as $price) {
+        if (is_numeric($price)) {
+            $numericPrice = (float) $price;
+            if ($numericPrice > 0) {
+                $total += $numericPrice;
+            }
+        }
+    }
+
+    return (float) $total;
+}
+
+/**
  * Bucht Credits für einen bestimmten Step eines Users ab und protokolliert die Bewegung.
  *
  * @param PDO    $pdo      Geöffnete PDO-Datenbankverbindung
