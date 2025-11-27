@@ -26,4 +26,14 @@ return [
         'from_address' => 'no-reply@example.com',
         'from_name'    => 'Artikelverwaltung',
     ],
+    'credits'          => [
+        'prices' => [
+            // Beispielpreise – können später im Projekt angepasst werden
+            'analysis' => 0.50,
+            'image_1'  => 0.75,
+            'image_2'  => 0.75,
+            'image_3'  => 0.75,
+            // weitere step_type-Werte können später ergänzt werden, z.B. 'text', 'product_photo', ...
+        ],
+    ],
 ];

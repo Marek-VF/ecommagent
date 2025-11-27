@@ -134,6 +134,7 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `image_ratio_preference` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'original',
   `prompt_category_id` int UNSIGNED DEFAULT NULL,
+  `credits_balance` decimal(10,3) NOT NULL DEFAULT 0.000,
   `verification_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `verified` tinyint(1) NOT NULL DEFAULT '0',
   `reset_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -172,6 +173,25 @@ CREATE TABLE `workflow_runs` (
   `last_message` text COLLATE utf8mb4_unicode_ci,
   `original_image` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `credit_transactions`
+--
+
+CREATE TABLE `credit_transactions` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED DEFAULT NULL,
+  `amount` decimal(10,3) NOT NULL,
+  `reason` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `meta` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_credit_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_credit_transactions_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
