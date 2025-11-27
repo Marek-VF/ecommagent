@@ -244,10 +244,14 @@ try {
     $requiredCredits = get_required_credits_for_run($config);
 
     if ($requiredCredits > 0 && (float) $creditsBalance < $requiredCredits) {
+        // Credits für die Anzeige auf 2 Nachkommastellen formatieren
+        $requiredDisplay = number_format((float) $requiredCredits, 2, ',', '.');
+        $balanceDisplay  = number_format((float) $creditsBalance, 2, ',', '.');
+
         $message = sprintf(
-            'Nicht genügend Credits: benötigt %.3f, verfügbar %.3f. Bitte Guthaben aufladen.',
-            $requiredCredits,
-            (float) $creditsBalance
+            'Nicht genügend Credits: benötigt %s, verfügbar %s. Bitte Guthaben aufladen.',
+            $requiredDisplay,
+            $balanceDisplay
         );
 
         log_status_message($pdo, $runId, $userId, $message);
