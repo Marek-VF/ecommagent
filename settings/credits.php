@@ -21,7 +21,8 @@ $creditsBalance = $statement->fetchColumn();
 
 $creditsBalance = is_numeric($creditsBalance) ? (float) $creditsBalance : 0.0;
 
-$formattedCredits = number_format($creditsBalance, 3, ',', '.');
+// Credits für die Anzeige auf 2 Nachkommastellen formatieren
+$formattedCredits = number_format($creditsBalance, 2, ',', '.');
 
 $activePage = 'credits';
 ?>
