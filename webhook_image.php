@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth/bootstrap.php';
 require_once __DIR__ . '/status_logger.php';
+require_once __DIR__ . '/credits.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -149,6 +150,25 @@ function normalizeNoteId(mixed $value): ?int
     return $noteId > 0 ? $noteId : null;
 }
 
+function toBooleanFlag(mixed $value): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return (int) $value !== 0;
+    }
+
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+
+        return in_array($normalized, ['1', 'true', 'yes', 'ja', 'on'], true);
+    }
+
+    return false;
+}
+
 function mapUploadError(int $errorCode): string
 {
     return match ($errorCode) {
@@ -201,6 +221,8 @@ function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
 
 $storedFilePath = null;
 $statusMessageFromRequest = extract_status_message($_POST);
+$executedSuccessfully = false;
+$stepType = null;
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -319,6 +341,17 @@ try {
     }
 
     $runId = (int) $runIdValue;
+    $stepTypeInput = $_POST['step_type'] ?? ($_GET['step_type'] ?? null);
+    if (is_string($stepTypeInput) || is_numeric($stepTypeInput)) {
+        $stepType = trim((string) $stepTypeInput);
+        if ($stepType === '') {
+            $stepType = null;
+        }
+    }
+    $executedFlag = $_POST['executed_successfully'] ?? ($_GET['executed_successfully'] ?? null);
+    if ($executedFlag !== null) {
+        $executedSuccessfully = toBooleanFlag($executedFlag);
+    }
     if (!runBelongsToUser($pdo, $userId, $runId)) {
         jsonResponse(404, [
             'ok'      => false,
@@ -489,6 +522,18 @@ SQL;
     } catch (Throwable $transactionException) {
         $pdo->rollBack();
         throw $transactionException;
+    }
+
+    if ($executedSuccessfully && $stepType !== null) {
+        try {
+            $meta = [
+                'source'    => 'webhook_image.php',
+                'image_url' => $relativeUrl,
+            ];
+            charge_credits($pdo, $config, $userId, $runId, $stepType, $meta);
+        } catch (Throwable $creditException) {
+            error_log('[webhook_image][credits] ' . $creditException->getMessage());
+        }
     }
 
     jsonResponse(200, [
