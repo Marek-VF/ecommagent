@@ -173,6 +173,22 @@ try {
     $pdo = auth_pdo();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+    // Bildseitenverhältnis des Users auslesen und als image_ratio an n8n übergeben
+    $imageRatio = 'original';
+    try {
+        $ratioStmt = $pdo->prepare('SELECT image_ratio_preference FROM users WHERE id = :user_id');
+        $ratioStmt->execute([':user_id' => $userId]);
+        $imageRatioValue = $ratioStmt->fetchColumn();
+        if (is_string($imageRatioValue)) {
+            $trimmedRatio = trim($imageRatioValue);
+            if ($trimmedRatio !== '') {
+                $imageRatio = $trimmedRatio;
+            }
+        }
+    } catch (Throwable $ratioException) {
+        $imageRatio = 'original';
+    }
+
     $runStmt = $pdo->prepare('SELECT id, status, last_message, original_image FROM workflow_runs WHERE id = :run_id AND user_id = :user_id LIMIT 1');
     $runStmt->execute([
         ':run_id'  => $runId,
@@ -298,6 +314,7 @@ try {
         'image_url' => $publicUrl,
         'file_name' => $filename,
         'timestamp' => $timestamp(),
+        'image_ratio' => $imageRatio,
     ];
 
     if ($secondaryUrl !== null) {
