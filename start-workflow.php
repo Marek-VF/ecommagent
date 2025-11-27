@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth/bootstrap.php';
+require_once __DIR__ . '/credits.php';
+require_once __DIR__ . '/status_logger.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -222,6 +224,51 @@ try {
             'message'   => 'Workflow wurde bereits abgeschlossen.',
             'timestamp' => $timestamp(),
         ], 409);
+    }
+
+    // Ermitteln, ob der User genügend Credits für einen vollständigen Workflow besitzt
+    $balanceStmt = $pdo->prepare('SELECT credits_balance FROM users WHERE id = :user LIMIT 1');
+    $balanceStmt->execute([':user' => $userId]);
+    $creditsBalance = $balanceStmt->fetchColumn();
+
+    if ($creditsBalance === false) {
+        $respond([
+            'success'   => false,
+            'ok'        => false,
+            'status'    => 'error',
+            'message'   => 'Benutzer konnte nicht gefunden werden.',
+            'timestamp' => $timestamp(),
+        ], 500);
+    }
+
+    $requiredCredits = get_required_credits_for_run($config);
+
+    if ($requiredCredits > 0 && (float) $creditsBalance < $requiredCredits) {
+        $message = sprintf(
+            'Nicht genügend Credits: benötigt %.3f, verfügbar %.3f. Bitte Guthaben aufladen.',
+            $requiredCredits,
+            (float) $creditsBalance
+        );
+
+        log_status_message($pdo, $runId, $userId, $message);
+
+        $updateRun = $pdo->prepare('UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id');
+        $updateRun->execute([
+            ':message' => $message,
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
+
+        $respond([
+            'success'            => false,
+            'ok'                 => false,
+            'status'             => 'not_enough_credits',
+            'message'            => $message,
+            'timestamp'          => $timestamp(),
+            'not_enough_credits' => true,
+            'required'           => $requiredCredits,
+            'balance'            => (float) $creditsBalance,
+        ], 400);
     }
 
     $originalPath = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
