@@ -75,20 +75,46 @@ $appConfig = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ecom Studio</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-    >
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#ff5722", // Das Orange aus dem Design
+                        secondary: "#00bcd4", // Das Türkis
+                        "background-light": "#f0f2f5", // Hellgrauer Hintergrund
+                        "card-light": "#ffffff", // Weiße Karten
+                        "border-light": "#e5e7eb",
+                        "text-primary-light": "#111827",
+                        "text-secondary-light": "#6b7280",
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"], // Inter als Standard setzen
+                        display: ["Inter", "sans-serif"],
+                    },
+                },
+            },
+        };
+    </script>
+
     <link rel="stylesheet" href="style.css">
-<?php if ($placeholderDimensions !== null): ?>
+
+    <?php if ($placeholderDimensions !== null): ?>
     <style>
         :root {
             --gallery-item-aspect-ratio: <?php echo htmlspecialchars($placeholderDimensions['width'] . ' / ' . $placeholderDimensions['height'], ENT_QUOTES); ?>;
         }
     </style>
-<?php endif; ?>
+    <?php endif; ?>
 </head>
 <body>
     <div id="history-sidebar" class="history-sidebar" aria-hidden="true">
@@ -154,26 +180,21 @@ $appConfig = [
             <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
             <button id="start-workflow-btn" type="button" class="btn-primary app__status-row-button">Workflow starten</button>
         </div>
-        <?php if ($flashes !== []): ?>
-        <div class="app__messages" aria-live="polite">
-            <?php foreach ($flashes as $message): ?>
-            <?php
-                $type = htmlspecialchars((string) ($message['type'] ?? 'info'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $text = htmlspecialchars((string) ($message['message'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            ?>
-            <div class="app__message app__message--<?php echo $type; ?>"><?php echo $text; ?></div>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
+ 
         <main class="grid">
             <section class="panel panel--upload">
                 <div class="panel__section panel__section--upload">
                   
-                    <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen oder klicken, um eine Datei auszuwählen">
-                        <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
-                        <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
-                        <input id="file-input" type="file" name="image" accept="image/*" hidden>
-                    </div>
+<div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen...">
+    
+    <span class="material-icons-outlined" style="font-size: 48px; color: var(--accent); margin-bottom: 16px;">
+        upload_file
+    </span>
+    <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
+    
+    <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
+    <input id="file-input" type="file" name="image" accept="image/*" hidden>
+</div>
                     <div class="original-image-wrapper" data-original-images aria-live="polite"></div>
                     <div id="upload-previews" class="preview-list" aria-live="polite"></div>
                 </div>
@@ -181,7 +202,9 @@ $appConfig = [
             <section class="panel panel--details">
                 <div id="workflow-output" class="workflow-output is-idle">
                     <div class="workflow-body">
-                        <div class="generated-grid" aria-label="Generierte Bilder">
+                 <!--      
+                    
+                    <div class="generated-grid" aria-label="Generierte Bilder">
                             <div
                                 class="generated-slot"
                                 data-slot="1"
@@ -210,6 +233,63 @@ $appConfig = [
                                 <div class="render-shell"><div class="render-box"></div></div>
                             </div>
                         </div>
+        -->
+
+
+
+<div class="generated-grid" aria-label="Generierte Bilder">
+    <div class="generated-card">
+        <div class="generated-slot" data-slot="1" role="button" aria-label="Bildvorschau 1" tabindex="0">
+            <div class="render-shell"><div class="render-box"></div></div>
+        </div>
+    <div class="slot-actions">
+        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+            <span class="material-icons-outlined">edit</span>
+        </button>
+        
+        <button type="button" class="action-btn btn-primary" title="Ausführen">
+            <span class="material-icons-outlined">play_arrow</span>
+        </button>
+    </div>
+    </div>
+
+    <div class="generated-card">
+        <div class="generated-slot" data-slot="2" role="button" aria-label="Bildvorschau 2" tabindex="0">
+            <div class="render-shell"><div class="render-box"></div></div>
+        </div>
+        <div class="slot-actions">
+        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+            <span class="material-icons-outlined">edit</span>
+        </button>
+        
+        <button type="button" class="action-btn btn-primary" title="Ausführen">
+            <span class="material-icons-outlined">play_arrow</span>
+        </button>
+    </div>
+    </div>
+
+    <div class="generated-card">
+        <div class="generated-slot" data-slot="3" role="button" aria-label="Bildvorschau 3" tabindex="0">
+            <div class="render-shell"><div class="render-box"></div></div>
+        </div>
+<div class="slot-actions">
+        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+            <span class="material-icons-outlined">edit</span>
+        </button>
+        
+        <button type="button" class="action-btn btn-primary" title="Ausführen">
+            <span class="material-icons-outlined">play_arrow</span>
+        </button>
+    </div>
+    </div>
+</div>
+
 
                         <div class="field-group is-loading" id="article-name-group">
                             <div class="field-content output-panel">

@@ -2538,3 +2538,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateWorkflowButtonState();
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Finde alle Toggle-Buttons (2K, 4K, Edit)
+    const toggleButtons = document.querySelectorAll('.btn-toggle');
+
+    toggleButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Verhindere, dass der Klick das Bild öffnet (Bubbling)
+            e.stopPropagation();
+
+            // Hole die Gruppe von Buttons (innerhalb derselben Karte)
+            const parentBar = btn.closest('.slot-actions');
+            
+            // OPTIONAL: Wenn 2K und 4K sich gegenseitig ausschließen sollen (Radio-Verhalten):
+            
+            if (btn.dataset.type === '2k' || btn.dataset.type === '4k') {
+                const siblings = parentBar.querySelectorAll('.btn-toggle');
+                siblings.forEach(sibling => {
+                    if (sibling !== btn && (sibling.dataset.type === '2k' || sibling.dataset.type === '4k')) {
+                        sibling.classList.remove('is-active');
+                    }
+                });
+            }
+            
+
+            // Toggle die Klasse 'is-active'
+            // Wenn sie da ist, wird sie entfernt (deaktiviert). 
+            // Wenn sie nicht da ist, wird sie hinzugefügt (aktiviert).
+            btn.classList.toggle('is-active');
+        });
+    });
+
+    // Logik für den Play Button (Optional: Feedback beim Klick)
+    const playButtons = document.querySelectorAll('.btn-primary');
+    playButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Kurze Animation oder Logik hier starten
+            console.log("Workflow starten für diesen Slot");
+        });
+    });
+});

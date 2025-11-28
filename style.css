@@ -1,51 +1,94 @@
+/* --- NEUES LIGHT THEME SETUP --- */
 :root {
-    color-scheme: dark;
-    --bg: #0f1115;
-    --bg-elevated: #181b22;
-    --bg-hover: #1f232c;
-    --border: #2a2f3a;
-    --accent: #4f8cff;
-    --accent-hover: #79a8ff;
-    --text: #e9edf5;
-    --text-muted: #9aa3b7;
-    --shadow: 0 24px 40px rgba(0, 0, 0, 0.3);
-    --radius-lg: 18px;
-    --radius-md: 12px;
+    /* Mapping auf Tailwind Farben aus dem Zip */
+    --bg: #f0f2f5;           /* background-light */
+    --bg-elevated: #ffffff;  /* card-light */
+    --border: #e5e7eb;       /* border-light */
+    
+    --accent: #ff5722;       /* Primary Orange */
+    --accent-hover: #f4511e;
+    
+    --secondary: #00bcd4;    /* Secondary Cyan */
+    --secondary-hover: #00acc1;
+
+--text: #374151;         
+    
+    /* NEU: Extrafarbe für Überschriften (bleibt dunkel für Kontrast) */
+    --text-heading: #111827; 
+    
+    /* Bleibt gleich (für sekundäre Infos) */
+    --text-muted: #6b7280;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    
+    --radius-lg: 1rem;       /* Abgerundete Ecken wie im Design */
+    --radius-md: 0.5rem;
     --transition: 0.2s ease;
-    --gallery-item-aspect-ratio: 1 / 1;
-    font-size: 16px;
-    --status-success: #34d399;
-    --status-success-rgb: 52, 211, 153;
-    --status-error: #f87171;
-    --status-error-rgb: 248, 113, 113;
-    --status-warning: #fbbf24;
-    --status-warning-rgb: 251, 191, 36;
-    --status-info: #60a5fa;
-    --status-info-rgb: 96, 165, 250;
+
+    /* Status Farben angepasst für hellen Hintergrund */
+    --status-success: #10b981;
+    --status-success-rgb: 16, 185, 129;
+    --status-error: #ef4444;
+    --status-error-rgb: 239, 68, 68;
+    --status-warning: #f59e0b;
+    --status-warning-rgb: 245, 158, 11;
+    --status-info: #3b82f6;
+    --status-info-rgb: 59, 130, 246;
+
+    /* Für script.js Bild-Verhältnisse */
+    --gallery-item-aspect-ratio: 1 / 1; 
 }
 
-* {
-    box-sizing: border-box;
-}
-
-html,
-body {
-    min-height: 100vh;
-    height: auto;
-    overflow-y: auto;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
-    font-family: 'Inter', 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: radial-gradient(circle at top left, rgba(79, 140, 255, 0.12), transparent 55%),
-                radial-gradient(circle at bottom right, rgba(114, 93, 255, 0.12), transparent 50%),
-                var(--bg);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg);
     color: var(--text);
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: 40px;
+    padding: 24px;
+    min-height: 100vh;
+}
+
+/* Neuer App Container - Transparent, aber max-width behalten */
+.app {
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    background: transparent; 
+    border: none;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- HEADER FIXES --- */
+
+.app__header {
+    padding: 0 0 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* WICHTIG: Damit Icon und Text nebeneinander stehen */
+.app__header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px; /* Abstand zwischen Menu-Icon und Titel */
+}
+
+/* Anpassung an das Design (text-2xl entspricht ca. 1.5rem) */
+.app__header h1 {
+    margin: 0;
+    font-size: 1.5rem; /* War vorher größer (1.875rem) */
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
 }
 
 .fade-in {
@@ -53,57 +96,9 @@ body {
     transform: translateY(4px);
     transition: opacity 0.25s ease-out, transform 0.25s ease-out;
 }
-
 .fade-in.is-visible {
     opacity: 1;
     transform: translateY(0);
-}
-
-.app {
-    width: min(1200px, 100%);
-    max-width: 1360px;
-    margin: 32px auto;
-    background: #050816;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 24px;
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.65);
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    height: auto;
-}
-
-.app__header {
-    padding: 32px 40px 24px;
- 
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-}
-
-.app__header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.app__header h1 {
-    margin: 0;
-    font-size: clamp(1.5rem, 2vw + 1rem, 2.4rem);
-    letter-spacing: 0.02em;
-}
-
-.app__user {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    font-size: 0.95rem;
-    color: var(--text-muted);
-}
-
-.app__user-name {
-    white-space: nowrap;
 }
 
 .app__logout {
@@ -125,13 +120,25 @@ body {
     gap: 12px;
 }
 
+/* --- HEADER CARD --- */
 .app__status-row {
+    background: var(--bg-elevated); /* Weiß */
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    
+    padding: 16px 24px;
+    margin-bottom: 32px; /* Abstand zum Haupt-Grid darunter */
+    
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 0 40px 16px;
-   
+    gap: 24px;
+}
+
+/* Den alten Margin vom Grid nehmen wir weg, da der Header jetzt Abstand hat */
+.app__messages {
+    margin-bottom: 24px;
 }
 
 .status-bar {
@@ -203,24 +210,26 @@ body {
     background: rgba(var(--status-info-rgb), 0.12);
 }
 
+/* Das Menu-Icon (History Toggle) aufräumen */
 .history-toggle {
-    background: none;
+    background: transparent;
     border: none;
     color: var(--text);
-    cursor: pointer;
-    font-size: 1.6rem;
-    line-height: 1;
     padding: 8px;
     border-radius: var(--radius-md);
-    transition: background var(--transition), color var(--transition);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    font-size: 1.5rem; /* Icon Größe passend zum Text */
 }
 
-.history-toggle:hover,
-.history-toggle:focus-visible {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--accent-hover);
-    outline: none;
+.history-toggle:hover {
+    background: rgba(0,0,0,0.05); /* Leichter Hover-Effekt */
 }
+
+/* --- SIDEBAR (Light Mode) --- */
 
 .history-sidebar {
     position: fixed;
@@ -229,9 +238,14 @@ body {
     bottom: 0;
     width: 280px;
     max-width: min(320px, 90vw);
-    background: rgba(15, 17, 22, 0.95);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.4);
+    
+    /* Hintergrund: Weiß */
+    background: #ffffff;
+    /* Rahmen rechts: Hellgrau */
+    border-right: 1px solid var(--border);
+    /* Schatten: Sanft und hell */
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+    
     transform: translateX(-100%);
     transition: transform var(--transition);
     z-index: 2000;
@@ -243,39 +257,42 @@ body {
     transform: translateX(0);
 }
 
+/* Header der Sidebar */
 .history-sidebar__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 24px 24px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 24px;
+    border-bottom: 1px solid var(--border); /* Hellgraue Linie */
 }
 
 .history-sidebar__header h2 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text); /* Dunkler Text */
 }
 
+/* Schließen-Button */
 .history-sidebar__close {
-    background: none;
+    background: transparent;
     border: none;
-    color: var(--text);
-    font-size: 1.6rem;
+    color: var(--text-muted); /* Graues Icon */
+    font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 8px;
     border-radius: var(--radius-md);
-    transition: background var(--transition), color var(--transition);
+    transition: all 0.2s;
 }
 
-.history-sidebar__close:hover,
-.history-sidebar__close:focus-visible {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--accent-hover);
-    outline: none;
+.history-sidebar__close:hover {
+    background: rgba(0, 0, 0, 0.05); /* Leichter Hover */
+    color: var(--accent);
 }
 
+/* Liste der Verläufe */
 .history-list {
     list-style: none;
     margin: 0;
@@ -287,8 +304,9 @@ body {
 .history-list__item,
 .history-list__empty {
     padding: 16px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border);
     font-size: 0.95rem;
+    color: var(--text);
 }
 
 .history-list__item {
@@ -296,70 +314,74 @@ body {
     transition: background var(--transition), color var(--transition);
 }
 
-.history-list__item:hover,
-.history-list__item:focus-visible {
-    background: rgba(255, 255, 255, 0.06);
-    outline: none;
+.history-list__item:hover {
+    background: #f9fafb; /* Sehr helles Grau bei Hover */
 }
 
+/* Aktiver Eintrag */
 .history-list__item--active {
-    background: rgba(79, 140, 255, 0.18);
+    background: rgba(255, 87, 34, 0.08); /* Zartes Orange */
     color: var(--accent);
-}
-
-.history-list__item--active:hover,
-.history-list__item--active:focus-visible {
-    background: rgba(79, 140, 255, 0.25);
+    font-weight: 500;
+    border-left: 3px solid var(--accent); /* Optional: Akzent-Balken links */
 }
 
 .history-list__empty {
     color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding-top: 32px;
 }
+
+/* --- PROFIL SEKTION (Unten) --- */
 
 .sidebar-profile {
     position: relative;
     margin-top: auto;
-    padding: 20px 24px 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 16px 24px 24px;
+    border-top: 1px solid var(--border);
+    background: #ffffff;
 }
 
+/* Der Button mit Avatar & Name */
 .sidebar-profile__trigger {
     width: 100%;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(255, 255, 255, 0.04);
+    padding: 10px 12px;
+    border-radius: 12px;
+    
+    /* Clean Look: Kein Border im Normalzustand */
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--text);
+    
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background var(--transition), border-color var(--transition), box-shadow var(--transition),
-        color var(--transition);
+    transition: all 0.2s;
 }
 
 .sidebar-profile__trigger:hover,
-.sidebar-profile__trigger:focus-visible {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-    outline: none;
+.sidebar-profile.open .sidebar-profile__trigger {
+    background: #f3f4f6; /* Hellgrau */
+    border-color: var(--border);
 }
 
+/* Avatar Kreis */
 .sidebar-profile__avatar {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(79, 140, 255, 0.8), rgba(134, 107, 255, 0.8));
-    color: #0f1115;
+    /* Wir behalten den Gradient, das sieht modern aus */
+    background: linear-gradient(135deg, #ffcc80 0%, #ffab91 100%); /* Warmes Orange/Peach passend zum Theme */
+    color: #4a2c2a; /* Dunkle Schrift für Kontrast im Avatar */
     font-weight: 700;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
+    font-size: 0.9rem;
 }
 
 .sidebar-profile__info {
@@ -372,37 +394,44 @@ body {
 
 .sidebar-profile__name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .sidebar-profile__caret {
-    display: flex;
-    align-items: center;
     color: var(--text-muted);
-    transition: transform var(--transition), color var(--transition);
+    transition: transform 0.2s;
 }
+
+.sidebar-profile.open .sidebar-profile__caret {
+    transform: rotate(180deg);
+    color: var(--accent);
+}
+
+/* --- DROPDOWN MENÜ (Einstellungen / Logout) --- */
 
 .sidebar-profile-menu {
     position: absolute;
-    left: 24px;
-    right: 24px;
-    bottom: calc(100% + 12px);
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(24, 27, 34, 0.95);
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+    left: 16px;
+    right: 16px;
+    bottom: calc(100% + 8px); /* Über dem Profil */
+    padding: 6px;
+    
+    /* Weiße Karte */
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    /* Box Shadow nach oben gerichtet */
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+    
     opacity: 0;
     pointer-events: none;
-    transform: translateY(8px);
-    transition: opacity var(--transition), transform var(--transition);
+    transform: translateY(10px);
+    transition: all 0.2s ease;
     z-index: 2100;
 }
 
@@ -412,194 +441,174 @@ body {
     transform: translateY(0);
 }
 
-.sidebar-profile.open .sidebar-profile__trigger {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
-}
-
-.sidebar-profile.open .sidebar-profile__caret {
-    transform: rotate(180deg);
-    color: var(--accent);
-}
-
+/* Menü-Einträge */
 .profile-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--text);
     text-decoration: none;
-    font-size: 0.95rem;
-    transition: background var(--transition), color var(--transition);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
 }
 
-.profile-item:hover,
-.profile-item:focus-visible {
-    background: rgba(255, 255, 255, 0.08);
+.profile-item:hover {
+    background: #f3f4f6;
     color: var(--accent);
-    outline: none;
 }
 
-.profile-item--danger {
-    color: rgba(var(--status-error-rgb), 0.9);
+/* Logout Rot färben beim Hover */
+.profile-item--danger:hover {
+    background: #fef2f2; /* Sehr helles Rot */
+    color: var(--status-error);
 }
 
-.profile-item--danger:hover,
-.profile-item--danger:focus-visible {
-    background: rgba(var(--status-error-rgb), 0.18);
-    color: #fff;
-}
-
+/* --- NEUES GRID & CARD LAYOUT --- */
 .grid {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: 1fr; /* Mobile First */
     gap: 32px;
-    padding: 32px 40px 40px;
-    flex: 1 1 0;
-   /* min-height: 0; */
-    align-items: stretch;
+    padding: 0; /* Padding vom Grid nehmen, da Body es hat */
+    align-items: start;
 }
 
+/* Desktop: 3 Spalten Layout (1 Spalte Upload, 2 Spalten Ergebnis) */
+@media (min-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* --- PANEL RESET & SPECIFICS --- */
+
+/* Basis Card Style gilt weiter für Upload (Links) */
 .panel {
-    background: rgba(24, 27, 34, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 28px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
     display: flex;
     flex-direction: column;
     gap: 24px;
-    box-shadow: none;
-    height: auto;
 }
 
-.panel--upload {
-    grid-column: span 4;
-    padding: 0;
-    gap: 0;
-    overflow: hidden;
-    min-height: 0;
-}
-
+/* WICHTIG: Die rechte Seite (.panel--details) wird transparent! */
 .panel--details {
-    grid-column: span 8;
-    height: auto;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    gap: 32px; /* Abstand zwischen den 3 inneren Cards */
 }
 
-.panel h2 {
-    margin: 0;
-    font-size: 1.4rem;
-    letter-spacing: 0.01em;
+@media (min-width: 1024px) {
+    .panel--details {
+        grid-column: span 2;
+    }
 }
 
 .panel__section {
-    padding: 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+    padding: 0; /* Inneres Padding entfernen, da Panel es jetzt hat */
 }
 
+/* --- NEUE DROPZONE --- */
 .drop-zone {
-    border: 2px dashed var(--border);
+    /* Hintergrund entfernen oder ganz leicht machen */
+    background: transparent;
+    /* Rahmen gestrichelt und hellgrau (Tailwind border-light) */
+    border: 2px dashed var(--border); 
     border-radius: var(--radius-md);
     padding: 40px 24px;
     text-align: center;
-    color: var(--text-muted);
-    background: rgba(15, 17, 22, 0.6);
+    color: var(--text-muted); /* Grauer Text */
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 20px;
-    transition: border-color var(--transition), background var(--transition), transform var(--transition);
+    transition: border-color var(--transition), background-color var(--transition);
+    height: 100%; /* Höhe der Card ausfüllen */
+    min-height: 250px; /* Mindesthöhe für gute Klickfläche */
 }
 
 .drop-zone:hover,
-.drop-zone:focus {
-    border-color: var(--accent);
-    background: rgba(79, 140, 255, 0.06);
-    transform: translateY(-2px);
+.drop-zone:focus-within {
+    border-color: var(--accent); /* Orange beim Hover */
+    background-color: rgba(255, 87, 34, 0.05); /* Ganz zartes Orange als BG */
     outline: none;
+    color: var(--accent);
 }
 
-.drop-zone.dragover {
-    border-color: var(--accent);
-    background: rgba(79, 140, 255, 0.1);
-    color: var(--text);
+.drop-zone p {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    max-width: 260px;
+    margin: 0;
 }
 
+/* Anpassung des Buttons IN der Dropzone */
+.drop-zone .btn {
+    background-color: var(--secondary); /* Türkis */
+    color: white;
+    margin-top: 8px;
+}
+.drop-zone .btn:hover {
+    background-color: var(--secondary-hover);
+}
+
+/* --- NEUE BUTTONS (Flat Design) --- */
 .btn {
-    align-self: center;
-    padding: 12px 20px;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    background-color: var(--secondary); /* Cyan */
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    font-size: 0.875rem;
     cursor: pointer;
-    transition: background var(--transition), transform var(--transition), border-color var(--transition);
+    transition: opacity 0.2s;
+}
+.btn:hover {
+    background-color: var(--secondary-hover);
+    transform: none; /* Alte Transformation entfernen */
+    opacity: 0.9;
 }
 
-.btn:hover,
-.btn:focus-visible {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
+/* Der Workflow Start Button (Orange) */
+#start-workflow-btn, .btn-primary {
+    background: var(--accent); /* Orange */
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-sm);
 }
-
+#start-workflow-btn:hover, .btn-primary:hover {
+    background: var(--accent-hover);
+    transform: none;
+    opacity: 0.9;
+}
+/* Disabled State schöner machen */
+button:disabled,
 .btn:disabled,
 .btn[aria-disabled="true"] {
+    background-color: #e5e7eb !important; /* Helles Grau */
+    color: #9ca3af !important; /* Dunkleres Grau für Text */
     cursor: not-allowed;
-    opacity: 0.6;
-    transform: none;
-    box-shadow: none;
+    opacity: 1; /* Opacity resetten, Farbe regelt das */
+    transform: none !important;
+    box-shadow: none !important;
 }
 
-.btn-primary {
-    align-self: center;
-    padding: 12px 20px;
-    border-radius: 999px;
-    border: none;
-    background: linear-gradient(135deg, var(--accent), #6f6bff);
-    color: #10121a;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background var(--transition), transform var(--transition);
-}
-
-.btn-primary:hover,
-.btn-primary:focus-visible {
-    background: linear-gradient(135deg, var(--accent-hover), #8c7bff);
-    transform: translateY(-2px);
-}
-
-.btn-primary:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.2);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-}
-
-.btn--primary {
-    background: linear-gradient(135deg, var(--accent), #6f6bff);
-    border: none;
-    color: #10121a;
-}
-
-.btn--primary:hover,
-.btn--primary:focus-visible {
-    background: linear-gradient(135deg, var(--accent-hover), #8c7bff);
-    transform: translateY(-2px);
-}
-
-.btn--primary:disabled,
-.btn--primary[aria-disabled="true"] {
-    background: linear-gradient(135deg, rgba(79, 140, 255, 0.45), rgba(140, 123, 255, 0.45));
-    color: rgba(16, 18, 26, 0.7);
+/* Wenn aktiv (wird durch JS gesteuert, indem disabled entfernt wird) */
+#start-workflow-btn:not(:disabled) {
+    background-color: var(--accent); /* Orange */
+    color: white;
 }
 
 .btn--secondary {
@@ -753,36 +762,32 @@ body {
     visibility: visible;
 }
 
+/* --- FIX: Keine Transparenz im Idle-State --- */
 .workflow-output.is-idle .workflow-body {
-    opacity: 0.35;
-    filter: saturate(0.7);
-    pointer-events: none;
+    opacity: 1; /* Volle Sichtbarkeit */
+    filter: none;
+    /* pointer-events: none;  <-- Optional: Kannst du drin lassen, wenn man nicht klicken soll */
     transition: opacity 0.2s ease;
 }
 
+/* Damit die 3 Cards untereinander Abstand haben */
 .workflow-body {
-    flex: 1 1 auto;
-    padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    opacity: 1;
-    filter: none;
-    transition: opacity 0.2s ease;
-    overflow: visible;
+    gap: 32px; /* Abstand zwischen Grid-Card, Titel-Card und Text-Card */
+    padding: 0;
 }
 
 .status-bar {
-    width: 100%;
-    min-height: 32px;
-    font-size: 0.85rem;
-    line-height: 1.4;
-    padding: 0.5rem 0.75rem;
- /*   border-radius: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-   */
-    color: #ffffff;
+    /* ...alte styles behalten oder anpassen... */
+    color: var(--text-muted); /* Grau statt Weiß */
+    background: transparent;
+    border: none;
+}
+/* Wenn aktiv, geben wir ihr vielleicht einen leichten Hintergrund */
+.status-bar--active {
+    background: rgba(0,0,0,0.05);
+    color: var(--text);
 }
 
 #start-workflow-btn {
@@ -812,42 +817,22 @@ body {
     border-radius: 6px;
 }
 
+/* 1. Karte: Das Bilder-Grid */
 .generated-grid {
-    display: flex;
-    flex-direction: row;
-    /* Mehr Abstand zwischen den Bild-Slots */
-    --generated-gap: 1.25rem;
-    gap: var(--generated-gap);
+    /* Jetzt machen wir das Grid zur Card */
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+    
+    /* Grid Layout beibehalten */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
     width: 100%;
 }
-
-.generated-slot {
-    flex: 0 0 calc((100% - 2 * var(--generated-gap)) / 3);
-    aspect-ratio: 3 / 4;
-    border-radius: 14px;
-    background: rgba(0, 0, 0, 0.1);
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition),
-        height 0.4s ease, opacity 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    /* PRE-WORKFLOW: Kein Shadow sichtbar */
-    box-shadow: none;
-}
-
-.generated-slot:not(.has-image) {
-    cursor: default;
-    pointer-events: none;
-}
-
-.generated-slot.has-image {
-    pointer-events: auto;
-    cursor: pointer;
-}
+ 
 
 /* Shadow nur bei echtem Content aktivieren */
 .generated-slot.has-shadow {
@@ -882,14 +867,17 @@ body {
     justify-content: center;
 }
 
+/* Der innere Container für Ladeanimationen */
 .render-box {
     width: 100%;
     height: 100%;
-    /* PRE-WORKFLOW: Neutraler Hintergrund bis Content eintrifft */
-    background-color: rgb(27, 30, 38);
-    position: relative;
-    overflow: hidden;
-    border-radius: 12px;
+    background-color: transparent; 
+}
+
+/* Ladeanimation: Muss heller sein! */
+@keyframes preload-light {
+    0%, 100% { background-color: #f3f4f6; }
+    50% { background-color: #e5e7eb; }
 }
 
 .generated-slot.has-image .render-box {
@@ -898,7 +886,7 @@ body {
 
 .generated-slot.preload .render-box,
 .render-box.preload {
-    animation: preload 1.8s ease-out 0s infinite;
+    animation: preload-light 1.5s ease-in-out infinite;
 }
 
 .generated-slot.has-image .render-shell {
@@ -945,13 +933,22 @@ body {
     gap: 10px;
 }
 
+/* 2. & 3. Karte: Titel und Beschreibung */
 .field-group {
-    position: relative;
-    margin-bottom: 1rem;
+    /* Auch diese Gruppen werden zu eigenständigen Cards */
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+    
+    /* Reset der alten Trennlinien */
+    margin-bottom: 0;
+    border-bottom: none;
 }
 
 #article-name-group {
-    margin-bottom: 1.35rem;
+  /*  margin-bottom: 1.35rem;*/
 }
 
 #article-description-group {
@@ -962,109 +959,124 @@ body {
     width: 100%;
 }
 
-/* Output-Panels (dunkle Fenster für Text) */
 .output-panel {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.02);
-    border-radius: 12px;
+    background: transparent; /* Kein Hintergrund mehr nötig, oder sehr leicht */
+    border: none;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    padding: 0;
+    margin-top:0;
 }
 
 .output-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.65rem 0.75rem 0 0.75rem;
+    margin-bottom: 0.5rem;
+    padding: 0;
 }
 
 .output-title {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: var(--text-muted); /* Grau */
 }
 
+/* Der "Kopieren" Button als kleiner Badge */
 .output-copy {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    border-radius: 9999px;
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.65rem;
-    padding: 0.2rem 0.6rem;
+    background: rgba(255, 87, 34, 0.1); /* Orange Transparent */
+    color: var(--accent);
+    border: none;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 12px;
     cursor: pointer;
+    transition: background 0.2s;
 }
-
 .output-copy:hover {
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 87, 34, 0.2);
 }
 
 .output-body {
-    padding: 0.4rem 0.75rem 0.75rem 0.75rem;
-    font-family: ui-monospace, SFMono-Regular, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    font-size: 0.78rem;
-    line-height: 1.25rem;
-    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Inter', sans-serif; /* Keine Monospace mehr */
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text); /* Dunkler Text */
+    background: transparent;
+    padding: 0;
+    min-height: auto;
     white-space: pre-wrap;
-    word-wrap: break-word;
-    min-height: 2.6rem;
 }
 
+/* --- SKELETON LOADER FIX --- */
+
 .skeleton-text {
-    /* PRE-WORKFLOW: Skeleton sichtbar ohne Animation, Content hidden */
-    display: none;
-    gap: 0.5rem;
+    display: none; /* Standardmäßig aus */
     flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    padding-top: 8px;
+}
+
+/* Wenn die Gruppe lädt, Content verstecken und Skeleton zeigen */
+.field-group.is-loading .field-content {
+    display: none;
+}
+
+.field-group.is-loading .skeleton-text,
+.is-loading .skeleton-text {
+    display: flex;
 }
 
 .skeleton-line {
     height: 14px;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.05);
-    overflow: hidden;
-    position: relative;
+    background-color: #e5e7eb; /* Hellgrau */
+    border-radius: 4px;
+    width: 100%;
+    
+    /* WICHTIG: Das hier hat gefehlt! */
+    position: relative; 
+    overflow: hidden; /* Schneidet den Schimmer ab, wenn er rausläuft */
 }
 
-.skeleton-line.short {
-    width: 35%;
-}
+/* Unterschiedliche Längen für Text-Optik */
+.skeleton-line.short { width: 95%; }
+.skeleton-line.shorter { width: 58%; }
+.skeleton-line.long { width: 90%; }
+.skeleton-line.medium { width: 75%; }
 
-.skeleton-line.shorter {
-    width: 28%;
-}
-
-.skeleton-line.long {
-    width: 80%;
-}
-
-.skeleton-line.medium {
-    width: 65%;
-}
-
+/* Der Schimmer-Effekt */
 .skeleton-line::after {
     content: "";
     position: absolute;
     top: 0;
-    left: -40%;
-    width: 40%;
+    left: -100%; /* Startet links außerhalb */
+    width: 100%; /* Breite des Schimmers */
     height: 100%;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0) 100%);
+    
+    /* Verlauf für Light Mode optimiert (Weißer Schimmer auf grauem Grund) */
+    background: linear-gradient(
+        90deg, 
+        transparent 0%, 
+        rgba(255, 255, 255, 0.8) 50%, /* 0.8 Deckkraft damit man es auf hellgrau sieht */
+        transparent 100%
+    );
     animation: none;
 }
 
+/* Die Animation läuft nur, wenn script.js .skeleton-shine setzt */
 .skeleton-text.skeleton-shine .skeleton-line::after {
-    /* WORKFLOW RUNNING: Skeleton animation + preload aktiv */
-    animation: skeleton-shine 1.4s ease-out infinite;
+    animation: skeleton-shine 1.5s infinite ease-in-out;
 }
 
 @keyframes skeleton-shine {
-    0% {
-        left: -40%;
-    }
-    100% {
-        left: 100%;
-    }
+    0% { left: -100%; }
+    100% { left: 100%; }
 }
 
 .field-group.is-loading .field-content {
@@ -1131,53 +1143,94 @@ textarea {
 }
 
 .auth-card {
-    width: min(420px, 100%);
-    margin: auto;
-    background: rgba(15, 17, 22, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    /* 1. Karte muss WEISS sein */
+    background-color: #ffffff; 
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-    padding: 36px;
+    
+    /* 2. Zentrierung & Größe */
+    width: 100%;
+    max-width: 440px;
+    margin: 8vh auto; /* Etwas Abstand von oben, horizontal zentriert */
+    
+    /* 3. Schatten für den "Schwebe"-Effekt */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    
+    padding: 40px;
     display: flex;
     flex-direction: column;
     gap: 24px;
 }
 
+/* Header Text (Willkommen zurück) */
+.auth-card__header {
+    text-align: center;
+}
+
 .auth-card__header h1 {
-    margin: 0 0 8px;
-    font-size: 1.8rem;
+    color: var(--text-heading); /* Dunkles Grau/Schwarz */
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 12px;
 }
 
 .auth-card__header p {
+    color: var(--text-muted); /* Mittelgrau */
+    font-size: 1rem;
     margin: 0;
-    color: var(--text-muted);
 }
 
-.auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+/* Inputs explizit hell machen (überschreibt alte Dark-Mode Styles) */
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    padding: 12px;
+    border-radius: var(--radius-md);
 }
 
+.auth-form label {
+    color: var(--text-heading);
+    font-weight: 500;
+    margin-bottom: 6px;
+    display: block;
+}
+
+/* Der Button muss ORANGE sein (Primary) */
+.auth-form .btn {
+    background-color: var(--accent); /* Orange */
+    color: #ffffff;
+    width: 100%; /* Volle Breite */
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 12px;
+    justify-content: center;
+}
+
+.auth-form .btn:hover {
+    background-color: var(--accent-hover);
+}
+
+/* Footer Links */
 .auth-card__footer {
-    margin: 0;
     text-align: center;
     color: var(--text-muted);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
+    font-size: 0.9rem;
+    margin-top: 8px;
 }
 
 .auth-card__footer a {
     color: var(--accent);
     text-decoration: none;
     font-weight: 600;
+    margin: 0 5px;
 }
 
-.auth-card__footer a:hover,
-.auth-card__footer a:focus-visible {
-    color: var(--accent-hover);
+.auth-card__footer a:hover {
+    text-decoration: underline;
 }
 
 .auth-messages {
@@ -1306,4 +1359,243 @@ textarea {
     .gallery {
         grid-template-columns: 1fr;
     }
+}
+
+
+/* --- LINKES PANEL AUFTEILEN (Dropzone & Preview getrennt) --- */
+
+/* 1. Den großen Container unsichtbar machen (wie rechts) */
+.panel--upload {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column;
+    gap: 24px; /* Abstand zwischen Dropzone-Card und Preview-Card */
+    height: auto !important; /* Höhe flexibel lassen */
+}
+
+/* 2. Die Dropzone zur WEISSEN Karte machen */
+#drop-zone {
+    /* Das ist jetzt die äußere weiße Karte */
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    
+    /* Layout */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    
+    /* HÖHE ANPASSEN: Damit sie so hoch ist wie das Grid rechts */
+    min-height: 294px; /* Ca. die Höhe des 3er Grids + Padding */
+    height: auto;
+    
+    /* WICHTIG: Padding für den inneren Rahmen */
+    padding: 24px; 
+    cursor: pointer;
+}
+
+/* 3. Der GESTRICHELTE Rahmen (jetzt als Pseudo-Element innen) */
+/* Damit sieht es aus wie "Box in einer Box" wie im Design */
+#drop-zone::before {
+    content: "";
+    position: absolute;
+    inset: 16px; /* Abstand vom weißen Rand nach innen */
+ /*   border: 2px dashed var(--border); /* Der gestrichelte Rahmen */
+ /*   border-radius: var(--radius-md); */
+    pointer-events: none; /* Klicks gehen durch */
+    z-index: 0;
+}
+
+/* Sicherstellen, dass Text/Icon über dem gestrichelten Rahmen liegen */
+#drop-zone > * {
+    z-index: 1;
+    position: relative;
+}
+
+/* Hover-Effekt auf den inneren Rahmen anwenden */
+#drop-zone:hover::before,
+#drop-zone:focus-within::before {
+    border-color: var(--accent);
+    background-color: rgba(255, 87, 34, 0.02);
+}
+
+#drop-zone:hover {
+    border-color: var(--accent); /* Äußerer Rahmen auch färben (optional) */
+}
+
+
+/* 4. Die Bildvorschau als EIGENE Karte */
+.original-image-wrapper {
+    /* Weiße Karte Styles */
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 16px; /* Etwas kompakter */
+    
+    /* Layout Reset */
+    width: 100%;
+    margin: 0;
+    
+    /* Flexbox für das Bild darin */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    /* Animation beim Einblenden */
+    transition: all 0.3s ease;
+    margin-top:20px;
+}
+
+/* Wenn keine Bilder da sind, verstecken wir die Karte komplett */
+.original-image-wrapper:empty {
+    display: none;
+}
+
+/* Bild Styling innerhalb der neuen Karte */
+.original-image-wrapper img.original-image-preview {
+    max-width: 100%;
+    border-radius: var(--radius-md);
+    box-shadow: none; /* Schatten hat jetzt die Karte, nicht das Bild */
+    border: 1px solid var(--border);
+}
+
+
+
+/* --- Generated Cards & Action Bar --- */
+
+/* Der neue Wrapper für Bild + Leiste */
+.generated-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* Abstand zwischen Bild und Leiste */
+    /* Optional: Falls die ganze Karte wie ein Block wirken soll */
+    /* background: white; padding: 12px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow); */
+}
+
+/* Anpassung des bestehenden Slots (Bild-Container) */
+.generated-slot {
+    /* Die Breite wird nun vom Grid der Card bestimmt */
+    flex: 1 1 auto; 
+    width: 100%;
+    aspect-ratio: 1/ 1;
+    border-radius: 12px;
+    background: #f1f5f9;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    transition: all var(--transition);
+}
+
+.generated-slot.has-image {
+    background: #ffffff;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+}
+
+/* --- Action Bar (Die Menüleiste) --- */
+.slot-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* 4 gleich große Spalten */
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 8px; /* Leicht abgerundet */
+    overflow: hidden; /* Damit die inneren Buttons nicht überstehen */
+    height: 40px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    /* Leiste standardmäßig ausblenden und nur zeigen, wenn Bild da ist? 
+       Aktuell zeigen wir sie immer, wie im Screenshot. */
+    opacity: 0.6; /* Inaktiv, solange kein Bild da ist (optional) */
+    transition: opacity 0.2s;
+}
+
+/* Wenn das Bild geladen ist (wir simulieren das über Hover oder JS Klasse später) */
+.generated-card:hover .slot-actions,
+.generated-slot.has-image ~ .slot-actions {
+    opacity: 1;
+}
+
+.action-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border); /* Trennlinie rechts */
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+    margin: 0; /* Reset */
+    height: 100%;
+}
+
+.action-btn:last-child {
+    border-right: none; /* Letzter Button hat keine Linie rechts */
+}
+
+.action-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.action-btn span.material-icons-outlined {
+    font-size: 18px; /* Icon Größe anpassen */
+}
+
+/* Anpassung des Grids im Layout */
+.generated-grid {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.generated-card {
+    flex: 1;
+    min-width: 0; /* Verhindert Overflow in Flexbox */
+}
+
+@media (max-width: 768px) {
+    .generated-grid {
+        flex-direction: column;
+    }
+}
+
+/* --- Action Bar Update --- */
+
+/* 1. Der Play Button (Primary Color) */
+.action-btn.btn-primary {
+    color: var(--accent); /* Blau */
+}
+
+.action-btn.btn-primary:hover {
+    background: #eff6ff; /* Ganz helles Blau beim Hover */
+}
+
+/* 2. Der "Active" State (Gedrückt) für die anderen Buttons */
+.action-btn.is-active {
+    background: #e2e8f0; /* Dunkleres Grau als Hintergrund */
+    color: var(--text);  /* Dunkler Text */
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.06); /* "Inset" Schatten lässt es eingedrückt wirken */
+    font-weight: 700;
+}
+
+/* Optional: Wenn ein Button aktiv ist, soll sich der Hover ändern */
+.action-btn.is-active:hover {
+    background: #cbd5e1; /* Noch etwas dunkler beim Hovern über aktiven Button */
 }
