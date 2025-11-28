@@ -237,22 +237,7 @@ try {
     $config = auth_config();
     ensureAuthorized($config);
 
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
-    if (!is_string($contentType) || stripos($contentType, 'multipart/form-data') !== 0) {
-        jsonResponse(415, [
-            'ok'      => false,
-            'message' => 'Nur multipart/form-data wird unterstützt.',
-        ]);
-    }
-
-    $userId = resolveUserId();
-
     // Form-Data Felder explizit auslesen, um sie später für die Kreditabbuchung zu verwenden
-    $userIdFromPost = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
-    if ($userIdFromPost > 0) {
-        $userId = $userIdFromPost;
-    }
-
     $executedRaw = $_POST['executed_successfully'] ?? null;
     if ($executedRaw !== null) {
         $executedSuccessfully = in_array($executedRaw, ['true', '1', 1, true], true);
@@ -264,6 +249,13 @@ try {
         if ($stepType === '') {
             $stepType = null;
         }
+    }
+
+    $userId = resolveUserId();
+
+    $userIdFromPost = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+    if ($userIdFromPost > 0) {
+        $userId = $userIdFromPost;
     }
 
     $runIdValue = normalizeRunId($_POST['run_id'] ?? null);
@@ -287,21 +279,132 @@ try {
     }
 
     if ($executedSuccessfully === false) {
-        // Fehlerfall: Bild konnte nicht generiert werden. Statusmeldung speichern, aber keine Credits berechnen.
-        $loggedMessage = $statusMessageFromRequest !== null
-            ? $statusMessageFromRequest
-            : 'Bild konnte nicht generiert werden.';
+        // Fehlerfall: Bild konnte nicht generiert werden → Default-Placeholder-Bild speichern,
+        // damit das Frontend den Slot als gefüllt behandelt und die Preload-Animation weiterwandern kann.
+        $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
+        $noteId = null;
+        $productName = '';
 
-        log_status_message($pdo, $runId, $userId, $loggedMessage);
+        if ($noteIdInput !== null) {
+            $noteCheck = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+            $noteCheck->execute([
+                ':id'   => $noteIdInput,
+                ':user' => $userId,
+                ':run'  => $runId,
+            ]);
+            $noteRow = $noteCheck->fetch(PDO::FETCH_ASSOC);
+            if ($noteRow === false) {
+                jsonResponse(400, [
+                    'ok'      => false,
+                    'message' => 'note_id ist ungültig oder gehört nicht zum Run.',
+                ]);
+            }
 
-        $updateRunMessage = $pdo->prepare(
-            'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
-        );
-        $updateRunMessage->execute([
-            ':message' => $loggedMessage,
-            ':run_id'  => $runId,
-            ':user_id' => $userId,
-        ]);
+            $noteId = (int) $noteRow['id'];
+            $productName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
+        } else {
+            $existingNote = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+            $existingNote->execute([
+                ':user' => $userId,
+                ':run'  => $runId,
+            ]);
+            $existingNoteRow = $existingNote->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingNoteRow !== false) {
+                $noteId = (int) $existingNoteRow['id'];
+                $productName = isset($existingNoteRow['product_name']) ? (string) $existingNoteRow['product_name'] : '';
+            } else {
+                $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
+                $createNote->execute([
+                    ':user' => $userId,
+                    ':run'  => $runId,
+                ]);
+                $noteId = (int) $pdo->lastInsertId();
+            }
+        }
+
+        if ($noteId === null || $noteId <= 0) {
+            jsonResponse(500, [
+                'ok'      => false,
+                'message' => 'note could not be determined.',
+            ]);
+        }
+
+        $positionInput = $_POST['position'] ?? null;
+        $requestedPosition = null;
+        if ($positionInput !== null && (is_string($positionInput) || is_numeric($positionInput))) {
+            $positionValue = trim((string) $positionInput);
+            if ($positionValue !== '' && ctype_digit($positionValue)) {
+                $requestedPosition = (int) $positionValue;
+                if ($requestedPosition <= 0) {
+                    $requestedPosition = null;
+                }
+            }
+        }
+
+        $relativeUrl = 'assets/default-image1.jpg';
+
+        $pdo->beginTransaction();
+        try {
+            $position = $requestedPosition;
+            if ($noteId !== null) {
+                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
+                $stmt->execute([':note' => $noteId]);
+                $calculated = $stmt->fetchColumn();
+                $nextPosition = $calculated !== false ? (int) $calculated : 1;
+                if ($nextPosition <= 0) {
+                    $nextPosition = 1;
+                }
+
+                if ($requestedPosition === null) {
+                    $position = $nextPosition;
+                }
+            }
+
+            $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, created_at) VALUES (:user, :run, :note, :url, :position, NOW())');
+            $insertImage->execute([
+                ':user'     => $userId,
+                ':run'      => $runId,
+                ':note'     => $noteId,
+                ':url'      => $relativeUrl,
+                ':position' => $position,
+            ]);
+
+            $loggedMessage = $statusMessageFromRequest !== null
+                ? $statusMessageFromRequest
+                : 'image generation failed';
+
+            log_status_message($pdo, $runId, $userId, $loggedMessage);
+
+            $updateRunMessage = $pdo->prepare(
+                'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
+            );
+            $updateRunMessage->execute([
+                ':message' => $loggedMessage,
+                ':run_id'  => $runId,
+                ':user_id' => $userId,
+            ]);
+
+            $stateSql = <<<'SQL'
+INSERT INTO user_state (user_id, last_image_url, current_run_id, updated_at)
+VALUES (:user, :image, :current_run_id, NOW())
+ON DUPLICATE KEY UPDATE
+    last_image_url = VALUES(last_image_url),
+    current_run_id = IFNULL(VALUES(current_run_id), current_run_id),
+    updated_at = NOW()
+SQL;
+            $updateState = $pdo->prepare($stateSql);
+            $updateState->execute([
+                ':user'           => $userId,
+                ':image'          => $relativeUrl,
+                ':current_run_id' => $runId,
+            ]);
+
+            $pdo->commit();
+        } catch (Throwable $transactionException) {
+            $pdo->rollBack();
+            throw $transactionException;
+        }
 
         if ($runId !== null && $userId > 0) {
             $updateStepStatus = $pdo->prepare(
@@ -315,10 +418,20 @@ try {
         }
 
         jsonResponse(200, [
-            'ok'       => false,
-            'message'  => $loggedMessage,
-            'run_id'   => $runId,
-            'image_ok' => false,
+            'ok'          => true,
+            'url'         => $relativeUrl,
+            'note_id'     => $noteId,
+            'position'    => $requestedPosition ?? $position ?? null,
+            'run_id'      => $runId,
+            'placeholder' => true,
+        ]);
+    }
+
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
+    if (!is_string($contentType) || stripos($contentType, 'multipart/form-data') !== 0) {
+        jsonResponse(415, [
+            'ok'      => false,
+            'message' => 'Nur multipart/form-data wird unterstützt.',
         ]);
     }
 
