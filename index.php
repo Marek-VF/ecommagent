@@ -163,7 +163,7 @@ $appConfig = [
         <?php endif; ?>
     </div>
     <div class="app">
-        <header class="app__header">
+        <header class="app__header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div class="app__header-left">
                 <button
                     id="history-toggle"
@@ -175,10 +175,20 @@ $appConfig = [
                 >&#9776;</button>
                 <h1>Ecom Studio</h1>
             </div>
+            <div class="w-full flex md:w-auto md:block">
+                <!-- Workflow-Button sitzt nun im Header; IDs/Klassen bleiben für script.js unverändert. -->
+                <button
+                    id="start-workflow-btn"
+                    type="button"
+                    class="btn-primary app__status-row-button inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium w-full max-w-[400px] mx-auto md:mx-0"
+                >
+                    <!-- Eigene Zeile & zentriert auf Mobile via w-full/max-w + mx-auto; im Desktop per Flex rechts ausgerichtet. -->
+                    Workflow starten
+                </button>
+            </div>
         </header>
         <div class="app__status-row">
             <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
-            <button id="start-workflow-btn" type="button" class="btn-primary app__status-row-button">Workflow starten</button>
         </div>
  
         <main class="grid">
