@@ -1,165 +1,208 @@
-# Ecomm Agent – AI-gestützte E-Commerce Automationsplattform
-Backend: PHP 8.2 · Datenbank: MySQL 8.4 · Frontend: HTML/JS · Automation: n8n
+# Ecomm Agent / Ecom Studio – AI-gestützte E-Commerce Automationsplattform
 
----
-
-## Inhaltsverzeichnis
-1. Überblick
-2. Kernfunktionen
-3. Systemarchitektur
-4. End-to-End Workflow
-5. Verwendete Technologien
-6. Dateistruktur
-7. API Endpunkte
-8. Datenbankschema (vereinfacht)
-9. Installation & Setup
-10. Konfiguration (`config.php`)
-11. Sicherheit
-12. Lizenz / Nutzung
+Backend: PHP 8.2 · MySQL 8.4 · Frontend: HTML/JS (Light Mode v2.0) · Automation: n8n
 
 ---
 
 ## 1. Überblick
 
-Ecomm Agent ist eine Multi-User Webanwendung zur automatisierten Erstellung von:
+Ecomm Agent (Frontend-Name: **Ecom Studio**) ist eine Multi-User Webanwendung zur automatisierten Erstellung und Verwaltung von:
 
-- Produktbildern  
-- Produkttexten  
-- Analyse-Daten zu hochgeladenen Kleidungsstücken  
-- Prompt-basierten Bildvarianten  
+- Produktbildern (AI-generiert)
+- Produkttexten (Artikelname & -beschreibung)
+- Analyse-Daten zu hochgeladenen Kleidungsstücken
+- Prompt-basierten Bildvarianten
 
-Die Anwendung fungiert als Schnittstelle zwischen dem Nutzer und einem externen **n8n-Server**, welcher KI-Funktionen wie Bildgenerierung, Bildanalyse und Textgenerierung ausführt.
+Die Anwendung sitzt zwischen:
+
+- **User** (Upload, Steuerung, Auswertung)
+- **Backend (PHP + MySQL)** (Auth, Orchestrierung, Credits, Logging)
+- **n8n** (Bildanalyse, Bildgenerierung, Textgenerierung)
+
+Frontend v2.0 bringt:
+
+- Redesign in **Light Mode / Soft UI**
+- kombiniertes **Status & Upload Panel**
+- interaktive Action-Bar unter jedem generierten Bild
+- integriertes **Credit-System** (verbrauchsabhängige Abrechnung)
+- robustes Fehlerhandling mit **Error-Platzhalterbild bei Generierungsfehlern**
 
 ---
 
-## 2. Kernfunktionen
+## 2. Kernfeatures
 
-### 💠 Produktbild-Upload
-Drag & Drop Upload, Validierung, Speicherung, automatischer Workflow-Start.
+### 🧵 Produktbild-Upload
 
-### 💠 AI-Bildgenerierung (n8n)
-- Garment Analysis  
-- Closeups  
-- Full Body Shots  
-- Editorial / Lifestyle Varianten  
-- Produktfoto-Variante (weißes Studio)
+- Drag & Drop oder Dateiauswahl
+- Bildvalidierung (Typ, Größe, Auflösung)
+- Speicherung im Verzeichnis `uploads/<user_id>/<run_id>/...`
+- Anlegen eines neuen Workflow-Runs in `workflow_runs`
+- Anzeige des Originalbildes im rechten Panel
 
-### 💠 Prompt-Varianten-System
-User-abhängige Promptsets basierend auf der gewählten Branche / Kategorie.
+### ⚙️ Workflow-Steuerung
 
-### 💠 Echtzeit Status-Updates
-Über n8n-Callbacks → Speicherung in `status_logs` → Live-Polling im Frontend.
+- Button **„Workflow starten“** im rechten Panel (`#workflow-output`)
+- Start eines n8n-Workflows mit:
+  - `run_id`
+  - `user_id`
+  - Bild-URLs der Originalbilder
+  - `receiver_api_token`
+  - User-Einstellungen (z. B. Image Ratio, Kategorie)
 
-### 💠 Multi-Image / Single-Image Logik
-N8N entscheidet anhand der Webhook Payload, wie viele Images verarbeitet werden.
+Vor dem Start wird geprüft, ob der User **ausreichend Credits** hat  
+→ sonst kein Start, Fehlermeldung in der Statusleiste.
 
-### 💠 Settings
-- Bildformat (Image Ratio)
+### 🧠 AI-Bild- & Textgenerierung (via n8n)
+
+- Garment-Analyse der hochgeladenen Bilder
+- Generierung von:
+  - Closeups
+  - Full-Body-Shots
+  - Editorial / Lifestyle-Bildern
+  - Produktfoto-Variante
+- Textgenerierung:
+  - Artikelname
+  - Artikelbeschreibung
+
+### 🧩 Prompt-Varianten-System
+
+- User wählt eine **Branche / Kategorie**
+- Promptsets pro Kategorie (Tabelle `prompt_variants`)
+- n8n ruft `/api/get-prompt-variants.php` auf und erhält:
+  - Label
+  - LOCATION, LIGHTING, MOOD, SEASON, MODEL_TYPE, MODEL_POSE, VIEW_MODE
+
+### 📡 Status & Laufzeit-Feedback
+
+- **Statusleiste** links vom Workflow-Button:
+  - zeigt die letzte Statusmeldung des aktuellen Runs
+  - bei laufendem Workflow: animierte Punkte (`"" → "." → ".." → "..." → ""`) im Sekundentakt
+- **Status-Widget** im linken Panel:
+  - scrollbare Liste von Statusmeldungen (Info/Success/Error)
+
+### 🖼 Bild-Grid & Error-Platzhalter
+
+- 3-Slot Bildgrid (`.generated-grid` mit `.generated-slot`)
+- Während die Bilder generiert werden:
+  - Preload-Animation auf dem jeweils nächsten Slot
+- Bei erfolgreicher Generierung:
+  - Bild wird gespeichert und angezeigt
+  - Credits werden für den Step belastet
+- Bei Fehler (`executed_successfully: false` von n8n):
+  - **kein** Credit-Abzug
+  - ein Error-Platzhalterbild aus dem Asset-Ordner (z. B. `assets/default-image1.jpg`) wird gespeichert und angezeigt
+  - Statusmeldung des Fehlers erscheint in der Statusleiste
+
+### 📝 Textausgabe & Skeletons
+
+- Panels:
+  - „Artikelname“
+  - „Artikelbeschreibung“
+- Verhalten:
+  - bevor der Workflow startet: Skeleton sichtbar, **ohne Animation**
+  - während Workflow läuft: Skeleton mit `skeleton-shine`-Animation
+  - nach erfolgreicher Generierung: Skeleton verschwindet, Text erscheint
+
+### 🕒 Historie (Runs)
+
+- Seitenleiste (History-Sidebar)
+- `api/get-runs.php`: Liste vergangener Runs
+- `api/get-run-details.php`: lädt Run in die Hauptoberfläche
+- Klick auf einen Run:
+  - lädt Text, Bilder, Originalbil(d/er) und Status in die UI
+
+### ⚙️ Settings
+
+- Bildformat / Seitenverhältnis (Image Ratio)
 - Branche / Kategorie
-- Prompt-Labels & Defaults
+- Prompt-Labels & Default-Varianten
+- **Credits:**
+  - Unterseite zeigt aktuellen Kreditkontostand (mit 2 Dezimalstellen)
+- In allen Settings-Seiten:
+  - **„Zurück“-Button** im Stil des Workflow-Buttons, verlinkt zurück zur Artikelverwaltung
+
+### 💳 Credit-System (Kurzüberblick)
+
+- Credits als Fließkommawerte (z. B. 0.25, 0.5, 1.0)
+- Kosten pro Step-Typ in `config.php` konfigurierbar (`credits.steps`)
+- Vor dem Workflow-Start:
+  - Abgleich benötigter Credits vs. `users.credits_balance`
+- Während der n8n-Ausführung:
+  - bei `executed_successfully: true` & bekanntem `step_type`:
+    - Abbuchung via `charge_credits(...)`
+  - bei `executed_successfully: false`:
+    - **kein** Credit-Abzug
+    - im Bild-Workflow: Platzhalterbild wird gespeichert
+
+Details siehe `docs/TECHNICAL_SPEC.md`, Abschnitt **5. Credit-System**.
 
 ---
 
-## 3. Systemarchitektur
+## 3. Systemarchitektur (High-Level)
 
-Frontend (index.php, script.js)
-↓ Upload
+```text
+Frontend (index.php, style.css, script.js)
+    ↓ Upload
 upload.php
-↓
-workflow_runs DB Entry
-↓
-start-workflow.php → n8n Webhook (workflow_webhook)
-↓
-n8n führt KI-Workflows aus
-↓
-n8n Callback → receiver.php
-↓
-status_logs, item_images, workflow_runs Updates
-↓
-Frontend Polling /api/get-run-details.php
+    ↓
+workflow_runs (DB)
+    ↓
+start-workflow.php  →  n8n Webhook (workflow_webhook)
+    ↓
+n8n: Analyse & Bild-/Textgenerierung
+    ↓
+Callbacks:
+  - receiver.php       (Status, Texte, Analyse, isrunning)
+  - webhook_image.php  (generierte Bilder & Fehlerfälle)
+  - api/get-prompt-variants.php (Prompt-Varianten für n8n)
+    ↓
+DB-Updates:
+  - workflow_runs
+  - item_notes
+  - item_images
+  - status_logs
+  - user_state
+  - credit_transactions
+    ↓
+Frontend Polling:
+  - api/get-latest-item.php (aktueller Run)
+  - api/get-runs.php
+  - api/get-run-details.php
 
+4. Frontend v2.0 – Kurzüberblick
 
-Backend = Orchestrierung  
-n8n = AI / Automation Engine  
-DB = Persistenz + Logging  
+    Layout: 12-Spalten Grid (.app)
 
----
+        links: Status + Upload Card
 
-## 4. End-to-End Workflow
+        rechts: Workflow-Output (Originalbilder, Grid, Texte)
 
-### **1. User lädt Bilder hoch**
-- via `upload.php`  
-- Speicherung im `/uploads` Ordner  
-- Eintrag in `workflow_runs`  
-- Rückgabe: `run_id`
+    Design:
 
-### **2. Workflow wird gestartet**
-`start-workflow.php` sendet Request an n8n:
+        Light Mode, Soft UI (Schatten, abgerundete Karten, viel Weißraum)
 
-```json
-{
-  "run_id": 123,
-  "user_id": 5,
-  "image_url_1": "...",
-  "image_url_2": "...",
-  "receiver_api_token": "..."
-}
+        Akzentfarbe: Deep Orange für CTAs und Highlights
 
-3. n8n ruft Promptvarianten ab
+    Komponenten:
 
-Über:
+        Combined Status & Upload Panel
 
-/api/get-prompt-variants.php
-→ Liefert prompt_category des Users
-→ Liefert passende Variants
-4. n8n generiert Bilder, Analysen & Texte
+        Image Grid + Action Bars (2K/4K/Edit/Play)
 
-    Analyse → garment JSON
+        Text-Panels mit Kopieren-Buttons
 
-    Bildgenerierung (verschiedene Modi)
+        History-Sidebar (Runs)
 
-    Textvarianten
+    Animationen:
 
-    Produktfoto (für Single-Image Fälle)
+        Skeleton-Shine für Text während Job läuft
 
-5. Callback an Backend
+        Preload-Pulse für Bildslots
 
-receiver.php erhält z. B.:
+        Statusbar mit Punkt-Animation
 
-{
-  "run_id": 123,
-  "user_id": 5,
-  "statusmeldung": "image_generated",
-  "image_url": "https://...",
-  "image_base64": "...."
-}
-
-Verarbeitung:
-
-    Speichern in item_images
-
-    Status in workflow_runs
-
-    Log in status_logs
-
-6. Frontend Polling
-
-script.js pollt:
-
-/api/get-runs.php
-/api/get-run-details.php?run_id=…
-
-7. Darstellung in der UI
-
-Sobald Bilder / Text vorliegen, erscheinen sie im Dashboard.
-5. Verwendete Technologien
-Bereich	Technologie
-Backend	PHP 8.2, PDO, MySQL 8.4
-Frontend	HTML5, CSS, JavaScript, Dark Mode
-Auth	PHPMailer SMTP
-Automation / KI	n8n (Webhook gesteuert)
-Hosting	Apache (Rewrite aktiviert)
-6. Dateistruktur
+Detaillierte Frontend-Spezifikation in docs/TECHNICAL_SPEC.md, Abschnitt 2.1 und 6.
+5. Verzeichnisstruktur (vereinfacht)
 
 /api
     get-runs.php
@@ -168,20 +211,28 @@ Hosting	Apache (Rewrite aktiviert)
     get-prompt-variants.php
 
 /auth
+    bootstrap.php
     login.php
     register.php
     verify.php
     reset_password.php
-    phpmailer/
+    logout.php
+    phpmailer/...
 
 /settings
-    update_image_settings.php
-    update_category.php
+    image.php
+    category.php
     prompt_labels.php
+    credits.php
     default_variants.json
 
-/uploads (dynamisch)
-/assets (CSS, JS, Icons)
+/assets
+    ...
+    default-image1.jpg        (Error-Platzhalterbild)
+    placeholder.png           (generische Platzhalter)
+
+/uploads
+    <user_id>/<run_id>/...
 
 index.php
 script.js
@@ -189,158 +240,125 @@ style.css
 upload.php
 start-workflow.php
 receiver.php
+webhook_image.php
 db.php
 config.php
+status_logger.php
+credits.php
 .htaccess
 
-7. API Endpunkte
-📌 /upload.php (POST)
+6. API-Endpunkte (Überblick)
 
-Upload eines Originalbildes
-→ Erstellt workflow_run
-📌 /start-workflow.php (POST)
+    POST /upload.php
+    → Bildupload, Run-Erzeugung
 
-Startet den n8n AI Workflow.
-📌 /receiver.php (POST)
+    POST /start-workflow.php
+    → Workflowstart (inkl. Credit-Check, n8n-Webhook)
 
-n8n sendet hier alle Statusmeldungen.
+    POST /receiver.php
+    → n8n-Callbacks für Status, Texte, Analyse
 
-Header muss enthalten:
-X-API-TOKEN: <receiver_api_token>
-📌 /api/get-runs.php (GET)
+    POST /webhook_image.php
+    → n8n-Callbacks für generierte Bilder & Fehlerbilder
 
-Liste aller Workflows eines Users.
-📌 /api/get-run-details.php (GET)
+    GET /api/get-latest-item.php
+    → aktueller Run für Polling
 
-Detaildaten inkl. Bilder, Log, Text.
-📌 /api/get-prompt-variants.php (GET)
+    GET /api/get-runs.php
+    → History-Liste
 
-Promptvarianten je Kategorie.
-8. Datenbankschema (vereinfacht)
-users
-Feld	Beschreibung
-id	Primary Key
-email	Login
-password_hash	Passwort
-verified_at	E-Mail bestätigt
-receiver_api_token	Token für n8n
-image_ratio_preference	User Ratio
-prompt_category_id	Branche
-workflow_runs
+    GET /api/get-run-details.php
+    → Details eines Runs
 
-    id
+    GET /api/get-prompt-variants.php
+    → Prompt-Varianten für n8n
 
-    user_id
+Details zu Payloads & Feldern siehe docs/TECHNICAL_SPEC.md.
+7. Datenbankschema (Überblick)
 
-    created_at
+    users
 
-    status
+    workflow_runs
 
-    original_image
+    item_notes
 
-    last_message
+    item_images
 
-item_images
+    status_logs
 
-    id
+    prompt_variants
 
-    user_id
+    user_state
 
-    run_id
+    credit_transactions
 
-    type (closeup/full_body/generated/product)
+Vollständiges Schema inkl. Feldbeschreibungen in docs/TECHNICAL_SPEC.md, Abschnitt 4.
+8. Installation & Setup
 
-    image_url
+    Repository klonen
 
-    image_base64
+    MySQL-DB erstellen und import.sql einspielen
 
-status_logs
+    config.php anpassen:
 
-    id
+        base_url, upload_dir, workflow_webhook
 
-    run_id
+        DB-Zugangsdaten
 
-    message
+        SMTP-Konfiguration (optional)
 
-    created_at
+        Credit-Konfiguration (credits.enabled, credits.steps)
 
-prompt_variants
+    Apache mit mod_rewrite konfigurieren
 
-Promptsets für jede Branche.
-9. Installation & Setup
-1. Repo klonen
+    Anwendung über index.php aufrufen
 
-git clone <repo>
-cd ecommagent
+9. Konfiguration (config.php)
 
-2. Datenbank importieren
+Wichtige Keys (Auszug):
 
-Erstelle DB und importiere die SQL-Datei.
-3. config.php anpassen
-4. Apache vorbereiten
+    base_url, asset_base_url, upload_dir
 
-a2enmod rewrite
+    workflow_webhook
 
-5. System bereit
+    receiver_api_token, receiver_api_allowed_ips
 
-Aufruf über
-https://<domain>/index.php
-10. Konfiguration (config.php)
+    db (PDO DSN + Credentials)
 
-Die Konfiguration ist eine Rückgabe eines assoziativen Arrays:
+    smtp, mail
 
-<?php
-$baseUrl = 'https://vielfalter.digital/api-monday/ecommagent';
-$webhookBearerToken = 'changeme';
+    credits:
 
-return [
-    'base_url'         => $baseUrl,
-    'asset_base_url'   => $baseUrl . '/assets',
-    'upload_dir'       => __DIR__ . '/uploads',
+        enabled: bool
 
-    // n8n Workflow-URL
-    'workflow_webhook' => 'https://tex305agency.app.n8n.cloud/webhook-test/9a217ab8-47fa-452c-9c65-fa7874a14fdd',
+        steps: array (Kosten pro step_type wie analysis, image_1, …)
 
-    // Authentifizierung der Callbacks aus n8n
-    'receiver_api_token'      => $webhookBearerToken,
-    'receiver_api_allowed_ips' => [],
+10. Sicherheit
 
-    // MySQL Datenbank
-    'db'               => [
-        'dsn'      => 'mysql:host=localhost;dbname=ecommagent;charset=utf8mb4',
-        'username' => 'root',
-        'password' => '',
-        'options'  => [],
-    ],
+    Vorbereitung für receiver_api_allowed_ips (IP-Whitelist für n8n)
 
-    // SMTP Mailer
-    'smtp'             => [
-        'host'       => 'smtp.example.com',
-        'port'       => 587,
-        'username'   => 'smtp-user',
-        'password'   => 'smtp-password',
-        'encryption' => 'tls',
-        'auth'       => true,
-    ],
+    Bearer-Token für n8n-Callbacks
 
-    // Absender
-    'mail'             => [
-        'from_address' => 'no-reply@example.com',
-        'from_name'    => 'Artikelverwaltung',
-    ],
-];
+    Prepared Statements (PDO) für alle DB-Operationen
 
-11. Sicherheit
+    Validierung von Uploads (MIME, Größe, Auflösung)
 
-    Prepared Statements (PDO)
+    Credit-Logik schützt vor Workflows ohne ausreichende Credits
 
-    SMTP Auth
+11. Entwicklung & Erweiterung
 
-    Passwort-Hashing mit password_hash()
+    neue AI-Funktionen:
 
-    n8n Callback Token über Header
+        als zusätzliche Steps in config.php['credits']['steps']
 
-    Optional: IP-Whitelist für Callbacks
+        mit step_type in n8n-Callbacks
 
-    Datei-Upload Validierung
+        Credits via charge_credits() abbuchen
 
+    weitere Bildslots:
+
+        Anpassung von gallerySlots in script.js + CSS-Grid
+
+    zusätzliche Frontend-Panels:
+
+        am bestehenden Soft-UI-System orientieren
