@@ -515,50 +515,7 @@ body {
     padding: 0; /* Inneres Padding entfernen, da Panel es jetzt hat */
 }
 
-/* --- NEUE DROPZONE --- */
-.drop-zone {
-    /* Hintergrund entfernen oder ganz leicht machen */
-    background: transparent;
-    /* Rahmen gestrichelt und hellgrau (Tailwind border-light) */
-    border: 2px dashed var(--border); 
-    border-radius: var(--radius-md);
-    padding: 40px 24px;
-    text-align: center;
-    color: var(--text-muted); /* Grauer Text */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-    transition: border-color var(--transition), background-color var(--transition);
-    height: 100%; /* Höhe der Card ausfüllen */
-    min-height: 250px; /* Mindesthöhe für gute Klickfläche */
-}
 
-.drop-zone:hover,
-.drop-zone:focus-within {
-    border-color: var(--accent); /* Orange beim Hover */
-    background-color: rgba(255, 87, 34, 0.05); /* Ganz zartes Orange als BG */
-    outline: none;
-    color: var(--accent);
-}
-
-.drop-zone p {
-    font-size: 0.875rem;
-    line-height: 1.5;
-    max-width: 260px;
-    margin: 0;
-}
-
-/* Anpassung des Buttons IN der Dropzone */
-.drop-zone .btn {
-    background-color: var(--secondary); /* Türkis */
-    color: white;
-    margin-top: 8px;
-}
-.drop-zone .btn:hover {
-    background-color: var(--secondary-hover);
-}
 
 /* --- NEUE BUTTONS (Flat Design) --- */
 .btn {
@@ -1376,31 +1333,7 @@ textarea {
     height: auto !important; /* Höhe flexibel lassen */
 }
 
-/* 2. Die Dropzone zur WEISSEN Karte machen */
-#drop-zone {
-    /* Das ist jetzt die äußere weiße Karte */
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    
-    /* Layout */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    position: relative;
-    
-    /* HÖHE ANPASSEN: Damit sie so hoch ist wie das Grid rechts */
-    min-height: 294px; /* Ca. die Höhe des 3er Grids + Padding */
-    height: auto;
-    
-    /* WICHTIG: Padding für den inneren Rahmen */
-    padding: 24px; 
-    cursor: pointer;
-}
-
+ 
 /* 3. Der GESTRICHELTE Rahmen (jetzt als Pseudo-Element innen) */
 /* Damit sieht es aus wie "Box in einer Box" wie im Design */
 #drop-zone::before {
@@ -1507,7 +1440,7 @@ textarea {
 /* --- Action Bar (Die Menüleiste) --- */
 .slot-actions {
     display: grid;
-    grid-template-columns: repeat(4, 1fr); /* 4 gleich große Spalten */
+    grid-template-columns: repeat(3, 1fr); /* 4 gleich große Spalten */
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: 8px; /* Leicht abgerundet */
@@ -1599,3 +1532,278 @@ textarea {
 .action-btn.is-active:hover {
     background: #cbd5e1; /* Noch etwas dunkler beim Hovern über aktiven Button */
 }
+
+
+
+
+/* --- Status Widget & Compact Dropzone --- */
+
+/* 1. Status Widget Container */
+.status-widget {
+    background: #ffffff;
+    border: 1px solid var(--border); 
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+.status-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 16px 0;
+}
+
+/* Die Liste mit Scrollbar Logik */
+.status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    /* Höhe beschränken für ca. 5 Items, danach Scrollen */
+    max-height: 280px; 
+    overflow-y: auto;
+    padding-right: 8px; 
+}
+
+/* Scrollbar Styling */
+.status-list::-webkit-scrollbar {
+    width: 4px;
+}
+.status-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.status-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+/* Einzelnes Status Item */
+.status-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.status-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.status-text {
+    font-size: 0.9rem;
+    color: var(--text);
+    margin: 0;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.status-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Status Icons Colors */
+.status-icon {
+    font-size: 20px;
+    margin-top: 2px;
+}
+/* Hier passen wir die Farben direkt an */
+.text-success { color: var(--status-success); }
+.text-info { color: var(--status-info); }
+.text-error { color: var(--status-error); }
+
+
+/* 2. Compact Drop Zone (Orange/Primary Style) */
+
+.drop-zone.drop-zone--compact {
+    background: var(--accent) !important;
+    border: 2px dashed rgba(255, 255, 255, 0.4);
+    padding: 24px;
+    min-height: auto; 
+    flex-direction: column;
+    gap: 12px;
+    color: white;
+    border-radius: 12px;
+    transition: all 0.2s;
+    text-align: center;
+    /* KORRIGIERT: Schatten passend zu Orange (RGB ca. 255, 87, 34) */
+    box-shadow: 0 4px 12px rgba(255, 87, 34, 0.25); 
+}
+
+/* Hover Effekt */
+.drop-zone.drop-zone--compact:hover,
+.drop-zone.drop-zone--compact:focus {
+    background: var(--accent-hover);
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: translateY(-2px);
+    /* KORRIGIERT: Hover-Schatten passend zu Orange */
+    box-shadow: 0 8px 16px rgba(255, 87, 34, 0.35);
+}
+
+/* Drag Over Effekt */
+.drop-zone.drop-zone--compact.dragover {
+    background: var(--accent-hover);
+    border-color: #ffffff;
+    transform: scale(1.02);
+}
+
+/* Icon in der Dropzone */
+.drop-zone--compact .drop-icon {
+    font-size: 32px;
+    color: white;
+    margin: 0;
+}
+
+/* Text in der Dropzone */
+.drop-zone--compact p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* Der "Browse" Button Link */
+.drop-zone--compact .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: white;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    font-size: inherit;
+    display: inline;
+}
+
+.drop-zone--compact .link-btn:hover {
+    color: white;
+    text-decoration-thickness: 2px;
+}
+
+/* Verstecke den alten großen Button in dieser Ansicht */
+.drop-zone--compact #select-file.btn {
+    display: none; 
+}
+/* --- Status & Upload Combined Card --- */
+
+/* 1. Die Haupt-Karte (Wrapper) */
+.status-upload-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Damit Kind-Elemente nicht über runde Ecken ragen */
+}
+
+/* 2. Oberer Bereich: Status */
+.status-area {
+    padding: 24px 24px 0 24px; /* Unten kein Padding, das macht der Divider margin */
+}
+
+.status-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 20px 0;
+}
+
+.status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-height: 220px; /* Begrenzte Höhe */
+    overflow-y: auto;
+    padding-bottom: 24px; /* Abstand zur Trennlinie */
+    padding-right: 4px;
+}
+
+/* Scrollbar Styles */
+.status-list::-webkit-scrollbar { width: 4px; }
+.status-list::-webkit-scrollbar-track { background: transparent; }
+.status-list::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+
+.status-item { display: flex; align-items: flex-start; gap: 14px; }
+.status-content { display: flex; flex-direction: column; gap: 2px; }
+.status-text { font-size: 0.9rem; font-weight: 500; color: var(--text); margin: 0; line-height: 1.3; }
+.status-time { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
+.status-icon { font-size: 20px; margin-top: 1px; }
+
+.text-success { color: var(--status-success); }
+.text-info { color: var(--status-info); }
+.text-error { color: var(--status-error); }
+
+/* 3. Die Trennlinie */
+.card-divider {
+    height: 1px;
+    background: var(--border);
+    width: 100%;
+    margin: 0;
+}
+
+/* 4. Unterer Bereich: Dropzone Container */
+.drop-area {
+    padding: 24px; /* Innenabstand für die Dropzone */
+    background: #fff; /* Optional: Ganz leicht abgedunkelter Footer-Bereich? Oder weglassen für Weiß. */
+}
+
+/* Die Dropzone selbst (Orange CTA) */
+.drop-zone.drop-zone--cta {
+    width: 100%;
+    min-height: 64px;
+    padding: 16px 24px;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* Orange Style */
+    background: var(--accent);
+   
+    border-radius: 12px;
+    
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  
+}
+
+.drop-zone--cta .cta-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.drop-zone--cta .cta-icon {
+    font-size: 24px;
+    color: #ffffff;
+}
+
+.drop-zone--cta .cta-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+/* Hover States */
+.drop-zone--cta:hover,
+.drop-zone--cta:focus {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(255, 87, 34, 0.3);
+    border-color: rgba(255, 255, 255, 0.8);
+}
+
+.drop-zone--cta.dragover {
+    background: var(--accent-hover);
+    border-color: #ffffff;
+    transform: scale(1.02);
+}
+
+ 
