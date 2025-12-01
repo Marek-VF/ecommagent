@@ -2,6 +2,14 @@
 declare(strict_types=1);
 
 // Status feed endpoint used by the Status-Updates-Card to poll recent status messages.
+// Response shape (matching script.js expectations):
+// {
+//   "ok": true,
+//   "data": {
+//     "items": [...],
+//     "last_id": 123
+//   }
+// }
 header('Content-Type: application/json; charset=utf-8');
 
 session_start();
