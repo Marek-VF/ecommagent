@@ -569,14 +569,9 @@ const createStatusItemElement = (item, options = {}) => {
         return null;
     }
 
-    const isEntering = Boolean(options.isEntering);
     const iconConfig = getStatusIconConfig(entry.severity, entry.source, entry.code);
     const wrapper = document.createElement('div');
-    wrapper.className = 'status-item flex items-start gap-3 py-2 transition-all duration-200 ease-out status-item--animated';
-
-    if (isEntering) {
-        wrapper.classList.add('status-item--enter');
-    }
+    wrapper.className = 'status-item flex items-start gap-3 py-2 status-item--animated';
 
     const icon = document.createElement('div');
     icon.className = `status-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -622,23 +617,50 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
         return;
     }
 
-    const ordered = Array.isArray(newItems) ? [...newItems].sort((a, b) => a.id - b.id) : [];
+    if (!Array.isArray(newItems) || newItems.length === 0) {
+        return;
+    }
 
-    ordered.forEach((item) => {
-        const element = createStatusItemElement(item, { isEntering: true });
-        if (!element) {
-            return;
-        }
+    const existingItems = Array.from(statusList.children);
+    const firstHeight = existingItems[0]?.offsetHeight || 0;
+    const shouldAnimateShift = firstHeight > 0;
 
-        statusList.prepend(element);
-
-        runOnNextFrame(() => {
-            element.classList.remove('status-item--enter');
+    if (shouldAnimateShift) {
+        existingItems.forEach((el) => {
+            el.style.transform = `translateY(${firstHeight}px)`;
         });
-    });
+    }
 
-    while (statusList.children.length > statusFeedItems.length) {
-        statusList.removeChild(statusList.lastElementChild);
+    const onShiftEnd = () => {
+        existingItems.forEach((el) => {
+            el.removeEventListener('transitionend', onShiftEnd);
+            el.style.transform = '';
+        });
+
+        const sortedNew = [...newItems].sort((a, b) => a.id - b.id);
+        sortedNew.forEach((item) => {
+            const el = createStatusItemElement(item, { isEntering: true });
+            if (!el) {
+                return;
+            }
+
+            el.classList.add('status-item--faded', 'status-item--enter');
+            statusList.prepend(el);
+
+            requestAnimationFrame(() => {
+                el.classList.remove('status-item--faded', 'status-item--enter');
+            });
+        });
+
+        while (statusList.children.length > statusFeedItems.length) {
+            statusList.removeChild(statusList.lastElementChild);
+        }
+    };
+
+    if (existingItems[0] && shouldAnimateShift) {
+        existingItems[0].addEventListener('transitionend', onShiftEnd, { once: true });
+    } else {
+        onShiftEnd();
     }
 };
 
@@ -650,14 +672,11 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
     const shouldTreatAsInitial = initial || !statusFeedInitialized;
 
     if (shouldTreatAsInitial) {
-        if (normalizedItems.length > 0) {
-            const sorted = normalizedItems.sort((a, b) => b.id - a.id).slice(0, STATUS_FEED_LIMIT);
-            statusFeedItems.splice(0, statusFeedItems.length, ...sorted);
-            lastStatusId = Math.max(...statusFeedItems.map((item) => item.id), lastStatusId ?? -Infinity);
-        } else {
-            statusFeedItems.splice(0, statusFeedItems.length);
-            lastStatusId = lastStatusId ?? null;
-        }
+        const sortedAsc = normalizedItems.sort((a, b) => a.id - b.id).slice(-STATUS_FEED_LIMIT);
+        const maxId = sortedAsc.length ? sortedAsc[sortedAsc.length - 1].id : null;
+
+        statusFeedItems.splice(0, statusFeedItems.length, ...sortedAsc.reverse());
+        lastStatusId = maxId !== null ? (lastStatusId === null ? maxId : Math.max(lastStatusId, maxId)) : lastStatusId;
 
         statusFeedInitialized = true;
         renderStatusFeed({ replace: true });
@@ -668,16 +687,18 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
         return;
     }
 
-    const latestKnownId = Number.isFinite(Number(lastStatusId)) ? Number(lastStatusId) : -Infinity;
-    const additions = normalizedItems.filter((item) => item.id > latestKnownId);
+    const sortedNew = normalizedItems.sort((a, b) => a.id - b.id);
+    const incomingIds = sortedNew.map((item) => item.id);
 
-    if (additions.length === 0) {
-        return;
+    if (DEBUG_STATUS_FEED) {
+        console.debug('StatusFeed apply update', {
+            initial,
+            incomingIds,
+            currentLastStatusId: lastStatusId,
+        });
     }
 
-    additions.sort((a, b) => a.id - b.id);
-
-    additions.forEach((item) => {
+    sortedNew.forEach((item) => {
         statusFeedItems.unshift(item);
     });
 
@@ -685,9 +706,12 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
         statusFeedItems.pop();
     }
 
-    lastStatusId = Math.max(...statusFeedItems.map((item) => item.id), lastStatusId ?? -Infinity);
+    const maxNewId = sortedNew[sortedNew.length - 1]?.id;
+    if (Number.isFinite(maxNewId)) {
+        lastStatusId = lastStatusId === null ? maxNewId : Math.max(lastStatusId, maxNewId);
+    }
 
-    renderStatusFeed({ newItems: additions });
+    renderStatusFeed({ newItems: sortedNew });
 };
 
 const resetStatusFeed = () => {
@@ -744,8 +768,13 @@ const fetchStatusFeed = async ({ initial = false } = {}) => {
         const items = extractStatusItemsFromPayload(payload);
 
         if (DEBUG_STATUS_FEED) {
-            console.debug('Status-Feed payload', payload);
-            console.debug('Status-Feed extracted items', items);
+            console.debug('StatusFeed request params', {
+                activeRunId,
+                initial,
+                after_id: lastStatusId,
+            });
+            console.debug('StatusFeed response payload', payload);
+            console.debug('StatusFeed items raw', items);
         }
 
         if (!Array.isArray(items) || items.length === 0) {
@@ -1961,9 +1990,12 @@ const uploadFiles = async (files) => {
                 const parsedRunId = Number(result.run_id);
                 activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
                 setCurrentRun(parsedRunId, result.user_id);
+                resetStatusFeed();
+                fetchStatusFeed({ initial: true });
             } else {
                 activeRunId = null;
                 setCurrentRun(null, result.user_id);
+                resetStatusFeed();
             }
 
             const runChanged = window.currentRunId !== previousRunId && window.currentRunId !== null;
