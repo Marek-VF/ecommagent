@@ -287,9 +287,12 @@ try {
         ':message' => $message,
     ]);
 
-    // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-    if ($statusMessageFromPayload !== null) {
-        log_status_message($pdo, $runId, $userId, $statusMessageFromPayload);
+    $logSeverity = $executed ? ($isRunning ? 'info' : 'success') : 'error';
+    $logMessage = $statusMessageFromPayload !== null ? $statusMessageFromPayload : $message;
+
+    // Zentraler Logger für alle n8n-Statusmeldungen, damit das UI später Severity/Icons auswerten kann.
+    if ($logMessage !== '') {
+        log_status_message($pdo, $runId, $userId, $logMessage, 'n8n', $logSeverity, $stepType);
     }
 
     $pdo->commit();

@@ -374,7 +374,8 @@ try {
                 ? $statusMessageFromRequest
                 : 'image generation failed';
 
-            log_status_message($pdo, $runId, $userId, $loggedMessage);
+            // Zentraler Logger für n8n-Rückmeldungen, damit Severity/Quelle konsistent gepflegt werden können.
+            log_status_message($pdo, $runId, $userId, $loggedMessage, 'n8n', 'error', $stepType);
 
             $updateRunMessage = $pdo->prepare(
                 'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
@@ -394,22 +395,22 @@ ON DUPLICATE KEY UPDATE
     updated_at = NOW()
 SQL;
             $updateState = $pdo->prepare($stateSql);
-            $updateState->execute([
-                ':user'           => $userId,
-                ':image'          => $relativeUrl,
-                ':current_run_id' => $runId,
-            ]);
+        $updateState->execute([
+            ':user'           => $userId,
+            ':image'          => $relativeUrl,
+            ':current_run_id' => $runId,
+        ]);
 
-            $pdo->commit();
-        } catch (Throwable $transactionException) {
-            $pdo->rollBack();
-            throw $transactionException;
-        }
+        $pdo->commit();
+    } catch (Throwable $transactionException) {
+        $pdo->rollBack();
+        throw $transactionException;
+    }
 
-        if ($runId !== null && $userId > 0) {
-            $updateStepStatus = $pdo->prepare(
-                'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
-            );
+    if ($runId !== null && $userId > 0) {
+        $updateStepStatus = $pdo->prepare(
+            'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
+        );
             $updateStepStatus->execute([
                 ':status'  => 'error',
                 ':run_id'  => $runId,
@@ -649,8 +650,8 @@ SQL;
         ]);
 
         $loggedMessage = $statusMessageFromRequest !== null ? $statusMessageFromRequest : 'image received';
-        // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-        log_status_message($pdo, $runId, $userId, $loggedMessage);
+        // Zentraler Logger für alle n8n-Statusmeldungen, damit spätere UI-Komponenten Severity/Quelle nutzen können.
+        log_status_message($pdo, $runId, $userId, $loggedMessage, 'n8n', 'success', $stepType);
 
         if ($loggedMessage !== '') {
             $updateRunMessage = $pdo->prepare(
