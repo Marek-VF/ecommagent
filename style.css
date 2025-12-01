@@ -1769,7 +1769,7 @@ textarea {
     display: flex;
     flex-direction: column;
     gap: 18px;
-    max-height: 220px; /* Begrenzte Höhe */
+    height: 157px; /* Begrenzte Höhe */
     overflow-y: auto;
     padding-bottom: 24px; /* Abstand zur Trennlinie */
     padding-right: 4px;
