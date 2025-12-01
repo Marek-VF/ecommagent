@@ -219,22 +219,7 @@ $appConfig = [
             <div class="status-header-row">
                 <h3 class="status-header">Status Updates</h3>
             </div>
-            <div class="status-list" data-status-list aria-live="polite" aria-busy="true">
-                <div class="flex flex-col gap-4" data-status-skeleton aria-hidden="true">
-                    <div class="skeleton-text skeleton-shine">
-                        <div class="skeleton-line long"></div>
-                        <div class="skeleton-line short"></div>
-                    </div>
-                    <div class="skeleton-text skeleton-shine">
-                        <div class="skeleton-line"></div>
-                        <div class="skeleton-line short"></div>
-                    </div>
-                    <div class="skeleton-text skeleton-shine">
-                        <div class="skeleton-line long"></div>
-                        <div class="skeleton-line shorter"></div>
-                    </div>
-                </div>
-            </div>
+            <div class="status-list" data-status-list aria-live="polite" aria-busy="true"></div>
         </div>
 
 

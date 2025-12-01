@@ -10,7 +10,6 @@ const startWorkflowButton =
     document.getElementById('start-workflow-btn') || document.getElementById('btn-new');
 const statusBar = document.getElementById('status-bar');
 const statusList = document.querySelector('[data-status-list]');
-const statusFeedSkeleton = document.querySelector('[data-status-skeleton]');
 const articleNameOutput = document.getElementById('article-name-content');
 const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
@@ -564,16 +563,6 @@ const getStatusIconConfig = (severity, source, code) => {
     return { label: 'i', className: 'bg-sky-100 text-sky-600' };
 };
 
-const hideStatusSkeleton = () => {
-    if (statusFeedSkeleton && statusFeedSkeleton.parentNode) {
-        statusFeedSkeleton.parentNode.removeChild(statusFeedSkeleton);
-    }
-
-    if (statusList) {
-        statusList.setAttribute('aria-busy', 'false');
-    }
-};
-
 const createStatusItemElement = (item, options = {}) => {
     const entry = normalizeStatusFeedItem(item);
     if (!entry) {
@@ -620,7 +609,7 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
         return;
     }
 
-    hideStatusSkeleton();
+    statusList.setAttribute('aria-busy', 'false');
 
     if (replace || statusList.children.length === 0) {
         statusList.innerHTML = '';
@@ -633,9 +622,9 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
         return;
     }
 
-    const enteringItems = Array.isArray(newItems) ? newItems : [];
+    const ordered = Array.isArray(newItems) ? [...newItems].sort((a, b) => a.id - b.id) : [];
 
-    enteringItems.forEach((item) => {
+    ordered.forEach((item) => {
         const element = createStatusItemElement(item, { isEntering: true });
         if (!element) {
             return;
@@ -701,8 +690,21 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
     renderStatusFeed({ newItems: additions });
 };
 
+const resetStatusFeed = () => {
+    statusFeedItems.splice(0, statusFeedItems.length);
+    lastStatusId = null;
+    statusFeedInitialized = false;
+    renderStatusFeed({ replace: true });
+};
+
 const fetchStatusFeed = async ({ initial = false } = {}) => {
     if (!STATUS_FEED_ENDPOINT || isFetchingStatusFeed) {
+        return;
+    }
+
+    const numericRunId = Number(activeRunId);
+
+    if (!Number.isFinite(numericRunId) || numericRunId <= 0) {
         return;
     }
 
@@ -715,6 +717,7 @@ const fetchStatusFeed = async ({ initial = false } = {}) => {
 
         const params = new URLSearchParams();
         params.set('limit', STATUS_FEED_LIMIT);
+        params.set('run_id', String(numericRunId));
 
         if (!initial && lastStatusId !== null) {
             params.set('after_id', String(lastStatusId));
@@ -2099,6 +2102,8 @@ async function startWorkflow() {
         setCurrentRun(result.run_id ?? numericRunId, result.user_id ?? window.currentUserId);
         const resolvedRunId = window.currentRunId ?? numericRunId;
         activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
+        resetStatusFeed();
+        fetchStatusFeed({ initial: true });
 
         showWorkflowFeedback('success', successMessage);
         setStatus('info', 'Verarbeitung läuft …');
@@ -2351,6 +2356,9 @@ const loadRunDetails = async (runId) => {
 
         applyRunDataToUI(data);
         setActiveRun(numericId);
+        activeRunId = numericId;
+        resetStatusFeed();
+        fetchStatusFeed({ initial: true });
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
     }
@@ -2868,6 +2876,7 @@ function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
     activeRunId = null;
+    resetStatusFeed();
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields({ loading: false });
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
@@ -2901,7 +2910,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUploadHandler();
     setupHistoryHandler();
     setupSidebarProfileMenu();
-    fetchStatusFeed({ initial: true });
 
     if (startWorkflowButton) {
         startWorkflowButton.addEventListener('click', startWorkflow);
