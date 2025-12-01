@@ -918,6 +918,48 @@ const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).ma
     };
 });
 
+const SLOT_ACTION_SKELETON_CLASS = 'slot-actions--skeleton';
+
+const getActionBarForSlot = (slot) => {
+    if (!slot || !slot.container) {
+        return null;
+    }
+
+    const card = slot.container.closest('.generated-card');
+    if (!card || !card.classList.contains('generated-card')) {
+        // History-Items verwenden ggf. ähnliche Strukturen; wir beschränken uns bewusst auf die Haupt-Galerie.
+        return null;
+    }
+
+    return card.querySelector('.slot-actions');
+};
+
+const updateSlotActionsState = (slot, options = {}) => {
+    const bar = getActionBarForSlot(slot);
+    if (!bar) {
+        return;
+    }
+
+    const skeleton = bar.querySelector('.slot-actions__skeleton');
+    const hasImage = Boolean(slot?.container?.dataset.hasContent === 'true');
+    const isRunning = options && Object.prototype.hasOwnProperty.call(options, 'isRunning')
+        ? Boolean(options.isRunning)
+        : Boolean(workflowIsRunning);
+
+    const shouldShowSkeleton = !hasImage;
+
+    bar.classList.toggle(SLOT_ACTION_SKELETON_CLASS, shouldShowSkeleton);
+
+    if (skeleton) {
+        // Shine läuft nur, wenn der Workflow aktiv ist und noch kein Bild vorliegt.
+        skeleton.classList.toggle(SKELETON_SHINE_CLASS, shouldShowSkeleton && isRunning);
+    }
+};
+
+const syncSlotActionBars = (isRunning = workflowIsRunning) => {
+    gallerySlots.forEach((slot) => updateSlotActionsState(slot, { isRunning }));
+};
+
 const placeholderDimensions = appConfig.placeholderDimensions || null;
 
 if (placeholderDimensions && placeholderDimensions.width && placeholderDimensions.height) {
@@ -960,6 +1002,7 @@ const clearSlotContent = (slot) => {
     }
 
     ensurePlaceholderForSlot(slot);
+    updateSlotActionsState(slot);
 };
 
 const setSlotLoadingState = (slot, loading) => {
@@ -975,6 +1018,8 @@ const setSlotLoadingState = (slot, loading) => {
     if (renderBox) {
         renderBox.classList.toggle('preload', Boolean(loading));
     }
+
+    updateSlotActionsState(slot);
 };
 
 // Preload-Animation vom aktuellen Bild-Slot entfernen und ggf. auf den nächsten Slot verschieben
@@ -1052,6 +1097,7 @@ const setSlotImageSource = (slot, src) => {
     slot.container.classList.add('has-shadow');
     slot.container.classList.remove('is-hidden');
     applyFadeInAnimation(imageElement);
+    updateSlotActionsState(slot, { isRunning: false });
 };
 
 const createWorkflowOutputController = () => {
@@ -1282,6 +1328,7 @@ function renderGeneratedImages(images) {
                 lastKnownImages[slot.key] = resolvedUrl;
 
                 applyFadeInAnimation(imageElement);
+                updateSlotActionsState(slot, { isRunning: workflowIsRunning });
                 return;
             }
         }
@@ -1406,6 +1453,8 @@ const updateProcessingIndicator = (text, state = 'idle') => {
 const setLoadingState = (loading, options = {}) => {
     isProcessing = loading;
 
+    workflowIsRunning = Boolean(loading);
+
     setArticleFieldsLoading(Boolean(loading));
 
     if (loading) {
@@ -1430,6 +1479,7 @@ const setLoadingState = (loading, options = {}) => {
         updateProcessingIndicator(options.indicatorText, options.indicatorState || 'idle');
     }
 
+    syncSlotActionBars();
     updateWorkflowButtonState();
 };
 
@@ -1924,6 +1974,9 @@ const applyRunDataToUI = (payload) => {
     } else if (Object.prototype.hasOwnProperty.call(data, 'isrunning')) {
         runIsRunning = toBoolean(data.isrunning);
     }
+
+    workflowIsRunning = Boolean(runIsRunning);
+    syncSlotActionBars(runIsRunning);
 
     applyStatusBarMessage(data, { isRunning: runIsRunning });
 
@@ -2480,6 +2533,7 @@ function startPolling() {
 
     isPolling = true;
     workflowIsRunning = true;
+    syncSlotActionBars(true);
     pollInterval = setInterval(fetchLatestItem, POLLING_INTERVAL);
     fetchLatestItem();
 }
@@ -2492,6 +2546,7 @@ function stopPolling() {
     pollInterval = null;
     isPolling = false;
     workflowIsRunning = false;
+    syncSlotActionBars(false);
 }
 
 function resetFrontendState(options = {}) {
