@@ -10,6 +10,8 @@ const startWorkflowButton =
     document.getElementById('start-workflow-btn') || document.getElementById('btn-new');
 const statusBar = document.getElementById('status-bar');
 const statusList = document.querySelector('[data-status-list]');
+const appRoot = document.getElementById('app-root');
+const USER_FIRST_NAME = appRoot?.dataset.userFirstName || '';
 const articleNameOutput = document.getElementById('article-name-content');
 const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
@@ -529,6 +531,7 @@ const normalizeStatusFeedItem = (item) => {
     }
 
     const id = Number(item.id);
+    const runId = item.run_id !== undefined && item.run_id !== null ? Number(item.run_id) : null;
     const message = typeof item.message === 'string' ? item.message.trim() : '';
 
     if (!Number.isFinite(id) || message === '') {
@@ -541,6 +544,7 @@ const normalizeStatusFeedItem = (item) => {
         severity: typeof item.severity === 'string' ? item.severity.trim().toLowerCase() : '',
         source: typeof item.source === 'string' ? item.source.trim() : '',
         code: typeof item.code === 'string' ? item.code.trim() : '',
+        run_id: Number.isFinite(runId) && runId > 0 ? runId : null,
         createdAt: parseDateValue(item.created_at),
     };
 };
@@ -572,6 +576,10 @@ const createStatusItemElement = (item, options = {}) => {
     const iconConfig = getStatusIconConfig(entry.severity, entry.source, entry.code);
     const wrapper = document.createElement('div');
     wrapper.className = 'status-item flex items-start gap-3 py-2 status-item--animated';
+
+    if (options.isEntering) {
+        wrapper.classList.add('status-item--enter');
+    }
 
     const icon = document.createElement('div');
     icon.className = `status-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -606,14 +614,29 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
 
     statusList.setAttribute('aria-busy', 'false');
 
-    if (replace || statusList.children.length === 0) {
+    const itemsToRender = statusFeedItems.slice();
+
+    if (replace) {
         statusList.innerHTML = '';
-        statusFeedItems.forEach((item) => {
-            const element = createStatusItemElement(item, { isEntering: false });
-            if (element) {
-                statusList.appendChild(element);
+
+        itemsToRender.forEach((item) => {
+            const isEntering = Array.isArray(newItems)
+                ? newItems.some((candidate) => candidate && candidate.id === item.id && candidate.code === item.code)
+                : false;
+            const element = createStatusItemElement(item, { isEntering });
+            if (!element) {
+                return;
+            }
+
+            statusList.appendChild(element);
+
+            if (isEntering) {
+                runOnNextFrame(() => {
+                    element.classList.remove('status-item--enter');
+                });
             }
         });
+
         return;
     }
 
@@ -622,19 +645,18 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
     }
 
     const existingItems = Array.from(statusList.children);
-    const firstHeight = existingItems[0]?.offsetHeight || 0;
-    const shouldAnimateShift = firstHeight > 0;
+    const shiftDistance = existingItems[0]?.offsetHeight || 0;
 
-    if (shouldAnimateShift) {
+    if (shiftDistance > 0) {
         existingItems.forEach((el) => {
-            el.style.transform = `translateY(${firstHeight}px)`;
+            el.style.transform = `translateY(${shiftDistance}px)`;
         });
     }
 
     const onShiftEnd = () => {
         existingItems.forEach((el) => {
-            el.removeEventListener('transitionend', onShiftEnd);
             el.style.transform = '';
+            el.removeEventListener('transitionend', onShiftEnd);
         });
 
         const sortedNew = [...newItems].sort((a, b) => a.id - b.id);
@@ -644,11 +666,10 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
                 return;
             }
 
-            el.classList.add('status-item--faded', 'status-item--enter');
             statusList.prepend(el);
 
-            requestAnimationFrame(() => {
-                el.classList.remove('status-item--faded', 'status-item--enter');
+            runOnNextFrame(() => {
+                el.classList.remove('status-item--enter');
             });
         });
 
@@ -657,10 +678,64 @@ const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
         }
     };
 
-    if (existingItems[0] && shouldAnimateShift) {
+    if (existingItems[0]) {
         existingItems[0].addEventListener('transitionend', onShiftEnd, { once: true });
     } else {
         onShiftEnd();
+    }
+};
+
+const createGreetingItemForRun = () => {
+    const numericRunId = Number(activeRunId);
+
+    if (!Number.isFinite(numericRunId) || numericRunId <= 0 || !USER_FIRST_NAME) {
+        return null;
+    }
+
+    return {
+        id: -1,
+        run_id: numericRunId,
+        message: `Hallo ${USER_FIRST_NAME}`,
+        source: 'system',
+        severity: 'info',
+        code: 'GREETING',
+        created_at: new Date().toISOString(),
+    };
+};
+
+const ensureGreetingAtTop = () => {
+    const numericRunId = Number(activeRunId);
+    const hasGreeting = statusFeedItems.some(
+        (item) => item.code === 'GREETING' && Number(item.run_id) === numericRunId,
+    );
+
+    if (hasGreeting) {
+        const greetingIndex = statusFeedItems.findIndex(
+            (item) => item.code === 'GREETING' && Number(item.run_id) === numericRunId,
+        );
+
+        if (greetingIndex > 0) {
+            const [greeting] = statusFeedItems.splice(greetingIndex, 1);
+            statusFeedItems.unshift(greeting);
+        }
+
+        return;
+    }
+
+    const greeting = normalizeStatusFeedItem(createGreetingItemForRun());
+    if (greeting) {
+        statusFeedItems.unshift(greeting);
+    }
+};
+
+const enforceStatusFeedLimit = () => {
+    ensureGreetingAtTop();
+
+    const hasGreeting = statusFeedItems.length > 0 && statusFeedItems[0]?.code === 'GREETING';
+    const limit = STATUS_FEED_LIMIT + (hasGreeting ? 1 : 0);
+
+    if (statusFeedItems.length > limit) {
+        statusFeedItems.length = limit;
     }
 };
 
@@ -669,17 +744,30 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
         ? newItems.map((item) => normalizeStatusFeedItem(item)).filter(Boolean)
         : [];
 
-    const shouldTreatAsInitial = initial || !statusFeedInitialized;
+    if (initial) {
+        if (normalizedItems.length === 0) {
+            statusFeedItems.splice(0, statusFeedItems.length);
+            lastStatusId = null;
+            statusFeedInitialized = true;
+            ensureGreetingAtTop();
+            renderStatusFeed({ replace: true, newItems: statusFeedItems.slice() });
+            return;
+        }
 
-    if (shouldTreatAsInitial) {
         const sortedAsc = normalizedItems.sort((a, b) => a.id - b.id).slice(-STATUS_FEED_LIMIT);
+        const sortedDesc = [...sortedAsc].reverse();
         const maxId = sortedAsc.length ? sortedAsc[sortedAsc.length - 1].id : null;
 
-        statusFeedItems.splice(0, statusFeedItems.length, ...sortedAsc.reverse());
-        lastStatusId = maxId !== null ? (lastStatusId === null ? maxId : Math.max(lastStatusId, maxId)) : lastStatusId;
+        statusFeedItems.splice(0, statusFeedItems.length, ...sortedDesc);
+
+        if (Number.isFinite(maxId)) {
+            lastStatusId = lastStatusId === null ? maxId : Math.max(lastStatusId, maxId);
+        }
 
         statusFeedInitialized = true;
-        renderStatusFeed({ replace: true });
+        ensureGreetingAtTop();
+        enforceStatusFeedLimit();
+        renderStatusFeed({ replace: true, newItems: statusFeedItems.slice() });
         return;
     }
 
@@ -687,38 +775,34 @@ const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
         return;
     }
 
-    const sortedNew = normalizedItems.sort((a, b) => a.id - b.id);
-    const incomingIds = sortedNew.map((item) => item.id);
+    const sortedNewAsc = normalizedItems.sort((a, b) => a.id - b.id);
+    const sortedNewDesc = [...sortedNewAsc].reverse();
 
     if (DEBUG_STATUS_FEED) {
         console.debug('StatusFeed apply update', {
             initial,
-            incomingIds,
+            incomingIds: sortedNewAsc.map((item) => item.id),
             currentLastStatusId: lastStatusId,
         });
     }
 
-    sortedNew.forEach((item) => {
-        statusFeedItems.unshift(item);
-    });
+    statusFeedItems.unshift(...sortedNewDesc);
+    ensureGreetingAtTop();
+    enforceStatusFeedLimit();
 
-    while (statusFeedItems.length > STATUS_FEED_LIMIT) {
-        statusFeedItems.pop();
-    }
-
-    const maxNewId = sortedNew[sortedNew.length - 1]?.id;
+    const maxNewId = sortedNewAsc[sortedNewAsc.length - 1]?.id;
     if (Number.isFinite(maxNewId)) {
         lastStatusId = lastStatusId === null ? maxNewId : Math.max(lastStatusId, maxNewId);
     }
 
-    renderStatusFeed({ newItems: sortedNew });
+    renderStatusFeed({ replace: false, newItems: sortedNewDesc });
 };
 
-const resetStatusFeed = () => {
+const resetStatusFeedForRun = () => {
     statusFeedItems.splice(0, statusFeedItems.length);
     lastStatusId = null;
     statusFeedInitialized = false;
-    renderStatusFeed({ replace: true });
+    renderStatusFeed({ replace: true, newItems: [] });
 };
 
 const fetchStatusFeed = async ({ initial = false } = {}) => {
@@ -733,7 +817,7 @@ const fetchStatusFeed = async ({ initial = false } = {}) => {
     }
 
     if (!statusFeedInitialized && !initial) {
-        initial = true;
+        return;
     }
 
     try {
@@ -1990,12 +2074,12 @@ const uploadFiles = async (files) => {
                 const parsedRunId = Number(result.run_id);
                 activeRunId = Number.isFinite(parsedRunId) && parsedRunId > 0 ? parsedRunId : null;
                 setCurrentRun(parsedRunId, result.user_id);
-                resetStatusFeed();
+                resetStatusFeedForRun();
                 fetchStatusFeed({ initial: true });
             } else {
                 activeRunId = null;
                 setCurrentRun(null, result.user_id);
-                resetStatusFeed();
+                resetStatusFeedForRun();
             }
 
             const runChanged = window.currentRunId !== previousRunId && window.currentRunId !== null;
@@ -2134,7 +2218,7 @@ async function startWorkflow() {
         setCurrentRun(result.run_id ?? numericRunId, result.user_id ?? window.currentUserId);
         const resolvedRunId = window.currentRunId ?? numericRunId;
         activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
-        resetStatusFeed();
+        resetStatusFeedForRun();
         fetchStatusFeed({ initial: true });
 
         showWorkflowFeedback('success', successMessage);
@@ -2389,7 +2473,7 @@ const loadRunDetails = async (runId) => {
         applyRunDataToUI(data);
         setActiveRun(numericId);
         activeRunId = numericId;
-        resetStatusFeed();
+        resetStatusFeedForRun();
         fetchStatusFeed({ initial: true });
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
@@ -2908,7 +2992,7 @@ function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
     activeRunId = null;
-    resetStatusFeed();
+    resetStatusFeedForRun();
     setStatus('ready', 'Bereit zum Upload');
     clearProductFields({ loading: false });
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });

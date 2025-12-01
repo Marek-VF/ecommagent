@@ -23,6 +23,19 @@ if ($currentUser !== null) {
     }
 }
 
+$currentUserFirstName = '';
+if (is_string($currentUser['name'] ?? null) && trim((string) $currentUser['name']) !== '') {
+    $parts = preg_split('/\s+/', trim((string) $currentUser['name']));
+    if (is_array($parts) && isset($parts[0])) {
+        $currentUserFirstName = trim((string) $parts[0]);
+    }
+}
+
+if ($currentUserFirstName === '' && is_string($currentUser['email'] ?? null)) {
+    $email = trim((string) $currentUser['email']);
+    $currentUserFirstName = $email !== '' ? $email : '';
+}
+
 $userInitial = $userDisplayName !== '' ? $userDisplayName : 'B';
 if (function_exists('mb_substr')) {
     $initial = mb_substr($userInitial, 0, 1, 'UTF-8');
@@ -162,7 +175,11 @@ $appConfig = [
         </div>
         <?php endif; ?>
     </div>
-    <div class="app">
+    <div
+        id="app-root"
+        class="app"
+        data-user-first-name="<?php echo htmlspecialchars((string) $currentUserFirstName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+    >
         <header class="app__header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div class="app__header-left">
                 <button
