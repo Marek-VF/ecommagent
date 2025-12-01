@@ -248,6 +248,10 @@ try {
         throw $databaseException;
     }
 
+    if (!is_int($runId) || $runId <= 0) {
+        throw new RuntimeException('run_id fehlt nach Upload.');
+    }
+
     // Run-bezogene Erfolgsmeldung für die Statusanzeige protokollieren.
     $logBackendStatus($runId, 'Upload erfolgreich.', 'success', 'UPLOAD_OK');
 

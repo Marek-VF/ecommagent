@@ -1624,6 +1624,19 @@ textarea {
     gap: 12px;
 }
 
+.status-item--animated {
+    transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+.status-item--faded {
+    opacity: 0;
+}
+
+.status-item--enter {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
 .status-content {
     display: flex;
     flex-direction: column;
@@ -1769,10 +1782,9 @@ textarea {
 
 .status-item { display: flex; align-items: flex-start; gap: 14px; }
 .status-item--animated {
-    transition-property: opacity, transform;
-    transition-duration: 0.2s;
-    transition-timing-function: ease-out;
+    transition: transform 200ms ease-out, opacity 200ms ease-out;
 }
+.status-item--faded { opacity: 0; }
 .status-item--enter { opacity: 0; transform: translateY(-4px); }
 .status-content { display: flex; flex-direction: column; gap: 2px; }
 .status-text { font-size: 0.9rem; font-weight: 500; color: var(--text); margin: 0; line-height: 1.3; }

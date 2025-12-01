@@ -57,7 +57,7 @@ try {
         $sql .= ' AND id > :after_id';
     }
 
-    $sql .= ' ORDER BY created_at DESC, id DESC LIMIT :limit';
+    $sql .= ' ORDER BY id DESC LIMIT :limit';
 
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
