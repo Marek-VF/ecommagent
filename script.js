@@ -236,6 +236,34 @@ const uploadEndpoint = 'upload.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 const STATUS_FEED_LIMIT = 30;
+const DEBUG_STATUS_FEED = false;
+
+// get-status-feed.php currently responds with { ok: true, data: { items: [...], last_id: 123 }}.
+// This helper normalizes possible variants so the rendering logic stays robust.
+const extractStatusItemsFromPayload = (payload) => {
+    if (!payload || typeof payload !== 'object') {
+        return [];
+    }
+
+    if (Array.isArray(payload.items)) {
+        return payload.items;
+    }
+
+    if (payload.data && typeof payload.data === 'object') {
+        if (Array.isArray(payload.data.items)) {
+            return payload.data.items;
+        }
+        if (Array.isArray(payload.data.logs)) {
+            return payload.data.logs;
+        }
+    }
+
+    if (Array.isArray(payload.logs)) {
+        return payload.logs;
+    }
+
+    return [];
+};
 
 const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
 const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
@@ -700,12 +728,33 @@ const fetchStatusFeed = async ({ initial = false } = {}) => {
 
         const payload = await response.json();
 
-        if (!payload || typeof payload !== 'object' || payload.success !== true || !Array.isArray(payload.items)) {
+        if (!payload || typeof payload !== 'object') {
             return;
         }
 
-        applyStatusFeedUpdate(payload.items, { initial });
+        const successFlag = payload.success ?? payload.ok ?? false;
+        if (successFlag !== true) {
+            console.warn('Status-Feed: success/ok flag is not true', payload);
+            return;
+        }
+
+        const items = extractStatusItemsFromPayload(payload);
+
+        if (DEBUG_STATUS_FEED) {
+            console.debug('Status-Feed payload', payload);
+            console.debug('Status-Feed extracted items', items);
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            if (!statusFeedInitialized) {
+                applyStatusFeedUpdate([], { initial: true });
+            }
+            return;
+        }
+
+        applyStatusFeedUpdate(items, { initial });
     } catch (error) {
+        // Fehler beim Status-Feed betreffen nur die Status-Card, nicht den restlichen Ablauf.
         console.warn('Status-Feed laden fehlgeschlagen', error);
     } finally {
         isFetchingStatusFeed = false;
