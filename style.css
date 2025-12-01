@@ -1484,15 +1484,12 @@ textarea {
 }
 
 .slot-actions__skeleton-line {
-    height: 14px;
-    border-radius: 999px;
-    flex: 1;
+    height: 16px;
+ 
     min-width: 48px;
 }
 
-.slot-actions__skeleton-line--wide {
-    flex: 1.4;
-}
+ 
 
 /* Wenn das Bild geladen ist (wir simulieren das über Hover oder JS Klasse später) */
 .generated-card:hover .slot-actions,

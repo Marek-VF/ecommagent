@@ -316,9 +316,9 @@ cloud_upload
         </div>
     <div class="slot-actions" data-slot-actions="1">
         <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
-            <span class="skeleton-line slot-actions__skeleton-line"></span>
+        
             <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
-            <span class="skeleton-line slot-actions__skeleton-line"></span>
+       
         </div>
         <div class="slot-actions__buttons">
             <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
@@ -336,9 +336,9 @@ cloud_upload
         </div>
         <div class="slot-actions" data-slot-actions="2">
             <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
-                <span class="skeleton-line slot-actions__skeleton-line"></span>
+          
                 <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
-                <span class="skeleton-line slot-actions__skeleton-line"></span>
+           
             </div>
             <div class="slot-actions__buttons">
                 <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
@@ -356,9 +356,9 @@ cloud_upload
         </div>
         <div class="slot-actions" data-slot-actions="3">
             <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
-                <span class="skeleton-line slot-actions__skeleton-line"></span>
+              
                 <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
-                <span class="skeleton-line slot-actions__skeleton-line"></span>
+                
             </div>
             <div class="slot-actions__buttons">
                 <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
