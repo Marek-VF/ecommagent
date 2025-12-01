@@ -73,7 +73,33 @@ if ($userId <= 0) {
     ], 401);
 }
 
+$pdo = auth_pdo();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+$statusLogCount = 0;
+$loggedFailure = false;
+
+$logBackendStatus = static function (
+    ?int $logRunId,
+    string $message,
+    string $severity,
+    ?string $code
+) use ($pdo, $userId, &$statusLogCount, &$loggedFailure): void {
+    try {
+        // Backend events: persist workflow start status in status_logs_new
+        if (log_status_message($pdo, $logRunId, $userId, $message, 'backend', $severity, $code)) {
+            $statusLogCount++;
+            if (in_array($severity, ['error', 'warning'], true)) {
+                $loggedFailure = true;
+            }
+        }
+    } catch (Throwable $loggingException) {
+        error_log('[start_workflow_status_log] ' . $loggingException->getMessage());
+    }
+};
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    $logBackendStatus(null, 'Methode nicht erlaubt.', 'error', 'METHOD_NOT_ALLOWED');
     $respond([
         'success'   => false,
         'status'    => 'error',
@@ -97,6 +123,7 @@ if (!is_array($data)) {
 
 $runId = $normalizePositiveInt($data['run_id'] ?? null);
 if ($runId === null) {
+    $logBackendStatus(null, 'run_id fehlt.', 'error', 'RUN_ID_MISSING');
     $respond([
         'success'   => false,
         'status'    => 'error',
@@ -107,6 +134,7 @@ if ($runId === null) {
 
 $requestedUserId = $normalizePositiveInt($data['user_id'] ?? null);
 if ($requestedUserId !== null && $requestedUserId !== $userId) {
+    $logBackendStatus($runId, 'Keine Berechtigung für diesen Workflow.', 'error', 'RUN_FORBIDDEN');
     $respond([
         'success'   => false,
         'status'    => 'forbidden',
@@ -172,9 +200,6 @@ try {
         return is_file($storedFile) ? $storedFile : '';
     };
 
-    $pdo = auth_pdo();
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Bildseitenverhältnis des Users auslesen und als image_ratio an n8n übergeben
     $imageRatio = 'original';
     try {
@@ -199,6 +224,8 @@ try {
     $run = $runStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($run === null) {
+        // Run-bezogene Fehlermeldung für Status-Feed
+        $logBackendStatus($runId, 'Workflow nicht gefunden.', 'error', 'WORKFLOW_NOT_FOUND');
         $respond([
             'success'   => false,
             'status'    => 'not_found',
@@ -209,6 +236,7 @@ try {
 
     $statusValue = isset($run['status']) ? strtolower(trim((string) $run['status'])) : '';
     if ($statusValue === 'running') {
+        $logBackendStatus($runId, 'Workflow läuft bereits.', 'warning', 'WORKFLOW_ALREADY_RUNNING');
         $respond([
             'success'   => false,
             'status'    => 'conflict',
@@ -218,6 +246,7 @@ try {
     }
 
     if ($statusValue === 'finished') {
+        $logBackendStatus($runId, 'Workflow wurde bereits abgeschlossen.', 'info', 'WORKFLOW_ALREADY_FINISHED');
         $respond([
             'success'   => false,
             'status'    => 'conflict',
@@ -232,6 +261,7 @@ try {
     $creditsBalance = $balanceStmt->fetchColumn();
 
     if ($creditsBalance === false) {
+        $logBackendStatus($runId, 'Benutzer konnte nicht gefunden werden.', 'error', 'USER_NOT_FOUND');
         $respond([
             'success'   => false,
             'ok'        => false,
@@ -254,7 +284,8 @@ try {
             $balanceDisplay
         );
 
-        log_status_message($pdo, $runId, $userId, $message);
+        // Warnung für User, dass Credits nicht ausreichen
+        $logBackendStatus($runId, $message, 'error', 'CREDITS_TOO_LOW');
 
         $updateRun = $pdo->prepare('UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id');
         $updateRun->execute([
@@ -294,6 +325,7 @@ try {
     }
 
     if ($imagePaths === []) {
+        $logBackendStatus($runId, 'Kein Originalbild vorhanden.', 'error', 'ORIGINAL_MISSING');
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -305,6 +337,7 @@ try {
     $primaryPath = $imagePaths[0];
     $storedFilePath = $resolveStoredFilePath($primaryPath);
     if ($storedFilePath === '') {
+        $logBackendStatus($runId, 'Originalbild wurde nicht gefunden.', 'error', 'ORIGINAL_NOT_FOUND');
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -315,6 +348,7 @@ try {
 
     $filename = basename(str_replace('\\', '/', $primaryPath));
     if ($filename === '') {
+        $logBackendStatus($runId, 'Dateiname des Originalbildes konnte nicht ermittelt werden.', 'error', 'ORIGINAL_FILENAME_MISSING');
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -325,6 +359,7 @@ try {
 
     $publicUrl = $buildAbsoluteUrl($primaryPath);
     if ($publicUrl === '') {
+        $logBackendStatus($runId, 'Öffentliche Bild-URL konnte nicht erzeugt werden.', 'error', 'PUBLIC_URL_FAILED');
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -391,6 +426,8 @@ try {
 
     $ch = curl_init($webhook);
     if ($ch === false) {
+        // Technischer Fehler vor dem eigentlichen Workflow-Start
+        $logBackendStatus($runId, 'Webhook konnte nicht initialisiert werden.', 'error', 'WORKFLOW_CURL_INIT_FAILED');
         throw new RuntimeException('Webhook konnte nicht initialisiert werden.');
     }
 
@@ -410,6 +447,8 @@ try {
 
     if ($webhookResponse === false) {
         $errorMessage = $curlError !== '' ? $curlError : 'Unbekannter Fehler bei der Webhook-Ausführung.';
+        $code = str_contains(strtolower($errorMessage), 'timed out') ? 'N8N_TIMEOUT' : 'N8N_UNREACHABLE';
+        $logBackendStatus($runId, 'Webhook-Aufruf fehlgeschlagen: ' . $errorMessage, 'error', $code);
         throw new RuntimeException('Webhook-Aufruf fehlgeschlagen: ' . $errorMessage);
     }
 
@@ -419,7 +458,10 @@ try {
     }
 
     if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
-        throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
+        $statusLabel = $webhookStatus ?? 'unbekannt';
+        $code = is_int($webhookStatus) ? 'N8N_HTTP_' . $webhookStatus : 'N8N_HTTP_UNKNOWN';
+        $logBackendStatus($runId, 'Workflow-Webhook antwortete mit Status ' . $statusLabel . '.', 'error', $code);
+        throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . $statusLabel . '.');
     }
 
     $pdo->beginTransaction();
@@ -459,6 +501,9 @@ try {
         throw $transactionException;
     }
 
+    // Erfolgsmeldung für den zentralen Status-Feed
+    $logBackendStatus($runId, 'Workflow erfolgreich gestartet.', 'success', 'WORKFLOW_STARTED');
+
     $respond([
         'success'          => true,
         'status'           => 'ok',
@@ -470,6 +515,24 @@ try {
         'webhook_response' => $forwardResponse,
     ]);
 } catch (Throwable $exception) {
+    if (!$loggedFailure) {
+        $message = $exception->getMessage();
+        $determineWorkflowCode = static function (string $errorMessage): string {
+            $normalized = strtolower($errorMessage);
+
+            return match (true) {
+                str_contains($normalized, 'workflow-webhook antwortete') => 'N8N_HTTP_ERROR',
+                str_contains($normalized, 'timed out') => 'N8N_TIMEOUT',
+                str_contains($normalized, 'webhook-auf') || str_contains($normalized, 'webhook konnte') => 'N8N_UNREACHABLE',
+                str_contains($normalized, 'credits') => 'CREDITS_TOO_LOW',
+                str_contains($normalized, 'originalbild') => 'ORIGINAL_NOT_FOUND',
+                default => 'WORKFLOW_START_FAILED',
+            };
+        };
+
+        $logBackendStatus($runId, $message, 'error', $determineWorkflowCode($message));
+    }
+
     $respond([
         'success'   => false,
         'status'    => 'error',
