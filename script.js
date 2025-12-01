@@ -9,6 +9,8 @@ const lightboxClose = lightbox.querySelector('.lightbox__close');
 const startWorkflowButton =
     document.getElementById('start-workflow-btn') || document.getElementById('btn-new');
 const statusBar = document.getElementById('status-bar');
+const statusList = document.querySelector('[data-status-list]');
+const statusFeedSkeleton = document.querySelector('[data-status-skeleton]');
 const articleNameOutput = document.getElementById('article-name-content');
 const articleDescriptionOutput = document.getElementById('article-description-content');
 const articleNameGroup = document.getElementById('article-name-group');
@@ -37,6 +39,11 @@ let workflowOutputController = null;
 let statusAnimationInterval = null;
 let statusDotCount = 0;
 let baseStatusMessage = '';
+
+const statusFeedItems = [];
+let lastStatusId = null;
+let isFetchingStatusFeed = false;
+let statusFeedInitialized = false;
 
 const isStatusAnimationActive = () => statusAnimationInterval !== null;
 
@@ -186,6 +193,7 @@ const stopStatusAnimation = (message) => {
     renderStatusAnimationFrame();
 };
 
+// Legacy Statusbar oben: bleibt vorerst bestehen, soll aber zukünftig durch die Status-Updates-Card ersetzt werden.
 const applyStatusBarMessage = (payload, options = {}) => {
     const message = resolveStatusBarMessage(payload);
     const hasExplicitIsRunning = Object.prototype.hasOwnProperty.call(options, 'isRunning');
@@ -222,10 +230,12 @@ const lastHandledStepStatusByRun = {};
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
+const STATUS_FEED_ENDPOINT = 'api/get-status-feed.php';
 
 const uploadEndpoint = 'upload.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
+const STATUS_FEED_LIMIT = 30;
 
 const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
 const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
@@ -446,6 +456,260 @@ const applyFadeInAnimation = (element) => {
 
     img.addEventListener('load', handleLoadOrError);
     img.addEventListener('error', handleLoadOrError);
+};
+
+const formatRelativeTimeFromDate = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const now = Date.now();
+    const diffSeconds = Math.floor((now - date.getTime()) / 1000);
+
+    if (diffSeconds < 45) {
+        return 'gerade eben';
+    }
+
+    if (diffSeconds < 90) {
+        return 'vor 1 Minute';
+    }
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) {
+        return `vor ${diffMinutes} Minuten`;
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 2) {
+        return 'vor 1 Stunde';
+    }
+
+    if (diffHours < 24) {
+        return `vor ${diffHours} Stunden`;
+    }
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) {
+        return 'vor 1 Tag';
+    }
+
+    return `vor ${diffDays} Tagen`;
+};
+
+const normalizeStatusFeedItem = (item) => {
+    if (!item || typeof item !== 'object') {
+        return null;
+    }
+
+    const id = Number(item.id);
+    const message = typeof item.message === 'string' ? item.message.trim() : '';
+
+    if (!Number.isFinite(id) || message === '') {
+        return null;
+    }
+
+    return {
+        id,
+        message,
+        severity: typeof item.severity === 'string' ? item.severity.trim().toLowerCase() : '',
+        source: typeof item.source === 'string' ? item.source.trim() : '',
+        code: typeof item.code === 'string' ? item.code.trim() : '',
+        createdAt: parseDateValue(item.created_at),
+    };
+};
+
+const getStatusIconConfig = (severity, source, code) => {
+    const normalizedSeverity = (severity || '').toLowerCase();
+
+    if (normalizedSeverity === 'success' || normalizedSeverity === 'ok') {
+        return { label: '✓', className: 'bg-emerald-100 text-emerald-600' };
+    }
+
+    if (normalizedSeverity === 'error' || normalizedSeverity === 'fail' || normalizedSeverity === 'failed') {
+        return { label: '!', className: 'bg-red-100 text-red-600' };
+    }
+
+    if (normalizedSeverity === 'warning' || normalizedSeverity === 'warn') {
+        return { label: '!', className: 'bg-amber-100 text-amber-600' };
+    }
+
+    return { label: 'i', className: 'bg-sky-100 text-sky-600' };
+};
+
+const hideStatusSkeleton = () => {
+    if (statusFeedSkeleton && statusFeedSkeleton.parentNode) {
+        statusFeedSkeleton.parentNode.removeChild(statusFeedSkeleton);
+    }
+
+    if (statusList) {
+        statusList.setAttribute('aria-busy', 'false');
+    }
+};
+
+const createStatusItemElement = (item, options = {}) => {
+    const entry = normalizeStatusFeedItem(item);
+    if (!entry) {
+        return null;
+    }
+
+    const isEntering = Boolean(options.isEntering);
+    const iconConfig = getStatusIconConfig(entry.severity, entry.source, entry.code);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'status-item flex items-start gap-3 py-2 transition-all duration-200 ease-out status-item--animated';
+
+    if (isEntering) {
+        wrapper.classList.add('status-item--enter');
+    }
+
+    const icon = document.createElement('div');
+    icon.className = `status-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+        iconConfig.className
+    }`;
+    icon.textContent = iconConfig.label;
+
+    const content = document.createElement('div');
+    content.className = 'status-content flex flex-col gap-0.5';
+
+    const message = document.createElement('div');
+    message.className = 'status-message text-sm leading-snug';
+    message.textContent = entry.message;
+
+    const meta = document.createElement('div');
+    meta.className = 'status-meta text-xs opacity-70';
+    meta.textContent = formatRelativeTimeFromDate(entry.createdAt) || '';
+
+    content.appendChild(message);
+    content.appendChild(meta);
+
+    wrapper.appendChild(icon);
+    wrapper.appendChild(content);
+
+    return wrapper;
+};
+
+const renderStatusFeed = ({ replace = false, newItems = [] } = {}) => {
+    if (!statusList) {
+        return;
+    }
+
+    hideStatusSkeleton();
+
+    if (replace || statusList.children.length === 0) {
+        statusList.innerHTML = '';
+        statusFeedItems.forEach((item) => {
+            const element = createStatusItemElement(item, { isEntering: false });
+            if (element) {
+                statusList.appendChild(element);
+            }
+        });
+        return;
+    }
+
+    const enteringItems = Array.isArray(newItems) ? newItems : [];
+
+    enteringItems.forEach((item) => {
+        const element = createStatusItemElement(item, { isEntering: true });
+        if (!element) {
+            return;
+        }
+
+        statusList.prepend(element);
+
+        runOnNextFrame(() => {
+            element.classList.remove('status-item--enter');
+        });
+    });
+
+    while (statusList.children.length > statusFeedItems.length) {
+        statusList.removeChild(statusList.lastElementChild);
+    }
+};
+
+const applyStatusFeedUpdate = (newItems, { initial = false } = {}) => {
+    const normalizedItems = Array.isArray(newItems)
+        ? newItems.map((item) => normalizeStatusFeedItem(item)).filter(Boolean)
+        : [];
+
+    const shouldTreatAsInitial = initial || !statusFeedInitialized;
+
+    if (shouldTreatAsInitial) {
+        if (normalizedItems.length > 0) {
+            const sorted = normalizedItems.sort((a, b) => b.id - a.id).slice(0, STATUS_FEED_LIMIT);
+            statusFeedItems.splice(0, statusFeedItems.length, ...sorted);
+            lastStatusId = Math.max(...statusFeedItems.map((item) => item.id), lastStatusId ?? -Infinity);
+        } else {
+            statusFeedItems.splice(0, statusFeedItems.length);
+            lastStatusId = lastStatusId ?? null;
+        }
+
+        statusFeedInitialized = true;
+        renderStatusFeed({ replace: true });
+        return;
+    }
+
+    if (normalizedItems.length === 0) {
+        return;
+    }
+
+    const latestKnownId = Number.isFinite(Number(lastStatusId)) ? Number(lastStatusId) : -Infinity;
+    const additions = normalizedItems.filter((item) => item.id > latestKnownId);
+
+    if (additions.length === 0) {
+        return;
+    }
+
+    additions.sort((a, b) => a.id - b.id);
+
+    additions.forEach((item) => {
+        statusFeedItems.unshift(item);
+    });
+
+    while (statusFeedItems.length > STATUS_FEED_LIMIT) {
+        statusFeedItems.pop();
+    }
+
+    lastStatusId = Math.max(...statusFeedItems.map((item) => item.id), lastStatusId ?? -Infinity);
+
+    renderStatusFeed({ newItems: additions });
+};
+
+const fetchStatusFeed = async ({ initial = false } = {}) => {
+    if (!STATUS_FEED_ENDPOINT || isFetchingStatusFeed) {
+        return;
+    }
+
+    if (!statusFeedInitialized && !initial) {
+        initial = true;
+    }
+
+    try {
+        isFetchingStatusFeed = true;
+
+        const params = new URLSearchParams();
+        params.set('limit', STATUS_FEED_LIMIT);
+
+        if (!initial && lastStatusId !== null) {
+            params.set('after_id', String(lastStatusId));
+        }
+
+        const response = await fetch(`${STATUS_FEED_ENDPOINT}?${params.toString()}`, { cache: 'no-store' });
+
+        if (!response.ok) {
+            throw new Error(`Status-Feed Antwort ${response.status}`);
+        }
+
+        const payload = await response.json();
+
+        if (!payload || typeof payload !== 'object' || payload.success !== true || !Array.isArray(payload.items)) {
+            return;
+        }
+
+        applyStatusFeedUpdate(payload.items, { initial });
+    } catch (error) {
+        console.warn('Status-Feed laden fehlgeschlagen', error);
+    } finally {
+        isFetchingStatusFeed = false;
+    }
 };
 
 const ensureOriginalImagesState = () => {
@@ -2335,6 +2599,8 @@ async function fetchLatestItem() {
     } catch (error) {
         console.error('Polling-Fehler:', error);
         setStatus('error', 'Fehler beim Abrufen des Status');
+    } finally {
+        fetchStatusFeed({ initial: false });
     }
 }
 
@@ -2586,6 +2852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUploadHandler();
     setupHistoryHandler();
     setupSidebarProfileMenu();
+    fetchStatusFeed({ initial: true });
 
     if (startWorkflowButton) {
         startWorkflowButton.addEventListener('click', startWorkflow);

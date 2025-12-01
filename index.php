@@ -219,33 +219,19 @@ $appConfig = [
             <div class="status-header-row">
                 <h3 class="status-header">Status Updates</h3>
             </div>
-            <div class="status-list">
-                <div class="status-item">
-                    <span class="material-icons-outlined status-icon text-success">check_circle</span>
-                    <div class="status-content">
-                        <p class="status-text">Bild hochgeladen: product_1.jpg</p>
-                        <p class="status-time">vor 2 Minuten</p>
+            <div class="status-list" data-status-list aria-live="polite" aria-busy="true">
+                <div class="flex flex-col gap-4" data-status-skeleton aria-hidden="true">
+                    <div class="skeleton-text skeleton-shine">
+                        <div class="skeleton-line long"></div>
+                        <div class="skeleton-line short"></div>
                     </div>
-                </div>
-                <div class="status-item">
-                    <span class="material-icons-outlined status-icon text-info">sync</span>
-                    <div class="status-content">
-                        <p class="status-text">Bestellung #123 wird verarbeitet</p>
-                        <p class="status-time">vor 15 Minuten</p>
+                    <div class="skeleton-text skeleton-shine">
+                        <div class="skeleton-line"></div>
+                        <div class="skeleton-line short"></div>
                     </div>
-                </div>
-                <div class="status-item">
-                    <span class="material-icons-outlined status-icon text-error">error</span>
-                    <div class="status-content">
-                        <p class="status-text">Zahlung fehlgeschlagen #122</p>
-                        <p class="status-time">vor 1 Stunde</p>
-                    </div>
-                </div>
-                <div class="status-item">
-                    <span class="material-icons-outlined status-icon text-success">waving_hand</span>
-                    <div class="status-content">
-                        <p class="status-text">Neuer Account erstellt</p>
-                        <p class="status-time">vor 3 Stunden</p>
+                    <div class="skeleton-text skeleton-shine">
+                        <div class="skeleton-line long"></div>
+                        <div class="skeleton-line shorter"></div>
                     </div>
                 </div>
             </div>
