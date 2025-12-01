@@ -56,8 +56,31 @@ if ($userId <= 0) {
     ], 401);
 }
 
+$pdo = auth_pdo();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+$statusLogCount = 0;
+$runId = null;
+
+$logBackendStatus = static function (
+    ?int $logRunId,
+    string $message,
+    string $severity,
+    ?string $code
+) use ($pdo, $userId, &$statusLogCount): void {
+    try {
+        // Backend events: persist user-facing upload status in status_logs_new
+        if (log_status_message($pdo, $logRunId, $userId, $message, 'backend', $severity, $code)) {
+            $statusLogCount++;
+        }
+    } catch (Throwable $loggingException) {
+        error_log('[upload_status_log] ' . $loggingException->getMessage());
+    }
+};
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $logBackendStatus(null, 'Methode nicht erlaubt.', 'error', 'METHOD_NOT_ALLOWED');
         $respond([
             'success'   => false,
             'status'    => 'error',
@@ -108,14 +131,10 @@ try {
     $sanitized = trim($sanitized) === '' ? 'upload_' . date('Ymd_His') : trim($sanitized);
     $storedName = basename($sanitized);
 
-    $pdo = auth_pdo();
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     $statusMessageFromRequest = extract_status_message($_POST);
 
     $storedFilePath = null;
     $imageUrl = null;
-    $runId = null;
 
     $sessionRunId = $_SESSION['current_run_id'] ?? null;
     if (is_string($sessionRunId) && ctype_digit($sessionRunId)) {
@@ -212,8 +231,8 @@ try {
                 ':user_id' => $userId,
             ]);
 
-            // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-            log_status_message($pdo, $runId, $userId, $statusMessageFromRequest);
+            // Neues Statuslog-System: Speichert jede eingehende statusmeldung (run-bezogen).
+            $logBackendStatus($runId, $statusMessageFromRequest, 'info', 'STATUS_MESSAGE');
         }
 
         $pdo->commit();
@@ -229,6 +248,9 @@ try {
         throw $databaseException;
     }
 
+    // Run-bezogene Erfolgsmeldung für die Statusanzeige protokollieren.
+    $logBackendStatus($runId, 'Upload erfolgreich.', 'success', 'UPLOAD_OK');
+
     $respond([
         'success'    => true,
         'run_id'     => $runId,
@@ -238,6 +260,22 @@ try {
     ]);
 } catch (Throwable $exception) {
     $message = $exception->getMessage();
+
+    // Log upload failures once with backend source + machine-readable code.
+    $determineUploadCode = static function (string $errorMessage): string {
+        $normalized = strtolower($errorMessage);
+        return match (true) {
+            str_contains($normalized, 'keine datei empfangen') => 'UPLOAD_NO_FILE',
+            str_contains($normalized, 'nur bilddateien') => 'UPLOAD_INVALID_TYPE',
+            str_contains($normalized, 'upload-verzeichnis') => 'UPLOAD_DIR_ERROR',
+            str_contains($normalized, 'finfo') || str_contains($normalized, 'datei-info') => 'UPLOAD_FINFO_ERROR',
+            str_contains($normalized, 'speichert') || str_contains($normalized, 'gespeichert werden') => 'UPLOAD_FAILED',
+            str_contains($normalized, 'fehler beim upload') => 'UPLOAD_ERROR_CODE',
+            default => 'UPLOAD_FAILED',
+        };
+    };
+
+    $logBackendStatus($runId, $message, 'error', $determineUploadCode($message));
 
     restore_error_handler();
     $respond([

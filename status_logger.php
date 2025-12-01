@@ -27,10 +27,20 @@ function extract_status_message(array $payload): ?string
  * Central helper to store workflow status updates in the canonical status_logs_new table.
  *
  * status_logs_new supersedes the legacy status_logs table; all n8n callbacks must use this helper
- * to keep future UI components (status icons, severity mapping) consistent.
+ * to keep future UI components (status icons, severity mapping) consistent. Backend events should
+ * set $source to 'backend'.
+ *
+ * Severity conventions (shared by n8n + backend):
+ *  - success: positive, abgeschlossene Aktion (z. B. Upload erfolgreich, Workflow gestartet)
+ *  - info: neutrale Hinweise
+ *  - warning: potenziell problematisch, aber nicht fatal
+ *  - error: gewünschter Vorgang konnte nicht ausgeführt werden
+ *
+ * Codes should be UPPER_SNAKE_CASE (e.g. UPLOAD_OK, CREDITS_TOO_LOW, N8N_HTTP_404) to ease
+ * downstream icon/text mapping.
  *
  * @param PDO         $pdo      Active database connection
- * @param int         $runId    ID of the workflow_runs record (must belong to the user)
+ * @param int|null    $runId    ID of the workflow_runs record (null for user-level events)
  * @param int         $userId   Owner of the run
  * @param string      $message  Human readable status message
  * @param string      $source   Origin of the event (e.g. n8n, backend, frontend)
@@ -39,7 +49,7 @@ function extract_status_message(array $payload): ?string
  */
 function log_status_message(
     PDO $pdo,
-    int $runId,
+    ?int $runId,
     int $userId,
     string $message,
     string $source = 'n8n',
@@ -53,7 +63,9 @@ function log_status_message(
         ? strtolower($severity)
         : 'info';
 
-    if ($runId <= 0 || $userId <= 0 || $normalizedMessage === '') {
+    $hasRun = is_int($runId) && $runId > 0;
+
+    if ($userId <= 0 || $normalizedMessage === '') {
         return false;
     }
 
@@ -64,14 +76,16 @@ function log_status_message(
             return false;
         }
 
-        $runStmt = $pdo->prepare('SELECT 1 FROM workflow_runs WHERE id = :rid AND user_id = :uid LIMIT 1');
-        $runStmt->execute([
-            ':rid' => $runId,
-            ':uid' => $userId,
-        ]);
+        if ($hasRun) {
+            $runStmt = $pdo->prepare('SELECT 1 FROM workflow_runs WHERE id = :rid AND user_id = :uid LIMIT 1');
+            $runStmt->execute([
+                ':rid' => $runId,
+                ':uid' => $userId,
+            ]);
 
-        if ($runStmt->fetchColumn() === false) {
-            return false;
+            if ($runStmt->fetchColumn() === false) {
+                return false;
+            }
         }
 
         $insert = $pdo->prepare(
@@ -79,7 +93,7 @@ function log_status_message(
             . 'VALUES (:rid, :uid, :message, :source, :severity, :code, NOW())'
         );
         $insert->execute([
-            ':rid'      => $runId,
+            ':rid'      => $hasRun ? $runId : null,
             ':uid'      => $userId,
             ':message'  => $normalizedMessage,
             ':source'   => $normalizedSource,
