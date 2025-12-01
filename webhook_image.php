@@ -272,6 +272,20 @@ try {
     }
 
     if ($runId !== null && !runBelongsToUser($pdo, $userId, $runId)) {
+        try {
+            log_status_message(
+                $pdo,
+                $runId,
+                $userId,
+                'Webhook 404: run_id does not belong to user',
+                'n8n',
+                'error',
+                'N8N_HTTP_404'
+            );
+        } catch (Throwable $loggingException) {
+            error_log('[webhook_image][logging] ' . $loggingException->getMessage());
+        }
+
         jsonResponse(404, [
             'ok'      => false,
             'message' => 'run_id does not belong to user',
