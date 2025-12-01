@@ -125,11 +125,15 @@ CREATE TABLE `run_images` (
 -- Tabellenstruktur für Tabelle `status_logs_new`
 --
 
+-- status_logs_new replaces the legacy status_logs table; all workflow status updates are stored here.
 CREATE TABLE `status_logs_new` (
   `id` int UNSIGNED NOT NULL,
   `run_id` int UNSIGNED NOT NULL,
   `user_id` int UNSIGNED NOT NULL,
   `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'n8n',
+  `severity` enum('info','success','warning','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info',
+  `code` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
