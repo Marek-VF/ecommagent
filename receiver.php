@@ -145,7 +145,8 @@ $isRunning = array_key_exists('isrunning', $payload)
     ? to_bool($payload['isrunning'], true)
     : (array_key_exists('is_running', $payload) ? to_bool($payload['is_running'], true) : true);
 
-$statusMessageFromPayload = extract_status_message($payload);
+$statusCodeFromPayload = extract_status_message($payload);
+$statusEventFromPayload = $statusCodeFromPayload !== null ? resolve_status_event($statusCodeFromPayload) : null;
 
 $nameRaw = $payload['product_name'] ?? $payload['produktname'] ?? null;
 $descRaw = $payload['product_description'] ?? $payload['produktbeschreibung'] ?? null;
@@ -164,7 +165,7 @@ if ($hasDescField) {
     $desc = $descRaw !== null ? trim((string) $descRaw) : '';
 }
 
-$message = $statusMessageFromPayload !== null ? $statusMessageFromPayload : ($statusRaw !== null ? trim((string) $statusRaw) : '');
+$message = $statusEventFromPayload['label'] ?? ($statusRaw !== null ? trim((string) $statusRaw) : '');
 if ($message === '') {
     $message = 'aktualisiert';
 }
@@ -287,9 +288,9 @@ try {
         ':message' => $message,
     ]);
 
-    // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-    if ($statusMessageFromPayload !== null) {
-        log_status_message($pdo, $runId, $userId, $statusMessageFromPayload);
+    // Neues Statuslog-System: Speichert jede eingehende Statusmeldung als Event.
+    if ($statusCodeFromPayload !== null) {
+        log_event($pdo, $runId, $userId, $statusCodeFromPayload, 'n8n');
     }
 
     $pdo->commit();

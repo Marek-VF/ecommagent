@@ -19,7 +19,7 @@ if ($providedToken === '' || $expectedToken === '' || !hash_equals($expectedToke
 
 $rawInput = file_get_contents('php://input');
 $inputData = json_decode($rawInput, true);
-$statusMessageFromRequest = is_array($inputData) ? extract_status_message($inputData) : null;
+$statusCodeFromRequest = is_array($inputData) ? extract_status_message($inputData) : null;
 
 $runId = null;
 $userId = null;
@@ -88,15 +88,15 @@ try {
         exit;
     }
 
-    if ($statusMessageFromRequest !== null) {
+    if ($statusCodeFromRequest !== null) {
         // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-        log_status_message($pdo, $runId, $userId, $statusMessageFromRequest);
+        $event = log_event($pdo, $runId, $userId, $statusCodeFromRequest, 'n8n');
 
         $updateRunStatus = $pdo->prepare(
             'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
         );
         $updateRunStatus->execute([
-            ':message' => $statusMessageFromRequest,
+            ':message' => $event['label'] ?? '',
             ':run_id'  => $runId,
             ':user_id' => $userId,
         ]);
