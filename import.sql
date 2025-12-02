@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: db003363.mydbserver.com
--- Erstellungszeit: 26. Nov 2025 um 11:59
+-- Erstellungszeit: 02. Dez 2025 um 12:43
 -- Server-Version: 8.4.6-6
--- PHP-Version: 8.4.13
+-- PHP-Version: 8.4.15
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -20,6 +20,22 @@ SET time_zone = "+00:00";
 --
 -- Datenbank: `usr_p689217_4`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `credit_transactions`
+--
+
+CREATE TABLE `credit_transactions` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED DEFAULT NULL,
+  `amount` decimal(10,3) NOT NULL,
+  `reason` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `meta` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -106,19 +122,18 @@ CREATE TABLE `run_images` (
 -- --------------------------------------------------------
 
 --
--- Tabellenstruktur für Tabelle `status_logs`
+-- Tabellenstruktur für Tabelle `status_logs_new`
 --
 
-CREATE TABLE `status_logs` (
+CREATE TABLE `status_logs_new` (
   `id` int UNSIGNED NOT NULL,
+  `run_id` int UNSIGNED NOT NULL,
   `user_id` int UNSIGNED NOT NULL,
-  `run_id` int UNSIGNED DEFAULT NULL,
-  `level` enum('info','warn','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info',
-  `status_code` int DEFAULT NULL,
-  `message` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `payload_excerpt` text COLLATE utf8mb4_unicode_ci,
-  `source` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'receiver',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'n8n',
+  `severity` enum('info','success','warning','error') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info',
+  `code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -134,12 +149,12 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `image_ratio_preference` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'original',
   `prompt_category_id` int UNSIGNED DEFAULT NULL,
-  `credits_balance` decimal(10,3) NOT NULL DEFAULT 0.000,
   `verification_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `verified` tinyint(1) NOT NULL DEFAULT '0',
   `reset_token` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `credits_balance` decimal(10,3) NOT NULL DEFAULT '0.000'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -171,34 +186,23 @@ CREATE TABLE `workflow_runs` (
   `finished_at` datetime DEFAULT NULL,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new',
   `last_message` text COLLATE utf8mb4_unicode_ci,
-  `last_step_status` enum('success','error') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `credits_spent` decimal(10,3) NOT NULL DEFAULT 0.000,
   `original_image` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Tabellenstruktur für Tabelle `credit_transactions`
---
-
-CREATE TABLE `credit_transactions` (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` int UNSIGNED NOT NULL,
-  `run_id` int UNSIGNED DEFAULT NULL,
-  `amount` decimal(10,3) NOT NULL,
-  `reason` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `meta` text COLLATE utf8mb4_unicode_ci,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `fk_credit_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
-  CONSTRAINT `fk_credit_transactions_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`)
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `credits_spent` decimal(10,3) NOT NULL DEFAULT '0.000',
+  `last_step_status` enum('success','error') COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Indizes der exportierten Tabellen
 --
+
+--
+-- Indizes für die Tabelle `credit_transactions`
+--
+ALTER TABLE `credit_transactions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_credit_transactions_user` (`user_id`),
+  ADD KEY `fk_credit_transactions_run` (`run_id`);
 
 --
 -- Indizes für die Tabelle `item_images`
@@ -238,13 +242,14 @@ ALTER TABLE `run_images`
   ADD KEY `idx_run_images_run` (`run_id`);
 
 --
--- Indizes für die Tabelle `status_logs`
+-- Indizes für die Tabelle `status_logs_new`
 --
-ALTER TABLE `status_logs`
+ALTER TABLE `status_logs_new`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_logs_user_created` (`user_id`,`created_at`),
-  ADD KEY `idx_logs_level` (`level`),
-  ADD KEY `idx_logs_source` (`source`);
+  ADD KEY `idx_status_logs_new_run` (`run_id`),
+  ADD KEY `idx_status_logs_new_user` (`user_id`),
+  ADD KEY `idx_status_logs_new_user_created` (`user_id`,`created_at`),
+  ADD KEY `idx_status_logs_new_user_id` (`user_id`,`id`);
 
 --
 -- Indizes für die Tabelle `users`
@@ -274,6 +279,12 @@ ALTER TABLE `workflow_runs`
 --
 -- AUTO_INCREMENT für exportierte Tabellen
 --
+
+--
+-- AUTO_INCREMENT für Tabelle `credit_transactions`
+--
+ALTER TABLE `credit_transactions`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT für Tabelle `item_images`
@@ -306,9 +317,9 @@ ALTER TABLE `run_images`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT für Tabelle `status_logs`
+-- AUTO_INCREMENT für Tabelle `status_logs_new`
 --
-ALTER TABLE `status_logs`
+ALTER TABLE `status_logs_new`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -326,6 +337,13 @@ ALTER TABLE `workflow_runs`
 --
 -- Constraints der exportierten Tabellen
 --
+
+--
+-- Constraints der Tabelle `credit_transactions`
+--
+ALTER TABLE `credit_transactions`
+  ADD CONSTRAINT `fk_credit_transactions_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`),
+  ADD CONSTRAINT `fk_credit_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
 
 --
 -- Constraints der Tabelle `item_images`
@@ -354,10 +372,11 @@ ALTER TABLE `run_images`
   ADD CONSTRAINT `fk_run_images_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints der Tabelle `status_logs`
+-- Constraints der Tabelle `status_logs_new`
 --
-ALTER TABLE `status_logs`
-  ADD CONSTRAINT `fk_status_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+ALTER TABLE `status_logs_new`
+  ADD CONSTRAINT `fk_status_logs_new_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_status_logs_new_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints der Tabelle `users`

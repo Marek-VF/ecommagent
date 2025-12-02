@@ -1,816 +1,469 @@
-## `docs/TECHNICAL_SPEC.md`
+2.1 Datenbankmodell (Überblick)
 
-```markdown
-# Technische Spezifikation – Ecomm Agent / Ecom Studio  
-Version 2.0 (Light Mode + Credit-System + Error-Platzhalterbilder)
-
----
-
-## 1. Zielsetzung
-
-Die Anwendung soll:
-
-- Produktbilder mit Hilfe von n8n + Diffusionsmodellen generieren
-- Bildanalysen (Garment Analysis) entgegennehmen
-- Produkttexte (Name & Beschreibung) anzeigen
-- Prompt-Varianten aus einer Datenbank liefern
-- Workflows orchestrieren, loggen & historisieren
-- AI-Nutzung über ein **Credit-System** steuern
-- Fehlerfälle (fehlgeschlagene Bildgenerierung) robust über **Error-Platzhalterbilder** abfangen
-
----
-
-## 2. Systemkomponenten
-
-### 2.1 Frontend (v2.0 – Light Mode / Soft UI)
-
-#### 2.1.1 Stack
-
-- `index.php` als Container-Template
-- `style.css`:
-  - Design-System via CSS Custom Properties
-  - Layout-Grid
-  - Komponentenstile
-  - Animationsdefinitionen
-- Tailwind CSS (CDN):
-  - Utilities, Typografie, Form-Resets
-- JS: `script.js`:
-  - State-Management für Workflow
-  - Polling
-  - History
-  - Statusbar-Animation
-  - Image-Grid-Steuerung
-
-#### 2.1.2 Design-System (Auszug)
-
-**Farben:**
-
-- `--accent`: `#ff5722`
-- `--accent-hover`: `#e64a19`
-- `--bg`: `#f1f5f9` (App-Hintergrund)
-- `--bg-elevated`: `#ffffff`
-- `--bg-panel`: `#f8fafc`
-- Text:
-  - Headlines: `#0f172a`
-  - Body: `#334155`
-
-**Soft UI:**
-
-- Schatten:
-  - `0 10px 15px -3px rgba(0, 0, 0, 0.05)`
-  - `0 20px 25px -5px rgba(0, 0, 0, 0.1)`
-- Border-Radius: ca. 12–24 px
-- wenig sichtbare Rahmen, Fokus auf Ebenen
-
-#### 2.1.3 Layout
-
-- `.app` als 12-Spalten Grid
-- Desktop:
-  - linkes Panel: Status + Upload Card (`span 4`)
-  - rechtes Panel: Workflow-Output (`span 8`)
-- Tablet:
-  - beide Panels `span 12`, vertikal gestapelt
-- Mobile:
-  - `flex-wrap` im Header
-  - größere Buttons (Hit Area)
-
-#### 2.1.4 Komponenten
-
-**Status & Upload Card (links)**
-
-- `.status-upload-card`:
-  - Header, Statusliste, Upload-CTA
-
-**Statusliste:**
-
-- `.status-list`:
-  - `max-height: ~220px`
-  - `overflow-y: auto`
-- Einträge enthalten:
-  - Icon (Material Icon)
-  - Farbcode:
-    - Info: Blau
-    - Success: Grün
-    - Error: Rot
-
-**Upload-CTA:**
-
-- `.drop-zone--cta`:
-  - fungiert als Button
-  - löst File-Input aus
-  - Oranger Hintergrund, weiße Schrift
-
-**Workflow-Output (rechts)**
-
-- Container: `#workflow-output`
-- enthält:
-  - Originalbild(er) (`[data-original-images]`)
-  - `.generated-grid` mit `.generated-slot` & `.render-box`
-  - `.slot-actions` unter jedem Bild
-  - Text-Panels für Artikelname & Beschreibung
-
-**Action-Bar (`.slot-actions`):**
-
-- 4-Spalten Grid
-- Buttons:
-  - `.btn-toggle` (2K/4K/Edit) mit `.is-active`-Zustand
-  - `.btn-primary` (Play) mit Icon
-
-**Text-Panels:**
-
-- Gruppen: `#article-name-group`, `#article-description-group`
-- Inhalte:
-  - `.output-header` (Label + Kopier-Button)
-  - `.output-body` (`<pre>` mit Text)
-  - `.skeleton-text` als Placeholder
-
-#### 2.1.5 Animation & State
-
-**Skeleton-States:**
-
-- State-Konstanten in `script.js`:
-
-```js
-const FIELD_GROUP_STATE = {
-    idle: 'idle',
-    running: 'running',
-    ready: 'ready',
-};
-
-    setFieldGroupState(group, state):
-
-        toggelt Klasse is-loading
-
-        toggelt skeleton-shine auf .skeleton-text
-
-Bildslots:
-
-    gallerySlots:
-
-        Array von Objekten { key, index, container }
-
-        key: image_1, image_2, image_3
-
-    setSlotLoadingState(slot, loading):
-
-        setzt dataset.isLoading
-
-        toggelt preload auf Slot und .render-box
-
-    setSlotImageSource(slot, src):
-
-        injiziert <img>
-
-        setzt has-image, has-shadow
-
-        setzt dataset.hasContent = 'true'
-
-        entfernt preload
-
-WorkflowOutputController:
-
-    State-Maschine:
-
-STATE_CLASSES = {
-  idle: 'is-idle',
-  running: 'is-running',
-  complete: 'is-complete',
-};
-
-    Methoden:
-
-        init()
-
-        start() – setzt Running-State, leert Slots, aktiviert Preload
-
-        sync() – prüft gefüllte Slots/Text und hält State konsistent
-
-        finish() – wechselt in complete oder idle
-
-        reset() – räumt alles auf und zeigt Platzhalter
-
-Statusbar-Animation:
-
-    Globale Variablen:
-
-        statusAnimationInterval, statusDotCount, baseStatusMessage
-
-    applyStatusBarMessage(payload, { isRunning }):
-
-        extrahiert Text:
-
-            payload.last_status_message
-
-            payload.run.last_status_message
-
-            payload.run.last_message
-
-            payload.message
-
-        bei isRunning === true: startStatusAnimation(message)
-
-        sonst: stopStatusAnimation(message)
-
-    animateStatus():
-
-        zyklisch statusDotCount von 0–3
-
-        Text:
-
-            ""
-
-            "."
-
-            ".."
-
-            "..."
-
-            dann zurück zu ""
-
-2.2 Backend (PHP)
-
-    auth/bootstrap.php: Session, User, DB (auth_pdo(), auth_config())
-
-    db.php: generische DB-Helfer (falls vorhanden)
-
-    status_logger.php: Funktionen:
-
-        extract_status_message(...)
-
-        log_status_message(PDO $pdo, int $runId, int $userId, string $message)
-
-    credits.php: Hilfsfunktionen für Credit-System
-
-    Endpoints:
-
-        upload.php
-
-        start-workflow.php
-
-        receiver.php
-
-        webhook_image.php
-
-        /api/... (Runs, Details, Latest Item, Prompt-Varianten)
-
-2.3 n8n Automationsserver
-
-    konfiguriert über config.php['workflow_webhook']
-
-    Erwartung:
-
-        n8n:
-
-            holt Prompt-Varianten über /api/get-prompt-variants.php
-
-            sendet Status/Text/Analyse an receiver.php
-
-            sendet generierte Bilder an webhook_image.php
-
-        sendet in allen relevanten Calls:
-
-            user_id
-
-            run_id
-
-            statusmeldung
-
-            isrunning
-
-            executed_successfully
-
-            step_type (z. B. analysis, image_1, image_2, image_3)
-
-3. Workflows (technisch)
-3.1 Upload (upload.php)
-
-    Methode: POST multipart/form-data
-
-    Feld: image
-
-    Ablauf:
-
-        Authentifizierung via Session
-
-        Upload-Validierung:
-
-            Fehlercodes, Größe, MIME, Auflösung
-
-        Anlegen eines workflow_runs-Datensatzes mit Status pending
-
-        Speichern des Originalbildes in uploads/<user_id>/<run_id>/...
-
-        Antwort-JSON (u. a. run_id, user_id, image_url, success)
-
-3.2 Workflow-Start (start-workflow.php)
-
-    Methode: POST application/json
-
-    Payload:
-
-{
-  "run_id": <int>,
-  "user_id": <int>,
-  "image_url": "string",
-  "image_url_2": "string|optional"
-}
-
-    Ablauf:
-
-        JSON parsen, Pflichtfelder prüfen
-
-        Zugehörigkeit (run_id ↔ user_id) prüfen
-
-        Credit-Check (siehe Abschnitt 5.2):
-
-            benötigte Credits (Standard-Workflow) auf Basis von config.php['credits']['steps'] berechnen
-
-            users.credits_balance lesen
-
-            bei zu wenig Credits:
-
-                HTTP-Fehler
-
-                Fehlertext in Statusbar & Frontend
-
-        n8n-Webhook aufrufen (workflow_webhook) mit:
-
-            run_id, user_id
-
-            image_url_1, image_url_2
-
-            receiver_api_token
-
-            image_ratio_preference
-
-            prompt_category_id
-
-        workflow_runs.status = 'running', last_message = 'Workflow gestartet'
-
-3.3 Prompt-Varianten (api/get-prompt-variants.php)
-
-    Methode: GET
-
-    n8n übermittelt user_id oder nutzt receiver_api_token/User-Zuordnung
-
-    Backend:
-
-        ermittelt prompt_category_id des Users
-
-        lädt passende Datensätze aus prompt_variants
-
-    Antwort:
-
-        Liste von Variants mit:
-
-            label, LOCATION, LIGHTING, MOOD, SEASON, MODEL_TYPE, MODEL_POSE, VIEW_MODE
-
-3.4 Status/Texte/Analyse (receiver.php)
-
-    Methode: i. d. R. POST application/json
-
-    n8n schickt:
-
-        run_id, user_id
-
-        statusmeldung
-
-        executed_successfully (bei Steps wie analysis)
-
-        step_type (z. B. analysis)
-
-        Text-Daten (product_name, product_description)
-
-        Analyse-Daten (garment, etc.)
-
-        isrunning (bool)
-
-    Ablauf (verkürzt):
-
-        Token prüfen (Bearer)
-
-        run_id / user_id prüfen
-
-        Statusmeldung extrahieren (extract_status_message)
-
-        status_logs-Eintrag schreiben (log_status_message)
-
-        workflow_runs.last_message aktualisieren
-
-        ggf. workflow_runs.status & isrunning setzen
-
-        item_notes aktualisieren / erstellen (Name & Beschreibung)
-
-        Credits:
-
-            bei executed_successfully: true & step_type === 'analysis':
-
-                charge_credits(..., 'analysis', $meta)
-
-            bei executed_successfully: false:
-
-                keine Abbuchung
-
-3.5 Bilder & Error-Platzhalter (webhook_image.php)
-
-    Methode: POST multipart/form-data
-
-    Felder:
-
-        file (Bilddaten) – nur bei Erfolg relevant
-
-        run_id, user_id
-
-        optional note_id
-
-        optional position (1–3)
-
-        statusmeldung
-
-        executed_successfully (bool)
-
-        step_type (image_1, image_2, image_3, etc.)
-
-    Ablauf bei executed_successfully: true:
-
-        Token & User/Run prüfen
-
-        Upload-Validierung (MIME, Größe, Auflösung)
-
-        note_id ermitteln oder item_notes-Datensatz anlegen
-
-        Dateiname aus item_notes.product_name generieren (slugify_filename)
-
-        Datei nach uploads/<user_id>/<run_id>/... verschieben
-
-        Insert in item_images (mit position)
-
-        status_logs & workflow_runs.last_message aktualisieren
-
-        user_state aktualisieren (last_image_url, current_run_id)
-
-        Credits:
-
-            bei executed_successfully: true + vorhandenem step_type:
-
-                charge_credits($pdo, $config, $userId, $runId, $stepTypeRaw, $meta)
-
-    Ablauf bei executed_successfully: false:
-
-        Token & User/Run prüfen (gleich wie oben)
-
-        kein tatsächlicher Datei-Upload erforderlich
-
-        Statusmeldung aus statusmeldung extrahieren und loggen:
-
-            log_status_message(...)
-
-            workflow_runs.last_message setzen
-
-        Error-Platzhalterbild setzen:
-
-            Platzhalterpfad: z. B. assets/default-image1.jpg
-
-            relative URL für DB: z. B. assets/default-image1.jpg oder abgeleitet aus asset_base_url
-
-            Insert in item_images mit:
-
-                user_id, run_id
-
-                note_id
-
-                position (wenn vorhanden)
-
-                url = Platzhalterpfad
-
-        Preload-Logik im Frontend kann normal weiterlaufen, weil der Slot jetzt als „gefüllt“ gilt.
-
-        keine Credits werden abgebucht.
-
-    Response (beide Fälle):
-
-{
-  "ok": true,
-  "url": "uploads/5/123/…jpg" | "assets/default-image1.jpg",
-  "note_id": <int>,
-  "position": <int|null>,
-  "run_id": <int>
-}
-
-3.6 Polling (api/get-latest-item.php + script.js)
-
-    Endpoint liefert:
-
-        run_id
-
-        isrunning
-
-        Statusfelder
-
-        Note-Daten
-
-        Bilder (inkl. Positionen)
-
-        Originalbilder
-
-Frontend:
-
-    fetchLatestItem() ruft Endpoint zyklisch auf
-
-    updateUiWithData(payload):
-
-        mappt Payload auf Legacy-Struktur
-
-        ruft:
-
-            updateInterfaceFromData(normalized)
-
-            applyStatusBarMessage(payload, { isRunning })
-
-            renderGeneratedImages(data.images)
-
-    bei isrunning === false:
-
-        Polling stoppen
-
-        Status- & UI-States auf „Workflow abgeschlossen“ setzen
-
-4. Datenmodell
-4.1 Tabellen (Kerndaten)
+Haupttabellen (aus import.sql):
 
 users
 
-    id (PK)
+Standard-Usertabelle (id, name, email, password_hash, email_verified, created_at, updated_at, etc.)
 
-    email
+zusätzliche Felder:
 
-    password_hash
+prompt_category_id – präferierte Prompt-Kategorie (FK zu prompt_categories)
 
-    verified_at
+image_ratio_preference – z. B. 4:5, 1:1, original
 
-    receiver_api_token
-
-    image_ratio_preference
-
-    prompt_category_id
-
-    credits_balance (DECIMAL)
-
-    created_at, updated_at
+weitere Einstellungen (Branche, etc., je nach Schema)
 
 workflow_runs
 
-    id (PK)
+Repräsentiert einen Workflow-Lauf pro Benutzer.
 
-    user_id (FK → users)
+Wichtige Spalten:
 
-    status (pending, running, finished, failed)
+id
 
-    original_image
+user_id
 
-    last_message
+started_at, finished_at
 
-    created_at
+status (z. B. new, running, finished, error)
 
-    started_at (optional)
+last_message (Text für Statusanzeige)
 
-    finished_at (optional)
+original_image (Pfad zum initial hochgeladenen Bild)
 
-    isrunning (optional Flag)
+credits_spent (Summe der Credits für diesen Run)
 
-item_notes
+last_step_status (success/error)
 
-    id (PK)
+run_images
 
-    user_id
+Bilder, die einem Run zugeordnet sind (generiert oder Platzhalter).
 
-    run_id
+Wichtige Spalten:
 
-    product_name
+id
 
-    product_description
+run_id
 
-    source (n8n / manuell)
+user_id
 
-    created_at, updated_at
+file_path (relativer Pfad)
+
+position (Slot im Frontend, z. B. 1–4)
+
+note_id (FK zu item_notes, optional)
+
+created_at
 
 item_images
 
-    id (PK)
+Bilder, die einem Item/Produkt zugeordnet sind (nicht nur run-bezogen; je nach Implementierung).
 
-    user_id
+Ähnlich zu run_images mit Fokus auf (User, Run, Item).
 
-    run_id
+item_notes
 
-    note_id
+Textuelle Produktinfos pro Run (bzw. Produkt).
 
-    url
+Spalten:
 
-    position (1–3)
+id
 
-    created_at
+user_id
 
-status_logs
+run_id
 
-    id (PK)
+product_name
 
-    run_id
+product_description
 
-    user_id
+source (z. B. n8n, manual)
 
-    message
+created_at, updated_at
 
-    created_at
+status_logs_new
 
-prompt_variants
+Statusprotokoll für Runs.
 
-    id (PK)
+Spalten:
 
-    category_id
+id
 
-    label
+run_id
 
-    LOCATION
+user_id
 
-    LIGHTING
+message
 
-    MOOD
+created_at
 
-    SEASON
-
-    MODEL_TYPE
-
-    MODEL_POSE
-
-    VIEW_MODE
-
-user_state
-
-    user_id (PK)
-
-    last_image_url
-
-    current_run_id
-
-    updated_at
+Befüllt via status_logger.php::log_status_message().
 
 credit_transactions
 
-    id (PK)
+Historie der Creditbuchungen.
 
-    user_id (FK → users)
+Spalten:
 
-    run_id (nullable, FK → workflow_runs)
+id
 
-    step_type (z. B. analysis, image_1, image_2, image_3)
+user_id
 
-    amount (DECIMAL, Positivwert)
+run_id (optional)
 
-    direction (debit / credit)
+amount (decimal, z. B. -0.750)
 
-    meta (JSON/TEXT)
+reason (z. B. analysis, image_1)
 
-    created_at
+meta (JSON, z. B. {"source":"webhook_image.php"})
 
-5. Credit-System
-5.1 Konfiguration (config.php)
+created_at
+
+user_state
+
+“Ephemerer” UI-State pro User.
+
+Spalten:
+
+user_id (UNIQUE)
+
+current_run_id
+
+last_status
+
+last_message
+
+last_image_url
+
+updated_at
+
+Wird in start-workflow.php, receiver.php, webhook_image.php und api/get-latest-item.php genutzt.
+
+prompt_categories
+
+Kategorien (z. B. fashion, interior).
+
+Spalten:
+
+id
+
+category_key (String, z. B. fashion)
+
+label (Anzeigename)
+
+prompt_variants
+
+Prompt-Varianten pro Kategorie & User.
+
+Spalten:
+
+id
+
+user_id
+
+category_id
+
+variant_slot (1–3)
+
+location, lighting, mood, season, model_type, model_pose, view_mode
+
+created_at, updated_at
+
+2.2 Backend-Hilfsfunktionen
+2.2.1 db.php
+
+getPDO(): PDO – Singleton-PDO für alle DB-Zugriffe.
+
+Diverse Helper:
+
+db_query, db_fetch_one, db_fetch_all, etc.
+
+Spezialisierte Methoden z. B.:
+
+db_get_user_credits_balance(PDO $pdo, int $userId): float
+
+db_log_credit_transaction(...)
+
+db_get_prompt_category_id_by_key(...)
+
+Wird in fast allen PHP-Dateien via require_once genutzt.
+
+2.2.2 auth/bootstrap.php
+
+Zentrale Auth-/Session-Schicht:
+
+Session-Setup (session_set_cookie_params, session_start)
+
+auth_config() – lädt config.php
+
+auth_pdo() – liefert PDO aus db.php
+
+auth_user() – liefert User-Array aus Session
+
+auth_is_logged_in()
+
+auth_require_login($redirectPath) – Redirect auf Login bei nicht eingeloggtem User
+
+auth_set_user($userData) – schreibt Userdaten in Session
+
+auth_logout() – löscht Session & regeneriert ID
+
+auth_redirect($path)
+
+Passwort-Helpers:
+
+auth_hash_password($password)
+
+auth_verify_password($password, $hash)
+
+Token-Helper:
+
+auth_generate_token() (z. B. für E-Mail-Verification, Passwort-Reset)
+
+Die anderen auth/*.php-Dateien nutzen diese Funktionen.
+
+2.3 Credit-System (Details)
+
+Definiert über:
+
+config.php:
 
 'credits' => [
-    'enabled' => true,
-    'steps'   => [
+    'prices' => [
         'analysis' => 0.50,
-        'image_1'  => 1.00,
-        'image_2'  => 1.00,
-        'image_3'  => 1.00,
-        // weitere Step-Typen möglich
+        'image_1'  => 0.75,
+        'image_2'  => 0.75,
+        'image_3'  => 0.75,
+        // ...
     ],
 ],
 
-5.2 Zentrale Logik (credits.php)
 
-Beispielhafte Funktionen:
+credits.php:
 
-function get_user_credits(PDO $pdo, int $userId): float;
+get_credit_price(array $config, string $stepType): ?float
 
-function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, string $stepType, array $meta = []): void;
+estimate_workflow_credits(array $config): float
+→ Summe aller positiven Preise in credits.prices.
 
-function ensure_user_has_credits_for_workflow(PDO $pdo, array $config, int $userId): void;
+charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, string $stepType, array $meta): void
 
-Verhalten:
+ermittelt Preis
 
-    ensure_user_has_credits_for_workflow():
+schreibt Datensatz in credit_transactions (negativer Betrag)
 
-        summiert erwartete Step-Kosten (z. B. analysis + image_1 + image_2 + image_3)
+aktualisiert ggf. “Current Balance” (Balance wird meist als Summe der Transaktionen interpretiert)
 
-        vergleicht mit users.credits_balance
+Nutzung:
 
-        wirft Fehler bei unzureichendem Guthaben
+Vor Start des Workflows:
+start-workflow.php ruft estimate_workflow_credits() auf und vergleicht mit get_user_credits_balance().
+Bei zu wenig Credits: HTTP 400 mit not_enough_credits = true.
 
-    charge_credits():
+Pro Step:
 
-        liest Step-Kosten aus config['credits']['steps'][$stepType]
+receiver.php und api/get-prompt-variants.php (Text/Analyse)
 
-        trägt Debit in credit_transactions ein
+webhook_image.php (Bild-Generierung)
 
-        aktualisiert users.credits_balance
+immer nur, wenn executed_successfully === true und ein gültiger step_type gesetzt ist.
 
-5.3 Fehlerfälle & Credits
+2.4 n8n-Integration (Felder & Sicherheit)
+2.4.1 Outgoing (Start Webhook)
 
-    Bei executed_successfully: true:
+start-workflow.php sendet via cURL:
 
-        Step wird berechnet.
+URL: config['workflow_webhook']
 
-    Bei executed_successfully: false:
+Methode: POST, multipart/form-data
 
-        kein Credit-Abzug.
+Felder:
 
-        Bildpfad:
+file – Hauptbild (CURLFile)
 
-            im Bildworkflow (webhook_image.php):
+optional file_2 – zweites Bild
 
-                Error-Platzhalterbild wird eingetragen (z. B. assets/default-image1.jpg)
+image_ratio – Ratio-Präferenz des Users ('original' oder z. B. '4:5')
 
-    Frontend:
+run_id
 
-        zeigt Credits in Settings + Fehlermeldungen mit 2 Dezimalstellen.
+user_id
 
-6. Frontend-States & Interaktionen (Detail)
-6.1 Statusbar
+ggf. weitere Metadaten, je nach Implementierung
 
-    applyStatusBarMessage(payload, { isRunning }):
+2.4.2 Eingehende Webhooks (Callbacks)
 
-        extrahiert Status-Text
+Autorisierung:
 
-        bei laufendem Workflow:
+receiver.php und webhook_image.php prüfen Header Authorization: Bearer <token>.
 
-            startet animierte Punkte
+api/get-prompt-variants.php prüft Header X-API-TOKEN: <token>.
 
-        bei beendetem Workflow:
+Der Token ist config['receiver_api_token'].
 
-            stoppt Animation und setzt finalen Text
+Wichtige Felder in den n8n-Requests (aus der PHP-Logik ablesbar):
 
-6.2 Image-Grid & Error-Platzhalter
+run_id – Pflicht zur Zuordnung
 
-    renderGeneratedImages(images):
+user_id – sollte zu run.user_id passen
 
-        mappt images auf Slots image_1–image_3
+status / statusmeldung – freier Text oder Deutsches Feld; status_logger.php extrahiert Meldung
 
-        befüllt Slots mit setSlotImageSource(slot, url)
+product_name / produktname
 
-    bei Error-Fall:
+product_description / produktbeschreibung
 
-        Backend trägt Platzhalterpfad in item_images.url ein
+step_type – string, muss zu credits.prices passen
 
-        Frontend behandelt Platzhalter wie ein normales Bild:
+executed_successfully – kann true/false, 1/0, "true"/"false" sein
 
-            Preload verschwindet
+position – Position des Bild-Slots (1–4)
 
-            Slot gilt als gefüllt
+note_id – ID der item_notes-Zeile (optional; wird andernfalls erstellt)
 
-            User sieht klar, dass an dieser Stelle ein Fehlerbild steht
+Fehlerfall (executed_successfully === false):
 
-7. Sicherheit & Fehlerbehandlung
+webhook_image.php:
 
-    Callback-Auth:
+legt/ermittelt item_notes
 
-        Bearer-Token-Check in receiver.php & webhook_image.php
+speichert Platzhalterbild in run_images
 
-        optional IP-Whitelist (receiver_api_allowed_ips)
+schreibt Statuslog
 
-    Uploads:
+keine Credits
 
-        MIME- und Größenprüfungen
+2.5 Frontend-Logik (script.js)
 
-        Pixelgrenzen (max. Megapixel)
+Wichtige Konstanten:
 
-    DB:
+RUNS_ENDPOINT = 'api/get-runs.php'
 
-        PDO Prepared Statements
+RUN_DETAILS_ENDPOINT = 'api/get-run-details.php'
 
-    Credits:
+uploadEndpoint = 'upload.php'
 
-        keine negativen Kontostände
+POLLING_INTERVAL = 2000 (ms)
 
-        Transaktionslogik für Abbuchungen
+DATA_ENDPOINT = 'api/get-latest-item.php'
 
-    Fehlerbilder:
+Kern-Funktionalität:
 
-        Fallback verhindert leere Slots und UI-Inkonsistenzen
+Upload und Preview
 
-8. Erweiterungspunkte
+handleFiles(files) → ruft uploadFile(file) pro Datei.
 
-    neue Step-Typen:
+uploadFile(file) → POST an upload.php, verarbeitet JSON, aktualisiert:
 
-        in config.php['credits']['steps'] ergänzen
+Preview-Liste (#upload-previews)
 
-        in n8n als step_type mitsenden
+Originalimages-Bereich (data-original-images)
 
-        in Backend-Callbacks berücksichtigen
+Start-Button-State
 
-    zusätzliche Bildslots:
+Statusliste (neuer Eintrag “Bild hochgeladen” etc.)
 
-        gallerySlotKeys & CSS anpassen
+Status & Polling
 
-    weitere Panels (z. B. SEO, Preise):
+startPolling() / stopPolling()
 
-        an bestehenden Layout- und State-Logik andocken
+pollLatestItem() → fetch(DATA_ENDPOINT):
+
+verarbeitet data:
+
+run_id
+
+isrunning
+
+status
+
+message
+
+product_name, product_description
+
+original_image, images (Liste)
+
+ruft applyRunDataToUI().
+
+History
+
+loadRuns() → fetch(RUNS_ENDPOINT), rendert Sidebar (#history-sidebar).
+
+loadRunDetails(runId) → fetch(RUN_DETAILS_ENDPOINT + '?id=...'), ruft applyRunDataToUI(data).
+
+UI-Zustände
+
+Status-Bar: Klassen wie status--running, status--idle, etc.
+
+Scan-Overlays: definierte CSS-Klassen (.scan-overlay, .scan-overlay.active)
+
+Generated-Grid: Slots .generated-slot[data-slot="1..4"] mit Inline-Images + Buttons (2K / 4K / Edit – aktuell noch Platzhalter ohne Backend-Funktion).
+
+2.6 Settings & Prompt-Varianten
+
+settings/default_variants.json definiert Standardvarianten für verschiedene Kategorien (z. B. fashion, interior), jeweils 3 Slots mit:
+
+location
+
+lighting
+
+mood
+
+season
+
+model_type
+
+model_pose
+
+view_mode (full_body / garment_closeup)
+
+settings/image_variants.php:
+
+Lädt aktuelle prompt_variants für den User.
+
+Form zur Bearbeitung der Werte je Slot.
+
+POST geht an settings/update_prompt_variants.php, schreibt in prompt_variants.
+
+settings/image.php:
+
+Formulare für:
+
+image_ratio_preference (Select)
+
+Auswahl der Standardkategorie etc.
+
+POST an settings/update_image_settings.php.
+
+settings/credits.php:
+
+Zeigt aktuellen Kontostand (Balance aus credit_transactions).
+
+Erklärt Creditsystem für den User.
+
+2.7 Sicherheit
+
+Session-Cookies:
+
+httponly = true
+
+secure abhängig von HTTPS
+
+samesite = Lax
+
+Passwort-Hashing mit password_hash() / password_verify().
+
+E-Mail-Bestätigung & Reset-Tokens per zufälligen auth_generate_token() (32 Byte random).
+
+n8n-Zugriff mit Bearer-Token / API-Token (kein anonymer Zugriff).
+
+Input-Validation:
+
+filter_var, is_numeric, intval etc. für IDs
+
+prepared statements für DB-Zugriffe
+
+Output-Encoding:
+
+htmlspecialchars(...) an vielen Stellen in index.php, settings/*.php etc.
