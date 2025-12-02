@@ -305,7 +305,7 @@ cloud_upload
     <div class="slot-actions" data-slot-actions="1">
         <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
         
-            <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
+            <div class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></div>
        
         </div>
         <div class="slot-actions__buttons">
@@ -325,7 +325,7 @@ cloud_upload
         <div class="slot-actions" data-slot-actions="2">
             <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
           
-                <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
+                <div class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></div>
            
             </div>
             <div class="slot-actions__buttons">
@@ -345,7 +345,7 @@ cloud_upload
         <div class="slot-actions" data-slot-actions="3">
             <div class="slot-actions__skeleton skeleton-text" aria-hidden="true">
               
-                <span class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></span>
+                <div class="skeleton-line slot-actions__skeleton-line slot-actions__skeleton-line--wide"></div>
                 
             </div>
             <div class="slot-actions__buttons">
