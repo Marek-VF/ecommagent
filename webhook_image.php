@@ -221,6 +221,7 @@ function runBelongsToUser(PDO $pdo, int $userId, int $runId): bool
 
 $storedFilePath = null;
 $statusMessageFromRequest = extract_status_message($_POST);
+$statusEventFromRequest = $statusMessageFromRequest !== null ? resolve_status_event($statusMessageFromRequest) : null;
 $executedSuccessfully = false;
 $stepType = null;
 $stepTypeRaw = null;
@@ -370,11 +371,10 @@ try {
                 ':position' => $position,
             ]);
 
-            $loggedMessage = $statusMessageFromRequest !== null
-                ? $statusMessageFromRequest
-                : 'image generation failed';
+            $eventForLogging = $statusEventFromRequest ?? resolve_status_event($statusMessageFromRequest ?? 'IMAGE_ERROR');
+            $loggedMessage = $eventForLogging['label'] ?? 'image generation failed';
 
-            log_status_message($pdo, $runId, $userId, $loggedMessage);
+            log_event($pdo, $runId, $userId, $eventForLogging['code'] ?? 'IMAGE_ERROR', 'n8n');
 
             $updateRunMessage = $pdo->prepare(
                 'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
@@ -648,9 +648,15 @@ SQL;
             ':position' => $position,
         ]);
 
-        $loggedMessage = $statusMessageFromRequest !== null ? $statusMessageFromRequest : 'image received';
+        $statusCode = $statusMessageFromRequest;
+        if ($statusCode === null && $position !== null && $position >= 1 && $position <= 4) {
+            $statusCode = 'IMAGE_SLOT_' . (int) $position;
+        }
+
+        $eventForLogging = $statusEventFromRequest ?? resolve_status_event($statusCode ?? 'IMAGE_SLOT_1');
+        $loggedMessage = $eventForLogging['label'] ?? 'image received';
         // Neues Statuslog-System: Speichert jede eingehende statusmeldung.
-        log_status_message($pdo, $runId, $userId, $loggedMessage);
+        log_event($pdo, $runId, $userId, $eventForLogging['code'] ?? 'IMAGE_SLOT_1', 'n8n');
 
         if ($loggedMessage !== '') {
             $updateRunMessage = $pdo->prepare(

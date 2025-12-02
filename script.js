@@ -14,6 +14,7 @@ const articleDescriptionOutput = document.getElementById('article-description-co
 const articleNameGroup = document.getElementById('article-name-group');
 const articleDescriptionGroup = document.getElementById('article-description-group');
 const workflowOutput = document.getElementById('workflow-output');
+const statusFeedContainer = document.getElementById('status-feed');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
 const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
@@ -222,6 +223,7 @@ const lastHandledStepStatusByRun = {};
 
 const RUNS_ENDPOINT = 'api/get-runs.php';
 const RUN_DETAILS_ENDPOINT = 'api/get-run-details.php';
+const STATUS_FEED_ENDPOINT = 'api/get-status-feed.php';
 
 const uploadEndpoint = 'upload.php';
 const POLLING_INTERVAL = 2000;
@@ -268,6 +270,77 @@ const setScanOverlayActive = (isActive) => {
         }
     });
 };
+
+function renderStatusFeed(items) {
+    if (!statusFeedContainer) {
+        return;
+    }
+
+    statusFeedContainer.innerHTML = '';
+
+    if (!Array.isArray(items) || items.length === 0) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'status-empty';
+        emptyState.textContent = 'Keine Statusmeldungen vorhanden.';
+        statusFeedContainer.appendChild(emptyState);
+        return;
+    }
+
+    items.forEach((item) => {
+        const entry = document.createElement('div');
+        entry.className = 'status-item';
+
+        if (item && typeof item.severity === 'string') {
+            entry.dataset.severity = item.severity;
+        }
+
+        const iconWrapper = document.createElement('span');
+        iconWrapper.className = 'status-icon-wrapper';
+        if (item && typeof item.icon_html === 'string') {
+            iconWrapper.innerHTML = item.icon_html;
+        }
+
+        const content = document.createElement('div');
+        content.className = 'status-content';
+
+        const text = document.createElement('p');
+        text.className = 'status-text';
+        text.textContent = item && typeof item.message === 'string' ? item.message : '';
+
+        content.appendChild(text);
+        entry.appendChild(iconWrapper);
+        entry.appendChild(content);
+
+        statusFeedContainer.appendChild(entry);
+    });
+}
+
+async function fetchStatusFeed() {
+    if (!statusFeedContainer) {
+        return;
+    }
+
+    const params = new URLSearchParams();
+    if (activeRunId) {
+        params.set('run_id', String(activeRunId));
+    }
+
+    const url = params.toString() ? `${STATUS_FEED_ENDPOINT}?${params.toString()}` : STATUS_FEED_ENDPOINT;
+    const response = await fetch(url, {
+        cache: 'no-store',
+    });
+
+    if (!response.ok) {
+        throw new Error(`Serverantwort ${response.status}`);
+    }
+
+    const raw = await response.json();
+    if (!raw || typeof raw !== 'object' || raw.ok !== true || !Array.isArray(raw.data)) {
+        return;
+    }
+
+    renderStatusFeed(raw.data);
+}
 
 const toAbsoluteUrl = (path) => {
     if (path === undefined || path === null) {
@@ -2303,6 +2376,12 @@ async function fetchLatestItem() {
         }
 
         const normalized = updateUiWithData(payload);
+
+        try {
+            await fetchStatusFeed();
+        } catch (feedError) {
+            console.error('Status-Feed-Fehler:', feedError);
+        }
 
         const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
         const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : toBoolean(payload.isrunning);
