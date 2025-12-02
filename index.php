@@ -220,6 +220,7 @@ $appConfig = [
                 <h3 class="status-header">Status Updates</h3>
             </div>
             <div class="status-list" id="status-feed" aria-live="polite"></div>
+            <div class="status-empty" id="status-feed-empty" style="display: none;">keine Statusmeldung vorhanden</div>
         </div>
 
 
