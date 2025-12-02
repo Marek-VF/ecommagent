@@ -64,10 +64,25 @@ try {
     }
 
     if ($runId === null) {
+        $lastRunStatement = $pdo->prepare(
+            'SELECT id FROM workflow_runs WHERE user_id = :user_id ORDER BY id DESC LIMIT 1'
+        );
+        $lastRunStatement->execute([':user_id' => $userId]);
+        $lastRunId = $lastRunStatement->fetchColumn();
+
+        if ($lastRunId !== false) {
+            $runId = (int) $lastRunId;
+            if ($runId <= 0) {
+                $runId = null;
+            }
+        }
+    }
+
+    if ($runId === null) {
         echo json_encode([
             'ok'     => true,
             'run_id' => null,
-            'data'   => [],
+            'items'  => [],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
@@ -113,7 +128,7 @@ try {
     echo json_encode([
         'ok'     => true,
         'run_id' => $runId,
-        'data'   => $logs,
+        'items'  => $logs,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $exception) {
     http_response_code(500);

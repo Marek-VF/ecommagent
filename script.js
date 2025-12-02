@@ -15,6 +15,7 @@ const articleNameGroup = document.getElementById('article-name-group');
 const articleDescriptionGroup = document.getElementById('article-description-group');
 const workflowOutput = document.getElementById('workflow-output');
 const statusFeedContainer = document.getElementById('status-feed');
+const statusFeedEmpty = document.getElementById('status-feed-empty');
 const HISTORY_SIDEBAR = document.getElementById('history-sidebar');
 const HISTORY_LIST = document.getElementById('history-list');
 const HISTORY_TOGGLE = document.getElementById('history-toggle');
@@ -278,21 +279,27 @@ function renderStatusFeed(items) {
 
     statusFeedContainer.innerHTML = '';
 
+    const emptyNode = statusFeedEmpty || null;
+
     if (!Array.isArray(items) || items.length === 0) {
-        const emptyState = document.createElement('p');
-        emptyState.className = 'status-empty';
-        emptyState.textContent = 'Keine Statusmeldungen vorhanden.';
-        statusFeedContainer.appendChild(emptyState);
+        if (emptyNode) {
+            emptyNode.style.display = '';
+        }
         return;
+    }
+
+    if (emptyNode) {
+        emptyNode.style.display = 'none';
     }
 
     items.forEach((item) => {
         const entry = document.createElement('div');
-        entry.className = 'status-item';
+        const severity = item && typeof item.severity === 'string' && item.severity.trim() !== ''
+            ? item.severity.trim()
+            : 'info';
+        entry.className = `status-item status-item--${severity}`;
 
-        if (item && typeof item.severity === 'string') {
-            entry.dataset.severity = item.severity;
-        }
+        entry.dataset.severity = severity;
 
         const iconWrapper = document.createElement('span');
         iconWrapper.className = 'status-icon-wrapper';
@@ -335,11 +342,11 @@ async function fetchStatusFeed() {
     }
 
     const raw = await response.json();
-    if (!raw || typeof raw !== 'object' || raw.ok !== true || !Array.isArray(raw.data)) {
+    if (!raw || typeof raw !== 'object' || raw.ok !== true || !Array.isArray(raw.items)) {
         return;
     }
 
-    renderStatusFeed(raw.data);
+    renderStatusFeed(raw.items);
 }
 
 const toAbsoluteUrl = (path) => {
