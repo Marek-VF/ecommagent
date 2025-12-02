@@ -314,43 +314,48 @@ cloud_upload
         <div class="generated-slot" data-slot="1" role="button" aria-label="Bildvorschau 1" tabindex="0">
             <div class="render-shell"><div class="render-box"></div></div>
         </div>
-    <div class="slot-actions">
-        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
-            <span class="material-icons-outlined">edit</span>
-        </button>
-        
-    
-    </div>
+        <div class="slot-actions slot-actions--skeleton">
+            <div class="slot-actions__skeleton-line skeleton-line"></div>
+        </div>
+        <div class="slot-actions slot-actions--menu is-hidden">
+            <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+                <span class="material-icons-outlined">edit</span>
+            </button>
+        </div>
     </div>
 
     <div class="generated-card">
         <div class="generated-slot" data-slot="2" role="button" aria-label="Bildvorschau 2" tabindex="0">
             <div class="render-shell"><div class="render-box"></div></div>
         </div>
-        <div class="slot-actions">
-        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
-            <span class="material-icons-outlined">edit</span>
-        </button>
-   
-    </div>
+        <div class="slot-actions slot-actions--skeleton">
+            <div class="slot-actions__skeleton-line skeleton-line"></div>
+        </div>
+        <div class="slot-actions slot-actions--menu is-hidden">
+            <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+                <span class="material-icons-outlined">edit</span>
+            </button>
+        </div>
     </div>
 
     <div class="generated-card">
         <div class="generated-slot" data-slot="3" role="button" aria-label="Bildvorschau 3" tabindex="0">
             <div class="render-shell"><div class="render-box"></div></div>
         </div>
-<div class="slot-actions">
-        <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
-        <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
-            <span class="material-icons-outlined">edit</span>
-        </button>
-    
-    </div>
+        <div class="slot-actions slot-actions--skeleton">
+            <div class="slot-actions__skeleton-line skeleton-line"></div>
+        </div>
+        <div class="slot-actions slot-actions--menu is-hidden">
+            <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
+                <span class="material-icons-outlined">edit</span>
+            </button>
+        </div>
     </div>
 </div>
 
