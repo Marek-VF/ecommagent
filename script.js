@@ -891,6 +891,11 @@ const gallerySlotKeys = ['image_1', 'image_2', 'image_3'];
 
 const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).map((container, index) => {
     const key = gallerySlotKeys[index] || `image_${index + 1}`;
+    const card = container.closest('.generated-card');
+    const skeletonActions = card ? card.querySelector('.slot-actions--skeleton') : null;
+    const menuActions = card ? card.querySelector('.slot-actions--menu') : null;
+    const skeletonLine = skeletonActions ? skeletonActions.querySelector('.slot-actions__skeleton-line') : null;
+
     container.dataset.slotKey = key;
     container.dataset.currentSrc = '';
     container.dataset.hasContent = 'false';
@@ -915,6 +920,11 @@ const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).ma
         key,
         index,
         container,
+        actions: {
+            skeleton: skeletonActions,
+            skeletonLine,
+            menu: menuActions,
+        },
     };
 });
 
@@ -975,6 +985,41 @@ const setSlotLoadingState = (slot, loading) => {
     if (renderBox) {
         renderBox.classList.toggle('preload', Boolean(loading));
     }
+};
+
+const setSlotActionState = (slot, options = {}) => {
+    if (!slot) {
+        return;
+    }
+
+    const hasImage = Boolean(options.hasImage);
+    const isRunning = Boolean(options.isRunning);
+    const skeletonBar = slot.actions?.skeleton;
+    const skeletonLine = slot.actions?.skeletonLine || (skeletonBar ? skeletonBar.querySelector('.slot-actions__skeleton-line') : null);
+    const menuBar = slot.actions?.menu;
+
+    if (skeletonBar) {
+        skeletonBar.classList.toggle('is-hidden', hasImage);
+    }
+
+    if (skeletonLine) {
+        skeletonLine.classList.toggle('skeleton-line--shimmer', isRunning && !hasImage);
+    }
+
+    if (menuBar) {
+        menuBar.classList.toggle('is-hidden', !hasImage);
+    }
+};
+
+const updateSlotActions = (isRunning = workflowIsRunning) => {
+    gallerySlots.forEach((slot) => {
+        if (!slot || !slot.container) {
+            return;
+        }
+
+        const hasImage = slot.container.dataset.hasContent === 'true';
+        setSlotActionState(slot, { isRunning, hasImage });
+    });
 };
 
 // Preload-Animation vom aktuellen Bild-Slot entfernen und ggf. auf den nächsten Slot verschieben
@@ -1291,6 +1336,8 @@ function renderGeneratedImages(images) {
         lastKnownImages[slot.key] = null;
     });
 
+    updateSlotActions(workflowIsRunning);
+
     if (workflowOutputController) {
         workflowOutputController.sync();
     }
@@ -1300,6 +1347,8 @@ gallerySlots.forEach((slot) => {
     clearSlotContent(slot);
     setSlotLoadingState(slot, false);
 });
+
+updateSlotActions(workflowIsRunning);
 
 let isProcessing = false;
 let isStartingWorkflow = false;
@@ -1429,6 +1478,12 @@ const setLoadingState = (loading, options = {}) => {
     if (options && options.indicatorText) {
         updateProcessingIndicator(options.indicatorText, options.indicatorState || 'idle');
     }
+
+    if (loading) {
+        workflowIsRunning = true;
+    }
+
+    updateSlotActions(workflowIsRunning || Boolean(loading));
 
     updateWorkflowButtonState();
 };
@@ -1830,6 +1885,8 @@ const updateInterfaceFromData = (data) => {
         }
     });
 
+    updateSlotActions(isRunning);
+
     if (workflowOutputController) {
         workflowOutputController.sync();
     }
@@ -1894,6 +1951,9 @@ const applyRunDataToUI = (payload) => {
             lastKnownImages[slotKey] = null;
         }
     });
+
+    workflowIsRunning = runIsRunning;
+    updateSlotActions(runIsRunning);
 
     if (workflowOutputController) {
         workflowOutputController.sync();

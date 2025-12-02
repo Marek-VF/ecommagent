@@ -1439,24 +1439,44 @@ textarea {
 
 /* --- Action Bar (Die Menüleiste) --- */
 .slot-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 4 gleich große Spalten */
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: 8px; /* Leicht abgerundet */
     overflow: hidden; /* Damit die inneren Buttons nicht überstehen */
     height: 40px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-    /* Leiste standardmäßig ausblenden und nur zeigen, wenn Bild da ist? 
-       Aktuell zeigen wir sie immer, wie im Screenshot. */
-    opacity: 0.6; /* Inaktiv, solange kein Bild da ist (optional) */
     transition: opacity 0.2s;
 }
 
+.slot-actions--menu {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    opacity: 0.6; /* Inaktiv, solange kein Bild da ist (optional) */
+}
+
 /* Wenn das Bild geladen ist (wir simulieren das über Hover oder JS Klasse später) */
-.generated-card:hover .slot-actions,
-.generated-slot.has-image ~ .slot-actions {
+.generated-card:hover .slot-actions--menu,
+.generated-slot.has-image ~ .slot-actions--menu {
     opacity: 1;
+}
+
+.slot-actions--skeleton {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.slot-actions__skeleton-line {
+    height: 14px;
+    width: 100%;
+}
+
+.slot-actions__skeleton-line.skeleton-line--shimmer::after {
+    animation: skeleton-shine 1.5s infinite ease-in-out;
+}
+
+.slot-actions.is-hidden {
+    display: none;
 }
 
 .action-btn {
