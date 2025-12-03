@@ -233,6 +233,34 @@ const DATA_ENDPOINT = 'api/get-latest-item.php';
 const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
 const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
 
+
+async function logFrontendStatus(statusCode) {
+    try {
+        const payload = {
+            status_code: statusCode,
+        };
+
+        // run_id hängt in deinem Frontend an currentRunId / activeRunId
+        if (window.currentRunId) {
+            payload.run_id = window.currentRunId;
+        } else if (typeof activeRunId !== 'undefined' && activeRunId) {
+            payload.run_id = activeRunId;
+        }
+
+        await fetch('api/log-status-event.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+    } catch (error) {
+        console.error('Frontend-Status konnte nicht geloggt werden:', error);
+    }
+}
+
+
+
 function updateStartButtonState(hasUpload) {
     const btn = document.getElementById('start-workflow-btn');
     if (!btn) {
@@ -1734,6 +1762,17 @@ const uploadFiles = async (files) => {
                 activeRunId = null;
                 setCurrentRun(null, result.user_id);
             }
+
+            try {
+                logFrontendStatus('UPLOAD_SUCCESS');
+                // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
+                fetchStatusFeed().catch((err) => {
+                    console.error('Status-Feed-Fehler nach Upload:', err);
+                });
+            } catch (e) {
+                console.error('Fehler beim Logging von UPLOAD_SUCCESS:', e);
+            }
+
 
             const runChanged = window.currentRunId !== previousRunId && window.currentRunId !== null;
 
