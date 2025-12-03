@@ -1653,7 +1653,7 @@ const uploadFiles = async (files) => {
     hasObservedActiveRun = false;
     workflowIsRunning = false;
 
-    setStatus('info', 'Bild wird hochgeladen …');
+    setStatusAndLog('info', 'Bild wird hochgeladen …', 'UPLOAD_STARTED');
     updateProcessingIndicator('Bild wird hochgeladen …', 'running');
 
     const uploads = fileList.map(async (file) => {
@@ -1683,7 +1683,7 @@ const uploadFiles = async (files) => {
                 const errorMessage = typeof payload === 'object' && payload !== null && typeof payload.message === 'string'
                     ? payload.message
                     : `Upload fehlgeschlagen: ${file.name}`;
-                setStatus('error', errorMessage);
+                setStatusAndLog('error', errorMessage, 'UPLOAD_FAILED');
                 console.error('Upload fehlgeschlagen', {
                     status: response.status,
                     payload,
@@ -1710,12 +1710,12 @@ const uploadFiles = async (files) => {
                 const errorMessage = typeof result.message === 'string'
                     ? result.message
                     : `Upload fehlgeschlagen: ${file.name}`;
-                setStatus('error', errorMessage);
+                setStatusAndLog('error', errorMessage, 'UPLOAD_FAILED');
                 setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
                 return;
             }
 
-            setStatus('success', 'Upload erfolgreich – Workflow kann gestartet werden.');
+            setStatusAndLog('success', 'Upload erfolgreich – Workflow kann gestartet werden.', 'UPLOAD_SUCCESS');
             setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
             hasShownCompletion = false;
 
@@ -1760,7 +1760,7 @@ const uploadFiles = async (files) => {
             const message = sanitizeLogMessage(error?.message) || fallback;
             console.error(message);
             setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
-            setStatus('error', 'Uploadfehler – bitte erneut versuchen.');
+            setStatusAndLog('error', 'Uploadfehler – bitte erneut versuchen.', 'UPLOAD_FAILED');
         }
     });
 
@@ -1855,7 +1855,7 @@ async function startWorkflow() {
                 : 'Workflow konnte nicht gestartet werden.';
 
             showWorkflowFeedback('error', message);
-            setStatus('error', message);
+            setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
 
             if (result.logout) {
                 window.location.href = 'auth/logout.php';
@@ -1873,7 +1873,7 @@ async function startWorkflow() {
         activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
 
         showWorkflowFeedback('success', successMessage);
-        setStatus('info', 'Verarbeitung läuft …');
+        setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_STARTED');
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
         clearProductFields({ loading: true });
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
@@ -1889,7 +1889,7 @@ async function startWorkflow() {
 
         console.error('Workflow-Start fehlgeschlagen', error);
         showWorkflowFeedback('error', message);
-        setStatus('error', message);
+        setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
     } finally {
         isStartingWorkflow = false;
         if (startWorkflowButton) {
@@ -2402,7 +2402,7 @@ async function fetchLatestItem() {
 
         if (!isRunning) {
             if (statusLabel === 'pending') {
-                setStatus('info', 'Bereit für Workflow-Start');
+                setStatusAndLog('info', 'Bereit für Workflow-Start', 'WORKFLOW_PENDING');
                 if (!statusBarText) {
                     showWorkflowFeedback('info', 'Workflow bereit zum Start.');
                 }
@@ -2411,7 +2411,7 @@ async function fetchLatestItem() {
                     setCurrentRun(payload.run_id);
                 }
             } else {
-                setStatus('success', 'Workflow abgeschlossen');
+                setStatusAndLog('success', 'Workflow abgeschlossen', 'WORKFLOW_COMPLETED');
                 if (!statusBarText) {
                     showWorkflowFeedback('success', 'Workflow abgeschlossen.');
                 }
@@ -2420,14 +2420,14 @@ async function fetchLatestItem() {
                 setCurrentRun(null);
             }
         } else {
-            setStatus('info', 'Verarbeitung läuft …');
+            setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_RUNNING');
             if (!statusBarText) {
                 showWorkflowFeedback('info', 'Verarbeitung läuft …');
             }
         }
     } catch (error) {
         console.error('Polling-Fehler:', error);
-        setStatus('error', 'Fehler beim Abrufen des Status');
+        setStatusAndLog('error', 'Fehler beim Abrufen des Status', 'STATUS_POLLING_ERROR');
     }
 }
 
@@ -2601,6 +2601,49 @@ function showPlaceholderImages(withPulse = false) {
     });
 }
 
+async function logFrontendStatus(statusCode) {
+    try {
+        const payload = { status_code: statusCode };
+
+        if (window.currentRunId) {
+            payload.run_id = window.currentRunId;
+        } else if (typeof activeRunId !== 'undefined' && activeRunId) {
+            payload.run_id = activeRunId;
+        }
+
+        const response = await fetch('api/log-status-event.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            console.error('log-status-event.php antwortet mit HTTP', response.status);
+        }
+    } catch (error) {
+        console.error('Frontend-Status konnte nicht geloggt werden:', error);
+    }
+}
+
+function setStatusAndLog(level, message, statusCode) {
+    setStatus(level, message);
+
+    if (!statusCode) {
+        return;
+    }
+
+    try {
+        const result = logFrontendStatus(statusCode);
+        if (result && typeof result.catch === 'function') {
+            result.catch((error) => {
+                console.error('Fehler beim Logging des Frontend-Status:', error);
+            });
+        }
+    } catch (error) {
+        console.error('Fehler beim Aufruf von logFrontendStatus:', error);
+    }
+}
+
 function setStatus(level, message) {
     const normalizedMessage = sanitizeLogMessage(message);
     if (!normalizedMessage) {
@@ -2644,7 +2687,7 @@ function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
     activeRunId = null;
-    setStatus('ready', 'Bereit zum Upload');
+    setStatusAndLog('ready', 'Bereit zum Upload', 'READY_FOR_UPLOAD');
     clearProductFields({ loading: false });
     setLoadingState(false, { indicatorText: 'Bereit.', indicatorState: 'idle' });
     showPlaceholderImages(withPulse);

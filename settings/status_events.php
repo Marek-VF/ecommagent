@@ -2,10 +2,34 @@
 
 return [
 
+    'WORKFLOW_START_FAILED' => [
+        'label'     => 'Workflow konnte nicht gestartet werden.',
+        'severity'  => 'error',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error_outline</span>',
+    ],
+
     'WORKFLOW_STARTED' => [
-        'label'     => 'Workflow gestartet.',
+        'label'     => 'Workflow wurde gestartet.',
         'severity'  => 'info',
         'icon_html' => '<span class="material-icons-outlined status-icon text-info">play_circle</span>',
+    ],
+
+    'WORKFLOW_PENDING' => [
+        'label'     => 'Workflow bereit zum Start.',
+        'severity'  => 'info',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-info">hourglass_empty</span>',
+    ],
+
+    'WORKFLOW_RUNNING' => [
+        'label'     => 'Verarbeitung läuft …',
+        'severity'  => 'info',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-info">autorenew</span>',
+    ],
+
+    'WORKFLOW_COMPLETED' => [
+        'label'     => 'Workflow abgeschlossen.',
+        'severity'  => 'success',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-success">check_circle</span>',
     ],
 
     'WORKFLOW_FINISHED_SUCCESS' => [
@@ -93,13 +117,13 @@ return [
     ],
 
     'UPLOAD_STARTED' => [
-        'label'     => 'Upload gestartet.',
+        'label'     => 'Bild wird hochgeladen …',
         'severity'  => 'info',
         'icon_html' => '<span class="material-icons-outlined status-icon text-info">upload</span>',
     ],
 
     'UPLOAD_SUCCESS' => [
-        'label'     => 'Upload erfolgreich abgeschlossen.',
+        'label'     => 'Upload erfolgreich – Workflow kann gestartet werden.',
         'severity'  => 'success',
         'icon_html' => '<span class="material-icons-outlined status-icon text-success">cloud_upload</span>',
     ],
@@ -107,7 +131,7 @@ return [
     'UPLOAD_FAILED' => [
         'label'     => 'Upload fehlgeschlagen.',
         'severity'  => 'error',
-        'icon_html' => '<span class="material-icons-outlined status-icon text-danger">upload_file</span>',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error</span>',
     ],
 
     'UPLOAD_HTTP_404' => [
@@ -132,6 +156,18 @@ return [
         'label'     => 'Ein unerwarteter Fehler ist aufgetreten.',
         'severity'  => 'error',
         'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error</span>',
+    ],
+
+    'STATUS_POLLING_ERROR' => [
+        'label'     => 'Fehler beim Abrufen des Status.',
+        'severity'  => 'error',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-danger">warning</span>',
+    ],
+
+    'READY_FOR_UPLOAD' => [
+        'label'     => 'Bereit zum Upload.',
+        'severity'  => 'info',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-info">cloud_upload</span>',
     ],
 
     'AUTH_SESSION_EXPIRED' => [
