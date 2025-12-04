@@ -1416,6 +1416,17 @@ function renderGeneratedImages(images) {
         const rawData = imageList[index];
 
         if (rawData) {
+            if (
+                rawData
+                && typeof rawData === 'object'
+                && Object.prototype.hasOwnProperty.call(rawData, 'id')
+                && rawData.id !== undefined
+                && rawData.id !== null
+            ) {
+                slot.container.dataset.imageId = rawData.id;
+            }
+
+            console.log('Rendering Slot', index, 'ID:', rawData.id);
             let imageUrl = '';
             let altText = `Generiertes Bild ${index + 1}`;
             const positionFromData = Number(rawData.position);
@@ -1441,6 +1452,14 @@ function renderGeneratedImages(images) {
 
                 imageElement.src = resolvedUrl;
                 imageElement.alt = altText;
+
+                if (
+                    Object.prototype.hasOwnProperty.call(rawData, 'id')
+                    && rawData.id !== undefined
+                    && rawData.id !== null
+                ) {
+                    imageElement.dataset.imageId = rawData.id;
+                }
 
                 if (Number.isFinite(imageId)) {
                     imageElement.dataset.imageId = String(imageId);
@@ -1840,6 +1859,7 @@ async function startWorkflow() {
     const effectiveRunId = activeRunId || window.currentRunId;
 
     if (!effectiveRunId) {
+        console.error('Kein aktiver Run vorhanden', { activeRunId, currentRunId: window.currentRunId });
         showWorkflowFeedback('error', 'Kein Run ausgewählt.');
         return;
     }
@@ -1887,7 +1907,6 @@ async function startWorkflow() {
             const resolvedImageUrl = imageSrc ? (toAbsoluteUrl(imageSrc) || imageSrc) : '';
             const imageId = (img && img.dataset.imageId) || (slotContainer && slotContainer.dataset.imageId);
             const positionRaw = slotContainer && slotContainer.dataset.slot;
-            const numericImageId = Number(imageId);
             const position = Number(positionRaw);
 
             if (!resolvedImageUrl) {
@@ -1899,20 +1918,14 @@ async function startWorkflow() {
             }
 
             if (!imageId) {
-                const message = 'Keine Bild-ID für das Update gefunden.';
-                console.error(message);
-                showWorkflowFeedback('error', message);
-                await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
-                await fetchStatusFeed();
-                return;
+                throw new Error('Bild-ID nicht gefunden (DOM)');
             }
 
             payload.action = actionType;
             payload.image_url = resolvedImageUrl;
 
-            if (Number.isFinite(numericImageId)) {
-                payload.image_id = numericImageId;
-            }
+            payload.image_id = parseInt(imageId, 10);
+            payload.run_id = effectiveRunId;
 
             if (Number.isFinite(position)) {
                 payload.position = position;
@@ -2090,6 +2103,11 @@ const updateInterfaceFromData = (data) => {
     if (!isRunning) {
         stopPolling();
     }
+
+    if (Object.prototype.hasOwnProperty.call(data, 'run_id') && data.run_id !== undefined && data.run_id !== null) {
+        activeRunId = Number(data.run_id);
+        window.currentRunId = Number(data.run_id);
+    }
 };
 
 const applyRunDataToUI = (payload) => {
@@ -2257,6 +2275,7 @@ const loadRunDetails = async (runId) => {
         applyRunDataToUI(data);
         activeRunId = numericId;
         window.currentRunId = numericId;
+        console.log('History loaded, Set Active Run:', activeRunId);
         setActiveRun(numericId);
         updateWorkflowButtonState();
     } catch (error) {
