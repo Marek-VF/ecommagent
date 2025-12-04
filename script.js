@@ -1015,6 +1015,7 @@ const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).ma
     const skeletonLine = skeletonActions ? skeletonActions.querySelector('.slot-actions__skeleton-line') : null;
 
     container.dataset.slotKey = key;
+    container.dataset.slot = String(index + 1);
     container.dataset.currentSrc = '';
     container.dataset.hasContent = 'false';
     container.dataset.isLoading = 'false';
@@ -1078,6 +1079,7 @@ const clearSlotContent = (slot) => {
 
     slot.container.dataset.hasContent = 'false';
     slot.container.dataset.currentSrc = '';
+    delete slot.container.dataset.imageId;
     slot.container.classList.remove('has-image');
     slot.container.classList.remove('has-shadow');
     slot.container.classList.remove('first-active');
@@ -1416,6 +1418,8 @@ function renderGeneratedImages(images) {
         if (rawData) {
             let imageUrl = '';
             let altText = `Generiertes Bild ${index + 1}`;
+            const positionFromData = Number(rawData.position);
+            const imageId = Number(rawData.id);
 
             if (typeof rawData === 'string') {
                 imageUrl = rawData;
@@ -1436,11 +1440,22 @@ function renderGeneratedImages(images) {
                 imageElement.src = resolvedUrl;
                 imageElement.alt = altText;
 
+                if (Number.isFinite(imageId)) {
+                    imageElement.dataset.imageId = String(imageId);
+                    slot.container.dataset.imageId = String(imageId);
+                } else {
+                    delete imageElement.dataset.imageId;
+                    delete slot.container.dataset.imageId;
+                }
+
                 slot.container.classList.add('has-image');
                 slot.container.classList.add('has-shadow');
                 slot.container.classList.remove('is-hidden');
                 slot.container.dataset.hasContent = 'true';
                 slot.container.dataset.currentSrc = resolvedUrl;
+                slot.container.dataset.slot = Number.isFinite(positionFromData)
+                    ? String(positionFromData)
+                    : String(index + 1);
                 slot.container.dataset.isLoading = 'false';
                 lastKnownImages[slot.key] = resolvedUrl;
 
@@ -1865,8 +1880,13 @@ async function startWorkflow() {
 
             const card = activeToggle.closest('.generated-card');
             const cardImage = card ? card.querySelector('img') : null;
+            const slotContainer = card ? card.querySelector('.generated-slot') : null;
             const imageSrc = cardImage && cardImage.src ? cardImage.src.trim() : '';
             const resolvedImageUrl = imageSrc ? (toAbsoluteUrl(imageSrc) || imageSrc) : '';
+            const imageIdRaw = (cardImage && cardImage.dataset.imageId) || (slotContainer && slotContainer.dataset.imageId);
+            const positionRaw = slotContainer && slotContainer.dataset.slot;
+            const imageId = Number(imageIdRaw);
+            const position = Number(positionRaw);
 
             if (!resolvedImageUrl) {
                 const message = 'Kein Bild für das Update gefunden.';
@@ -1878,6 +1898,14 @@ async function startWorkflow() {
 
             payload.action = actionType;
             payload.image_url = resolvedImageUrl;
+
+            if (Number.isFinite(imageId)) {
+                payload.image_id = imageId;
+            }
+
+            if (Number.isFinite(position)) {
+                payload.position = position;
+            }
         } else {
             const firstImage = Array.isArray(window.currentOriginalImages)
                 ? window.currentOriginalImages[0]
@@ -2073,6 +2101,7 @@ const applyRunDataToUI = (payload) => {
     const normalizedImages = images.map((entry) => ({
         position: Number(entry.position),
         url: typeof entry.url === 'string' ? entry.url.trim() : '',
+        id: Number(entry.id),
     }));
 
     gallerySlots.forEach((slot) => {
@@ -2095,6 +2124,20 @@ const applyRunDataToUI = (payload) => {
             const resolvedImageUrl = toAbsoluteUrl(image.url);
             if (resolvedImageUrl) {
                 setSlotImageSource(slot, resolvedImageUrl);
+                slot.container.dataset.slot = String(expectedPosition);
+                if (Number.isFinite(image.id)) {
+                    slot.container.dataset.imageId = String(image.id);
+                    const imgElement = slot.container.querySelector('img');
+                    if (imgElement) {
+                        imgElement.dataset.imageId = String(image.id);
+                    }
+                } else {
+                    delete slot.container.dataset.imageId;
+                    const imgElement = slot.container.querySelector('img');
+                    if (imgElement) {
+                        delete imgElement.dataset.imageId;
+                    }
+                }
                 setSlotLoadingState(slot, false);
                 lastKnownImages[slotKey] = resolvedImageUrl;
             } else {
