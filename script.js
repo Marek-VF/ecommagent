@@ -1827,12 +1827,7 @@ function onWorkflowStarted() {
 
 async function startWorkflow() {
     const runId = window.currentRunId;
-    const numericRunId = Number(runId);
-
-    if (!Number.isFinite(numericRunId) || numericRunId <= 0) {
-        showWorkflowFeedback('error', 'Bitte zuerst ein Bild hochladen.');
-        return;
-    }
+    const activeToggle = document.querySelector('.btn-toggle.is-active');
 
     if (isStartingWorkflow) {
         return;
@@ -1848,30 +1843,83 @@ async function startWorkflow() {
     }
 
     try {
-        const payload = {
-            run_id: numericRunId,
-            user_id: window.currentUserId,
-        };
+        const numericRunId = Number(runId);
+        const hasRunId = Number.isFinite(numericRunId) && numericRunId > 0;
+        const hasOriginalImages = Array.isArray(window.currentOriginalImages)
+            ? window.currentOriginalImages.length > 0
+            : false;
 
-        const firstImage = Array.isArray(window.currentOriginalImages)
-            ? window.currentOriginalImages[0]
-            : null;
-        const secondImage = Array.isArray(window.currentOriginalImages)
-            ? window.currentOriginalImages[1]
-            : null;
+        let endpoint = 'start-workflow.php';
+        let payload = {};
 
-        const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
-        const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
+        if (activeToggle) {
+            const generatedCard = activeToggle.closest('.generated-card');
+            const generatedSlot = generatedCard ? generatedCard.querySelector('.generated-slot') : null;
+            const imageId = generatedSlot?.dataset?.imageId;
+            const position = generatedSlot?.dataset?.slot;
+            const action = activeToggle.dataset ? activeToggle.dataset.type : undefined;
 
-        if (resolvedFirstImage) {
-            payload.image_url = resolvedFirstImage;
+            if (!imageId) {
+                const message = 'Bild-ID fehlt. Bitte Seite neu laden.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            if (!hasRunId) {
+                const message = 'Bild-ID fehlt. Bitte Seite neu laden.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            endpoint = 'start-workflow-update.php';
+            payload = {
+                run_id: numericRunId,
+                image_id: imageId,
+                action,
+                position,
+            };
+        } else {
+            if (!hasOriginalImages) {
+                const message = 'Bitte zuerst ein Bild hochladen.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            if (!hasRunId) {
+                const message = 'Bitte zuerst ein Bild hochladen.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            payload = {
+                run_id: numericRunId,
+                user_id: window.currentUserId,
+            };
+
+            const firstImage = Array.isArray(window.currentOriginalImages)
+                ? window.currentOriginalImages[0]
+                : null;
+            const secondImage = Array.isArray(window.currentOriginalImages)
+                ? window.currentOriginalImages[1]
+                : null;
+
+            const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
+            const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
+
+            if (resolvedFirstImage) {
+                payload.image_url = resolvedFirstImage;
+            }
+
+            if (resolvedSecondImage) {
+                payload.image_url_2 = resolvedSecondImage;
+            }
         }
 
-        if (resolvedSecondImage) {
-            payload.image_url_2 = resolvedSecondImage;
-        }
-
-        const response = await fetch('start-workflow.php', {
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1934,14 +1982,11 @@ async function startWorkflow() {
         console.error('Workflow-Start fehlgeschlagen', error);
         showWorkflowFeedback('error', message);
         setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
-        //mb
-
-                logFrontendStatus('WORKFLOW_START_FAILED');
-                // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
-                fetchStatusFeed().catch((err) => {
-                    console.error('Status-Feed-Fehler nach Upload:', err);
-                });     
-
+        logFrontendStatus('WORKFLOW_START_FAILED');
+        // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
+        fetchStatusFeed().catch((err) => {
+            console.error('Status-Feed-Fehler nach Upload:', err);
+        });
     } finally {
         isStartingWorkflow = false;
         if (startWorkflowButton) {
