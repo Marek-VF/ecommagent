@@ -1847,25 +1847,71 @@ async function startWorkflow() {
             user_id: window.currentUserId,
         };
 
-        const firstImage = Array.isArray(window.currentOriginalImages)
-            ? window.currentOriginalImages[0]
-            : null;
-        const secondImage = Array.isArray(window.currentOriginalImages)
-            ? window.currentOriginalImages[1]
-            : null;
+        const activeToggle = document.querySelector('.btn-toggle.is-active');
+        let targetUrl = 'start-workflow.php';
 
-        const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
-        const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
+        if (activeToggle) {
+            const actionType = typeof activeToggle.dataset.type === 'string'
+                ? activeToggle.dataset.type.trim()
+                : '';
 
-        if (resolvedFirstImage) {
-            payload.image_url = resolvedFirstImage;
+            if (!actionType) {
+                const message = 'Bitte eine Aktion auswählen.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            const card = activeToggle.closest('.generated-card');
+            let slotImageUrl = '';
+
+            if (card) {
+                const slot = card.querySelector('.generated-slot');
+                if (slot) {
+                    slotImageUrl = slot.dataset.currentSrc || '';
+
+                    if (!slotImageUrl) {
+                        const slotImage = slot.querySelector('img');
+                        if (slotImage && slotImage.src) {
+                            slotImageUrl = slotImage.src.trim();
+                        }
+                    }
+                }
+            }
+
+            const resolvedSlotImage = slotImageUrl ? (toAbsoluteUrl(slotImageUrl) || slotImageUrl) : '';
+
+            if (!resolvedSlotImage) {
+                const message = 'Kein Bild für das Update gefunden.';
+                showWorkflowFeedback('error', message);
+                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                return;
+            }
+
+            payload.action = actionType;
+            payload.image_url = resolvedSlotImage;
+            targetUrl = 'start-workflow-update.php';
+        } else {
+            const firstImage = Array.isArray(window.currentOriginalImages)
+                ? window.currentOriginalImages[0]
+                : null;
+            const secondImage = Array.isArray(window.currentOriginalImages)
+                ? window.currentOriginalImages[1]
+                : null;
+
+            const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
+            const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
+
+            if (resolvedFirstImage) {
+                payload.image_url = resolvedFirstImage;
+            }
+
+            if (resolvedSecondImage) {
+                payload.image_url_2 = resolvedSecondImage;
+            }
         }
 
-        if (resolvedSecondImage) {
-            payload.image_url_2 = resolvedSecondImage;
-        }
-
-        const response = await fetch('start-workflow.php', {
+        const response = await fetch(targetUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
