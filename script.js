@@ -1828,14 +1828,21 @@ function onWorkflowStarted() {
 }
 
 async function startWorkflow() {
-    const runId = window.currentRunId;
-    const activeToggle = document.querySelector('.btn-toggle.is-active');
-
     if (isStartingWorkflow) {
         return;
     }
 
+    const activeToggle = document.querySelector('.btn-toggle.is-active');
+    const workflowOutputEl = workflowOutput || document.getElementById('workflow-output');
+
+    const resetActiveToggle = () => {
+        if (activeToggle && activeToggle.classList.contains('is-active')) {
+            activeToggle.classList.remove('is-active');
+        }
+    };
+
     clearWorkflowFeedback();
+    updateWorkflowButtonState();
     onWorkflowStarted();
     isStartingWorkflow = true;
     updateWorkflowButtonState();
@@ -1845,44 +1852,45 @@ async function startWorkflow() {
     }
 
     try {
-        const numericRunId = Number(runId);
-        const hasRunId = Number.isFinite(numericRunId) && numericRunId > 0;
-        const hasOriginalImages = Array.isArray(window.currentOriginalImages)
-            ? window.currentOriginalImages.length > 0
-            : false;
-
         let endpoint = 'start-workflow.php';
         let payload = {};
 
         if (activeToggle) {
             const generatedCard = activeToggle.closest('.generated-card');
-            const generatedSlot = generatedCard ? generatedCard.querySelector('.generated-slot') : null;
-            const imageId = generatedSlot?.dataset?.imageId;
-            const position = generatedSlot?.dataset?.slot;
+            const slot = generatedCard ? generatedCard.querySelector('.generated-slot') : null;
+            const imageId = slot?.dataset?.imageId;
+            const runId = workflowOutputEl?.dataset?.runId || window.currentRunId;
+            const position = slot?.dataset?.slot;
             const action = activeToggle.dataset ? activeToggle.dataset.type : undefined;
 
             if (!imageId) {
-                const message = 'Bild-ID fehlt. Bitte Seite neu laden.';
+                const message = 'Kein Bild für Update gefunden. (ID fehlt)';
                 showWorkflowFeedback('error', message);
                 setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                resetActiveToggle();
                 return;
             }
 
-            if (!hasRunId) {
-                const message = 'Bild-ID fehlt. Bitte Seite neu laden.';
+            if (!runId) {
+                const message = 'Run ID verloren. Bitte Seite neu laden.';
                 showWorkflowFeedback('error', message);
                 setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                resetActiveToggle();
                 return;
             }
 
             endpoint = 'start-workflow-update.php';
             payload = {
-                run_id: numericRunId,
+                run_id: runId,
                 image_id: imageId,
                 action,
                 position,
             };
         } else {
+            const hasOriginalImages = Array.isArray(window.currentOriginalImages)
+                ? window.currentOriginalImages.length > 0
+                : false;
+
             if (!hasOriginalImages) {
                 const message = 'Bitte zuerst ein Bild hochladen.';
                 showWorkflowFeedback('error', message);
@@ -1890,35 +1898,18 @@ async function startWorkflow() {
                 return;
             }
 
-            if (!hasRunId) {
+            if (!window.currentRunId) {
                 const message = 'Bitte zuerst ein Bild hochladen.';
                 showWorkflowFeedback('error', message);
                 setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
                 return;
             }
 
+            endpoint = 'start-workflow.php';
             payload = {
-                run_id: numericRunId,
+                run_id: window.currentRunId,
                 user_id: window.currentUserId,
             };
-
-            const firstImage = Array.isArray(window.currentOriginalImages)
-                ? window.currentOriginalImages[0]
-                : null;
-            const secondImage = Array.isArray(window.currentOriginalImages)
-                ? window.currentOriginalImages[1]
-                : null;
-
-            const resolvedFirstImage = firstImage ? toAbsoluteUrl(firstImage) : '';
-            const resolvedSecondImage = secondImage ? toAbsoluteUrl(secondImage) : '';
-
-            if (resolvedFirstImage) {
-                payload.image_url = resolvedFirstImage;
-            }
-
-            if (resolvedSecondImage) {
-                payload.image_url_2 = resolvedSecondImage;
-            }
         }
 
         const response = await fetch(endpoint, {
@@ -1950,6 +1941,7 @@ async function startWorkflow() {
 
             showWorkflowFeedback('error', message);
             setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+            resetActiveToggle();
 
             if (result.logout) {
                 window.location.href = 'auth/logout.php';
@@ -1962,9 +1954,10 @@ async function startWorkflow() {
             ? result.message
             : 'Workflow gestartet.';
 
-        setCurrentRun(result.run_id ?? numericRunId, result.user_id ?? window.currentUserId);
-        const resolvedRunId = window.currentRunId ?? numericRunId;
-        activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
+        setCurrentRun(result.run_id ?? window.currentRunId, result.user_id ?? window.currentUserId);
+        const resolvedRunId = window.currentRunId ?? result.run_id;
+        const numericRunId = Number(resolvedRunId);
+        activeRunId = Number.isFinite(numericRunId) && numericRunId > 0 ? numericRunId : null;
 
         showWorkflowFeedback('success', successMessage);
         setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_STARTED');
@@ -1984,6 +1977,7 @@ async function startWorkflow() {
         console.error('Workflow-Start fehlgeschlagen', error);
         showWorkflowFeedback('error', message);
         setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+        resetActiveToggle();
         logFrontendStatus('WORKFLOW_START_FAILED');
         // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
         fetchStatusFeed().catch((err) => {
