@@ -261,13 +261,19 @@ async function logFrontendStatus(statusCode) {
 
 
 
-function updateStartButtonState(hasUpload) {
-    const btn = document.getElementById('start-workflow-btn');
+function updateGlobalStartButtonState() {
+    const btn = startWorkflowButton || document.getElementById('start-workflow-btn');
     if (!btn) {
         return;
     }
 
-    if (hasUpload) {
+    const startIsBlocked = Boolean(workflowIsRunning || isProcessing || isStartingWorkflow);
+    const hasActiveToggle = Boolean(document.querySelector('.btn-toggle.is-active'));
+    const hasUpload = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0;
+
+    const shouldEnable = !startIsBlocked && (hasActiveToggle || hasUpload);
+
+    if (shouldEnable) {
         btn.removeAttribute('disabled');
         btn.classList.remove('is-disabled');
         btn.setAttribute('aria-disabled', 'false');
@@ -276,6 +282,10 @@ function updateStartButtonState(hasUpload) {
         btn.classList.add('is-disabled');
         btn.setAttribute('aria-disabled', 'true');
     }
+}
+
+function updateStartButtonState() {
+    updateGlobalStartButtonState();
 }
 
 const setScanOverlayActive = (isActive) => {
@@ -1496,18 +1506,7 @@ const sanitizeLogMessage = (value) => {
 };
 
 function updateWorkflowButtonState() {
-    const hasRun = Number.isFinite(window.currentRunId) && window.currentRunId > 0;
-    updateStartButtonState(hasRun);
-
-    if (!startWorkflowButton) {
-        return;
-    }
-
-    if (isProcessing || isStartingWorkflow) {
-        startWorkflowButton.setAttribute('disabled', 'true');
-        startWorkflowButton.classList.add('is-disabled');
-        startWorkflowButton.setAttribute('aria-disabled', 'true');
-    }
+    updateGlobalStartButtonState();
 }
 
 function clearWorkflowFeedback() {
@@ -2776,33 +2775,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Finde alle Toggle-Buttons (2K, 4K, Edit)
     const toggleButtons = document.querySelectorAll('.btn-toggle');
 
-    toggleButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // Verhindere, dass der Klick das Bild öffnet (Bubbling)
-            e.stopPropagation();
+    toggleButtons.forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
 
-            // Hole die Gruppe von Buttons (innerhalb derselben Karte)
-            const parentBar = btn.closest('.slot-actions');
-            
-            // OPTIONAL: Wenn 2K und 4K sich gegenseitig ausschließen sollen (Radio-Verhalten):
-            
-            if (btn.dataset.type === '2k' || btn.dataset.type === '4k') {
-                const siblings = parentBar.querySelectorAll('.btn-toggle');
-                siblings.forEach(sibling => {
-                    if (sibling !== btn && (sibling.dataset.type === '2k' || sibling.dataset.type === '4k')) {
-                        sibling.classList.remove('is-active');
-                    }
-                });
+            const wasActive = btn.classList.contains('is-active');
+            document.querySelectorAll('.btn-toggle').forEach((toggle) => toggle.classList.remove('is-active'));
+
+            if (!wasActive) {
+                btn.classList.add('is-active');
             }
-            
 
-            // Toggle die Klasse 'is-active'
-            // Wenn sie da ist, wird sie entfernt (deaktiviert). 
-            // Wenn sie nicht da ist, wird sie hinzugefügt (aktiviert).
-            btn.classList.toggle('is-active');
+            updateGlobalStartButtonState();
         });
     });
 
@@ -2815,4 +2801,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Workflow starten für diesen Slot");
         });
     });
+
+    updateGlobalStartButtonState();
 });
