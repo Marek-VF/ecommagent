@@ -1081,6 +1081,7 @@ const clearSlotContent = (slot) => {
     slot.container.classList.remove('has-image');
     slot.container.classList.remove('has-shadow');
     slot.container.classList.remove('first-active');
+    delete slot.container.dataset.imageId;
 
     const existingImage = slot.container.querySelector('img');
     if (existingImage) {
@@ -1411,6 +1412,7 @@ function renderGeneratedImages(images) {
             return;
         }
 
+        delete slot.container.dataset.imageId;
         const rawData = imageList[index];
 
         if (rawData) {
