@@ -519,45 +519,77 @@ SQL;
         ]);
     }
 
-    $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
+    $imageIdInput = isset($_POST['image_id']) && is_numeric($_POST['image_id']) ? (int) $_POST['image_id'] : 0;
+    $imageId = $imageIdInput > 0 ? $imageIdInput : null;
+
+    $badgeValue = null;
+    if (isset($_POST['badge']) && (is_string($_POST['badge']) || is_numeric($_POST['badge']))) {
+        $badgeValue = trim((string) $_POST['badge']);
+        if ($badgeValue === '') {
+            $badgeValue = null;
+        }
+    }
+
+    $existingImageRow = null;
     $noteId = null;
     $productName = '';
 
-    if ($noteIdInput !== null) {
-        $noteCheck = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
-        $noteCheck->execute([
-            ':id'   => $noteIdInput,
+    if ($imageId !== null) {
+        $imageLookup = $pdo->prepare('SELECT id, note_id, url, position FROM item_images WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+        $imageLookup->execute([
+            ':id'   => $imageId,
             ':user' => $userId,
             ':run'  => $runId,
         ]);
-        $noteRow = $noteCheck->fetch(PDO::FETCH_ASSOC);
-        if ($noteRow === false) {
-            jsonResponse(400, [
+
+        $existingImageRow = $imageLookup->fetch(PDO::FETCH_ASSOC);
+        if ($existingImageRow === false) {
+            jsonResponse(403, [
                 'ok'      => false,
-                'message' => 'note_id ist ungültig oder gehört nicht zum Run.',
+                'message' => 'image_id gehört nicht zum Benutzer/Run.',
             ]);
         }
 
-        $noteId = (int) $noteRow['id'];
-        $productName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
+        $noteId = (int) $existingImageRow['note_id'];
     } else {
-        $existingNote = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
-        $existingNote->execute([
-            ':user' => $userId,
-            ':run'  => $runId,
-        ]);
-        $existingNoteRow = $existingNote->fetch(PDO::FETCH_ASSOC);
+        $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
 
-        if ($existingNoteRow !== false) {
-            $noteId = (int) $existingNoteRow['id'];
-            $productName = isset($existingNoteRow['product_name']) ? (string) $existingNoteRow['product_name'] : '';
-        } else {
-            $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
-            $createNote->execute([
+        if ($noteIdInput !== null) {
+            $noteCheck = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+            $noteCheck->execute([
+                ':id'   => $noteIdInput,
                 ':user' => $userId,
                 ':run'  => $runId,
             ]);
-            $noteId = (int) $pdo->lastInsertId();
+            $noteRow = $noteCheck->fetch(PDO::FETCH_ASSOC);
+            if ($noteRow === false) {
+                jsonResponse(400, [
+                    'ok'      => false,
+                    'message' => 'note_id ist ungültig oder gehört nicht zum Run.',
+                ]);
+            }
+
+            $noteId = (int) $noteRow['id'];
+            $productName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
+        } else {
+            $existingNote = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+            $existingNote->execute([
+                ':user' => $userId,
+                ':run'  => $runId,
+            ]);
+            $existingNoteRow = $existingNote->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingNoteRow !== false) {
+                $noteId = (int) $existingNoteRow['id'];
+                $productName = isset($existingNoteRow['product_name']) ? (string) $existingNoteRow['product_name'] : '';
+            } else {
+                $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
+                $createNote->execute([
+                    ':user' => $userId,
+                    ':run'  => $runId,
+                ]);
+                $noteId = (int) $pdo->lastInsertId();
+            }
         }
     }
 
@@ -622,31 +654,55 @@ SQL;
         }
     }
 
+    $oldFilePath = null;
+    if ($existingImageRow !== null && isset($existingImageRow['url'])) {
+        $existingUrl = (string) $existingImageRow['url'];
+        $prefix = 'uploads/';
+        $relativePath = stripos($existingUrl, $prefix) === 0 ? substr($existingUrl, strlen($prefix)) : ltrim($existingUrl, '/\\');
+        $oldFilePath = rtrim($baseUploadDir, " \\t\n\r\0\x0B/\\") . '/' . $relativePath;
+    }
+
     $pdo->beginTransaction();
     try {
         $position = $requestedPosition;
-        if ($noteId !== null) {
-            $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
-            $stmt->execute([':note' => $noteId]);
-            $calculated = $stmt->fetchColumn();
-            $nextPosition = $calculated !== false ? (int) $calculated : 1;
-            if ($nextPosition <= 0) {
-                $nextPosition = 1;
+        if ($imageId !== null) {
+            $position = isset($existingImageRow['position']) ? (int) $existingImageRow['position'] : null;
+
+            $updateImage = $pdo->prepare('UPDATE item_images SET url = :url, badge = :badge, created_at = NOW() WHERE id = :id AND user_id = :user AND run_id = :run');
+            $updateImage->execute([
+                ':url'   => $relativeUrl,
+                ':badge' => $badgeValue,
+                ':id'    => $imageId,
+                ':user'  => $userId,
+                ':run'   => $runId,
+            ]);
+        } else {
+            if ($noteId !== null) {
+                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
+                $stmt->execute([':note' => $noteId]);
+                $calculated = $stmt->fetchColumn();
+                $nextPosition = $calculated !== false ? (int) $calculated : 1;
+                if ($nextPosition <= 0) {
+                    $nextPosition = 1;
+                }
+
+                if ($requestedPosition === null) {
+                    $position = $nextPosition;
+                }
             }
 
-            if ($requestedPosition === null) {
-                $position = $nextPosition;
-            }
+            $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())');
+            $insertImage->execute([
+                ':user'     => $userId,
+                ':run'      => $runId,
+                ':note'     => $noteId,
+                ':url'      => $relativeUrl,
+                ':position' => $position,
+                ':badge'    => $badgeValue,
+            ]);
+
+            $imageId = (int) $pdo->lastInsertId();
         }
-
-        $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, created_at) VALUES (:user, :run, :note, :url, :position, NOW())');
-        $insertImage->execute([
-            ':user'     => $userId,
-            ':run'      => $runId,
-            ':note'     => $noteId,
-            ':url'      => $relativeUrl,
-            ':position' => $position,
-        ]);
 
         $statusCode = $statusMessageFromRequest;
         if ($statusCode === null && $position !== null && $position >= 1 && $position <= 4) {
@@ -690,6 +746,10 @@ SQL;
         throw $transactionException;
     }
 
+    if ($imageId !== null && is_string($oldFilePath) && $oldFilePath !== '' && file_exists($oldFilePath) && realpath($oldFilePath) !== realpath($storedFilePath)) {
+        @unlink($oldFilePath);
+    }
+
     if ($executedSuccessfully && $runId !== null && $userId > 0) {
         $updateStepStatus = $pdo->prepare(
             'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
@@ -720,6 +780,7 @@ SQL;
         'url'      => $relativeUrl,
         'note_id'  => $noteId,
         'position' => $requestedPosition ?? $position ?? null,
+        'image_id' => $imageId,
         'run_id'   => $runId,
     ]);
 } catch (Throwable $exception) {
