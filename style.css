@@ -553,7 +553,7 @@ body {
 .btn--secondary:focus-visible {
     outline: 2px solid transparent;
     outline-offset: 2px;
-    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.35);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
 }
 
 .btn:disabled,
@@ -565,7 +565,6 @@ body {
 }
 
 /* Primary Buttons */
-#start-workflow-btn,
 .btn-primary,
 a.btn-primary {
     background-color: #ff5722;
@@ -574,19 +573,21 @@ a.btn-primary {
     box-shadow: var(--shadow-sm);
 }
 
-#start-workflow-btn:hover,
 .btn-primary:hover,
 a.btn-primary:hover {
-    background-color: #f4511e;
+    filter: brightness(90%);
 }
 
-#start-workflow-btn:focus-visible,
 .btn-primary:focus-visible,
 a.btn-primary:focus-visible {
-    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.35);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
 }
 
-#start-workflow-btn:disabled,
+.btn-primary:active,
+a.btn-primary:active {
+    transform: translateY(1px);
+}
+
 .btn-primary:disabled,
 .btn-primary[aria-disabled="true"],
 .btn-primary.is-disabled,
@@ -598,6 +599,8 @@ a.btn-primary.is-disabled {
     cursor: not-allowed;
     pointer-events: none;
     box-shadow: none;
+    transform: none;
+    filter: none;
 }
 
 /* Secondary / Ghost Buttons */
@@ -785,24 +788,6 @@ a.btn-primary.is-disabled {
 .status-bar--active {
     background: rgba(0,0,0,0.05);
     color: var(--text);
-}
-
-#start-workflow-btn {
-    display: inline-block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    background: rgb(65, 90, 245);
-    color: white;
-    font-weight: 500;
-    border-radius: 8px;
-    padding: 0.6rem 1.2rem;
-    cursor: pointer;
-    transition: background 0.25s ease;
-    border: none;
-}
-
-#start-workflow-btn:hover {
-    background: rgb(75, 100, 255);
 }
 
 .workflow-body::-webkit-scrollbar {
