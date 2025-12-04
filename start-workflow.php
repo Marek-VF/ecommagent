@@ -419,7 +419,7 @@ try {
     }
 
     if (!is_int($webhookStatus) || $webhookStatus < 200 || $webhookStatus >= 300) {
-        throw new RuntimeException('Workflow-Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
+        throw new RuntimeException('Workflow Webhook antwortete mit Status ' . ($webhookStatus ?? 'unbekannt') . '.');
     }
 
     $pdo->beginTransaction();

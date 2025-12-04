@@ -1743,7 +1743,7 @@ const uploadFiles = async (files) => {
                 return;
             }
 
-            setStatusAndLog('success', 'Upload erfolgreich – Workflow kann gestartet werden.', 'UPLOAD_SUCCESS');
+            setStatusAndLog('success', 'Upload erfolgreich – Workflow kann gestartet werden..', 'UPLOAD_SUCCESS');
             setLoadingState(false, { indicatorText: 'Bereit für Workflow-Start', indicatorState: 'idle' });
             hasShownCompletion = false;
 
@@ -1929,6 +1929,14 @@ async function startWorkflow() {
         console.error('Workflow-Start fehlgeschlagen', error);
         showWorkflowFeedback('error', message);
         setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+        //mb
+
+                logFrontendStatus('WORKFLOW_START_FAILED');
+                // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
+                fetchStatusFeed().catch((err) => {
+                    console.error('Status-Feed-Fehler nach Upload:', err);
+                });     
+
     } finally {
         isStartingWorkflow = false;
         if (startWorkflowButton) {

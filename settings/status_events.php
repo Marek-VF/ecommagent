@@ -3,7 +3,7 @@
 return [
 
     'WORKFLOW_START_FAILED' => [
-        'label'     => 'Workflow konnte nicht gestartet werden.',
+        'label'     => 'Webhook antwortet 404. Workflow konnte nicht gestartet werden.',
         'severity'  => 'error',
         'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error_outline</span>',
     ],

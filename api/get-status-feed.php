@@ -86,7 +86,7 @@ try {
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-
+//läuft auf fehler wenn noch keine session gesetzt ist
     $logsStatement = $pdo->prepare(
         'SELECT id, message, severity, code, created_at FROM status_logs_new WHERE user_id = :user_id AND run_id = :run_id ORDER BY created_at DESC, id DESC LIMIT 20'
     );
