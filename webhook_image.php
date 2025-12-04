@@ -244,6 +244,21 @@ try {
         $executedSuccessfully = in_array($executedRaw, ['true', '1', 1, true], true);
     }
 
+    $badge = null;
+    if (array_key_exists('badge', $_POST) && !is_array($_POST['badge'])) {
+        $badgeCandidate = trim((string) $_POST['badge']);
+        if ($badgeCandidate !== '') {
+            if (mb_strlen($badgeCandidate) > 10) {
+                jsonResponse(400, [
+                    'ok'      => false,
+                    'message' => 'badge ist zu lang (maximal 10 Zeichen).',
+                ]);
+            }
+
+            $badge = $badgeCandidate;
+        }
+    }
+
     $stepTypeRaw = $_POST['step_type'] ?? null;
     if (is_string($stepTypeRaw) || is_numeric($stepTypeRaw)) {
         $stepType = trim((string) $stepTypeRaw);
@@ -362,13 +377,14 @@ try {
                 }
             }
 
-            $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, created_at) VALUES (:user, :run, :note, :url, :position, NOW())');
+            $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())');
             $insertImage->execute([
                 ':user'     => $userId,
                 ':run'      => $runId,
                 ':note'     => $noteId,
                 ':url'      => $relativeUrl,
                 ':position' => $position,
+                ':badge'    => $badge,
             ]);
 
             $eventForLogging = $statusEventFromRequest ?? resolve_status_event($statusMessageFromRequest ?? 'IMAGE_ERROR');
@@ -639,13 +655,14 @@ SQL;
             }
         }
 
-        $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, created_at) VALUES (:user, :run, :note, :url, :position, NOW())');
+        $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())');
         $insertImage->execute([
             ':user'     => $userId,
             ':run'      => $runId,
             ':note'     => $noteId,
             ':url'      => $relativeUrl,
             ':position' => $position,
+            ':badge'    => $badge,
         ]);
 
         $statusCode = $statusMessageFromRequest;
