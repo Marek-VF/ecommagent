@@ -2843,15 +2843,5 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Logik für den Play Button (Optional: Feedback beim Klick)
-    const playButtons = document.querySelectorAll('.btn-primary');
-    playButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Kurze Animation oder Logik hier starten
-            console.log("Workflow starten für diesen Slot");
-        });
-    });
-
     updateGlobalStartButtonState();
 });
