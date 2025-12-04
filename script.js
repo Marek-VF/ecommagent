@@ -1422,6 +1422,11 @@ function renderGeneratedImages(images) {
             } else if (typeof rawData === 'object') {
                 imageUrl = rawData.url || rawData.src || '';
                 altText = rawData.alt || rawData.title || altText;
+
+                if (rawData.id) {
+                    slot.container.dataset.imageId = rawData.id;
+                    console.log('Slot', index, 'ImageID:', rawData.id);
+                }
             }
 
             const resolvedUrl = imageUrl ? toAbsoluteUrl(imageUrl) : '';
@@ -1450,6 +1455,7 @@ function renderGeneratedImages(images) {
         }
 
         clearSlotContent(slot);
+        delete slot.container.dataset.imageId;
         slot.container.dataset.isLoading = 'false';
         lastKnownImages[slot.key] = null;
     });
