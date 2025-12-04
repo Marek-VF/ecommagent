@@ -868,7 +868,25 @@ const normalizeLatestImagesObject = (input) => {
         return result;
     }
 
-    const assignToKey = (key, url) => {
+    const buildImageObject = (value) => {
+        let url = '';
+        let id = null;
+
+        if (value && typeof value === 'object') {
+            url = typeof value.url === 'string' ? value.url.trim() : '';
+            id = value.id || null;
+        } else if (typeof value === 'string') {
+            url = value.trim();
+        }
+
+        if (url === '') {
+            return null;
+        }
+
+        return { url, id };
+    };
+
+    const assignToKey = (key, value) => {
         if (!key || typeof key !== 'string') {
             return;
         }
@@ -878,14 +896,14 @@ const normalizeLatestImagesObject = (input) => {
             return;
         }
 
-        const normalizedUrl = typeof url === 'string' ? url.trim() : '';
-        if (normalizedUrl === '') {
+        const imageObject = buildImageObject(value);
+        if (!imageObject) {
             return;
         }
 
         const slotKey = `image_${normalizedKey.replace(/[^1-3]/g, '')}`;
         if (!Object.prototype.hasOwnProperty.call(result, slotKey)) {
-            result[slotKey] = normalizedUrl;
+            result[slotKey] = imageObject;
         }
     };
 
@@ -895,8 +913,8 @@ const normalizeLatestImagesObject = (input) => {
                 return;
             }
 
-            const url = typeof entry.url === 'string' ? entry.url.trim() : '';
-            if (url === '') {
+            const imageObject = buildImageObject(entry);
+            if (!imageObject) {
                 return;
             }
 
@@ -905,19 +923,19 @@ const normalizeLatestImagesObject = (input) => {
                 if (numeric >= 1 && numeric <= 3) {
                     const key = `image_${numeric}`;
                     if (!Object.prototype.hasOwnProperty.call(result, key)) {
-                        result[key] = url;
+                        result[key] = imageObject;
                     }
                     return;
                 }
             }
 
             if (typeof entry.slot === 'string') {
-                assignToKey(entry.slot, url);
+                assignToKey(entry.slot, imageObject);
                 return;
             }
 
             if (typeof entry.key === 'string') {
-                assignToKey(entry.key, url);
+                assignToKey(entry.key, imageObject);
             }
         });
 
@@ -958,8 +976,10 @@ const mapLatestItemPayloadToLegacy = (payload) => {
 
     gallerySlotKeys.forEach((key) => {
         const value = imageMap[key];
-        if (typeof value === 'string') {
-            const trimmed = value.trim();
+        const urlStr = value && typeof value === 'object' ? value.url : value;
+
+        if (typeof urlStr === 'string') {
+            const trimmed = urlStr.trim();
             if (trimmed !== '') {
                 normalized[key] = trimmed;
             }
@@ -2094,6 +2114,7 @@ const applyRunDataToUI = (payload) => {
     const normalizedImages = images.map((entry) => ({
         position: Number(entry.position),
         url: typeof entry.url === 'string' ? entry.url.trim() : '',
+        id: entry.id || null,
     }));
 
     gallerySlots.forEach((slot) => {
@@ -2118,6 +2139,11 @@ const applyRunDataToUI = (payload) => {
                 setSlotImageSource(slot, resolvedImageUrl);
                 setSlotLoadingState(slot, false);
                 lastKnownImages[slotKey] = resolvedImageUrl;
+
+                if (slot.container && image.id) {
+                    slot.container.dataset.imageId = image.id;
+                    console.log('History Image ID set:', slotKey, image.id);
+                }
             } else {
                 clearSlotContent(slot);
                 setSlotLoadingState(slot, false);
