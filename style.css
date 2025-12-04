@@ -517,67 +517,107 @@ body {
 
 
 
-/* --- NEUE BUTTONS (Flat Design) --- */
-.btn {
-    background-color: var(--secondary); /* Cyan */
-    color: white;
-    border: none;
-    border-radius: 0.5rem;
+/* --- BUTTON SYSTEM (Tailwind-inspiriert) --- */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn--secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.5rem;
     padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
     font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    text-decoration: none;
     cursor: pointer;
-    transition: opacity 0.2s;
-}
-.btn:hover {
-    background-color: var(--secondary-hover);
-    transform: none; /* Alte Transformation entfernen */
-    opacity: 0.9;
+    transition: all 200ms ease-in-out;
+    background-color: var(--secondary);
+    color: #ffffff;
 }
 
-/* Der Workflow Start Button (Orange) */
-#start-workflow-btn, .btn-primary {
-    background: var(--accent); /* Orange */
-    color: white;
-    border: none;
-    border-radius: 0.5rem;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
+.btn:hover,
+.btn:focus-visible {
+    background-color: var(--secondary-hover);
+}
+
+.btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-ghost:focus-visible,
+.btn--secondary:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.35);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"],
+.btn.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Primary Buttons */
+#start-workflow-btn,
+.btn-primary,
+a.btn-primary {
+    background-color: #ff5722;
+    color: #ffffff;
+    border-color: #ff5722;
     box-shadow: var(--shadow-sm);
 }
-#start-workflow-btn:hover, .btn-primary:hover {
-    background: var(--accent-hover);
-    transform: none;
-    opacity: 0.9;
+
+#start-workflow-btn:hover,
+.btn-primary:hover,
+a.btn-primary:hover {
+    background-color: #f4511e;
 }
-/* Disabled State schöner machen */
-button:disabled,
-.btn:disabled,
-.btn[aria-disabled="true"] {
-    background-color: #e5e7eb !important; /* Helles Grau */
-    color: #9ca3af !important; /* Dunkleres Grau für Text */
+
+#start-workflow-btn:focus-visible,
+.btn-primary:focus-visible,
+a.btn-primary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.35);
+}
+
+#start-workflow-btn:disabled,
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"],
+.btn-primary.is-disabled,
+a.btn-primary.is-disabled {
+    background-color: #ff5722;
+    border-color: #ff5722;
+    color: #ffffff;
+    opacity: 0.5;
     cursor: not-allowed;
-    opacity: 1; /* Opacity resetten, Farbe regelt das */
-    transform: none !important;
-    box-shadow: none !important;
+    pointer-events: none;
+    box-shadow: none;
 }
 
-/* Wenn aktiv (wird durch JS gesteuert, indem disabled entfernt wird) */
-#start-workflow-btn:not(:disabled) {
-    background-color: var(--accent); /* Orange */
-    color: white;
-}
-
+/* Secondary / Ghost Buttons */
+.btn-secondary,
+.btn-ghost,
 .btn--secondary {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.18);
-    color: var(--text);
+    background-color: #f3f4f6;
+    color: #374151;
+    border-color: #e5e7eb;
 }
 
+.btn-secondary:hover,
+.btn-secondary:focus-visible,
+.btn-ghost:hover,
+.btn-ghost:focus-visible,
 .btn--secondary:hover,
 .btn--secondary:focus-visible {
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.28);
+    background-color: #e5e7eb;
+    color: #1f2937;
+    border-color: #d1d5db;
 }
 
 .preview-list {
