@@ -2070,6 +2070,11 @@ const updateInterfaceFromData = (data) => {
         workflowOutputController.sync();
     }
 
+    if (data && (data.run_id || data.id)) {
+        const rId = data.run_id || data.id;
+        if (workflowOutput) workflowOutput.dataset.runId = rId;
+    }
+
     if (!isRunning) {
         stopPolling();
     }
