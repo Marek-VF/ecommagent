@@ -44,7 +44,7 @@ $noteStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $note = $noteStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
 $imgStmt = $pdo->prepare('
-    SELECT id, url, position
+    SELECT id, url, position, badge
     FROM item_images
     WHERE user_id = :user_id AND run_id = :run_id
     ORDER BY position ASC, created_at ASC
@@ -134,6 +134,12 @@ $images = array_map(function ($row) use ($resolvePublicPath) {
     }
 
     $row['id'] = isset($row['id']) ? (int) $row['id'] : null;
+
+    $badge = null;
+    if (array_key_exists('badge', $row) && $row['badge'] !== null) {
+        $badge = (string) $row['badge'];
+    }
+    $row['badge'] = $badge;
 
     $url = isset($row['url']) ? (string) $row['url'] : '';
 
