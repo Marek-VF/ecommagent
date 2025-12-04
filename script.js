@@ -1820,11 +1820,10 @@ function onWorkflowStarted() {
 }
 
 async function startWorkflow() {
-    const runId = window.currentRunId;
-    const numericRunId = Number(runId);
+    const effectiveRunId = activeRunId || window.currentRunId;
 
-    if (!Number.isFinite(numericRunId) || numericRunId <= 0) {
-        showWorkflowFeedback('error', 'Bitte zuerst ein Bild hochladen.');
+    if (!effectiveRunId) {
+        showWorkflowFeedback('error', 'Kein Run ausgewählt.');
         return;
     }
 
@@ -1843,7 +1842,7 @@ async function startWorkflow() {
 
     try {
         const payload = {
-            run_id: numericRunId,
+            run_id: effectiveRunId,
             user_id: window.currentUserId,
         };
 
@@ -1851,6 +1850,7 @@ async function startWorkflow() {
         let targetUrl = 'start-workflow.php';
 
         if (activeToggle) {
+            targetUrl = 'start-workflow-update.php';
             const actionType = typeof activeToggle.dataset.type === 'string'
                 ? activeToggle.dataset.type.trim()
                 : '';
@@ -1858,39 +1858,26 @@ async function startWorkflow() {
             if (!actionType) {
                 const message = 'Bitte eine Aktion auswählen.';
                 showWorkflowFeedback('error', message);
-                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                await fetchStatusFeed();
                 return;
             }
 
             const card = activeToggle.closest('.generated-card');
-            let slotImageUrl = '';
+            const cardImage = card ? card.querySelector('img') : null;
+            const imageSrc = cardImage && cardImage.src ? cardImage.src.trim() : '';
+            const resolvedImageUrl = imageSrc ? (toAbsoluteUrl(imageSrc) || imageSrc) : '';
 
-            if (card) {
-                const slot = card.querySelector('.generated-slot');
-                if (slot) {
-                    slotImageUrl = slot.dataset.currentSrc || '';
-
-                    if (!slotImageUrl) {
-                        const slotImage = slot.querySelector('img');
-                        if (slotImage && slotImage.src) {
-                            slotImageUrl = slotImage.src.trim();
-                        }
-                    }
-                }
-            }
-
-            const resolvedSlotImage = slotImageUrl ? (toAbsoluteUrl(slotImageUrl) || slotImageUrl) : '';
-
-            if (!resolvedSlotImage) {
+            if (!resolvedImageUrl) {
                 const message = 'Kein Bild für das Update gefunden.';
                 showWorkflowFeedback('error', message);
-                setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                await fetchStatusFeed();
                 return;
             }
 
             payload.action = actionType;
-            payload.image_url = resolvedSlotImage;
-            targetUrl = 'start-workflow-update.php';
+            payload.image_url = resolvedImageUrl;
         } else {
             const firstImage = Array.isArray(window.currentOriginalImages)
                 ? window.currentOriginalImages[0]
@@ -1939,7 +1926,8 @@ async function startWorkflow() {
                 : 'Workflow konnte nicht gestartet werden.';
 
             showWorkflowFeedback('error', message);
-            setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+            await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+            await fetchStatusFeed();
 
             if (result.logout) {
                 window.location.href = 'auth/logout.php';
@@ -1952,12 +1940,12 @@ async function startWorkflow() {
             ? result.message
             : 'Workflow gestartet.';
 
-        setCurrentRun(result.run_id ?? numericRunId, result.user_id ?? window.currentUserId);
-        const resolvedRunId = window.currentRunId ?? numericRunId;
-        activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : numericRunId;
+        setCurrentRun(result.run_id ?? effectiveRunId, result.user_id ?? window.currentUserId);
+        const resolvedRunId = window.currentRunId ?? effectiveRunId;
+        activeRunId = Number.isFinite(resolvedRunId) && resolvedRunId > 0 ? resolvedRunId : effectiveRunId;
 
         showWorkflowFeedback('success', successMessage);
-        setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_STARTED');
+        await setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_STARTED');
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
         clearProductFields({ loading: true });
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
@@ -1973,15 +1961,12 @@ async function startWorkflow() {
 
         console.error('Workflow-Start fehlgeschlagen', error);
         showWorkflowFeedback('error', message);
-        setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
-        //mb
-
-                logFrontendStatus('WORKFLOW_START_FAILED');
-                // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
-                fetchStatusFeed().catch((err) => {
-                    console.error('Status-Feed-Fehler nach Upload:', err);
-                });     
-
+        await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+        try {
+            await fetchStatusFeed();
+        } catch (feedError) {
+            console.error('Status-Feed-Fehler nach Workflow-Start:', feedError);
+        }
     } finally {
         isStartingWorkflow = false;
         if (startWorkflowButton) {
@@ -2217,6 +2202,9 @@ const loadRunDetails = async (runId) => {
 
         applyRunDataToUI(data);
         setActiveRun(numericId);
+        activeRunId = numericId;
+        window.currentRunId = numericId;
+        updateWorkflowButtonState();
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
     }
