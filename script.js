@@ -1424,8 +1424,10 @@ function renderGeneratedImages(images) {
             if (typeof rawData === 'string') {
                 imageUrl = rawData;
             } else if (typeof rawData === 'object') {
+                const rawImageId = rawData.id;
                 imageUrl = rawData.url || rawData.src || '';
                 altText = rawData.alt || rawData.title || altText;
+                console.log('Rendering image', rawImageId);
             }
 
             const resolvedUrl = imageUrl ? toAbsoluteUrl(imageUrl) : '';
@@ -1879,13 +1881,13 @@ async function startWorkflow() {
             }
 
             const card = activeToggle.closest('.generated-card');
-            const cardImage = card ? card.querySelector('img') : null;
-            const slotContainer = card ? card.querySelector('.generated-slot') : null;
-            const imageSrc = cardImage && cardImage.src ? cardImage.src.trim() : '';
+            const img = card ? card.querySelector('img') : null;
+            const slotContainer = img ? img.closest('.generated-slot') : card ? card.querySelector('.generated-slot') : null;
+            const imageSrc = img && img.src ? img.src.trim() : '';
             const resolvedImageUrl = imageSrc ? (toAbsoluteUrl(imageSrc) || imageSrc) : '';
-            const imageIdRaw = (cardImage && cardImage.dataset.imageId) || (slotContainer && slotContainer.dataset.imageId);
+            const imageId = (img && img.dataset.imageId) || (slotContainer && slotContainer.dataset.imageId);
             const positionRaw = slotContainer && slotContainer.dataset.slot;
-            const imageId = Number(imageIdRaw);
+            const numericImageId = Number(imageId);
             const position = Number(positionRaw);
 
             if (!resolvedImageUrl) {
@@ -1896,11 +1898,20 @@ async function startWorkflow() {
                 return;
             }
 
+            if (!imageId) {
+                const message = 'Keine Bild-ID für das Update gefunden.';
+                console.error(message);
+                showWorkflowFeedback('error', message);
+                await setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
+                await fetchStatusFeed();
+                return;
+            }
+
             payload.action = actionType;
             payload.image_url = resolvedImageUrl;
 
-            if (Number.isFinite(imageId)) {
-                payload.image_id = imageId;
+            if (Number.isFinite(numericImageId)) {
+                payload.image_id = numericImageId;
             }
 
             if (Number.isFinite(position)) {
@@ -2244,9 +2255,9 @@ const loadRunDetails = async (runId) => {
         const data = json.data && typeof json.data === 'object' ? json.data : {};
 
         applyRunDataToUI(data);
-        setActiveRun(numericId);
         activeRunId = numericId;
         window.currentRunId = numericId;
+        setActiveRun(numericId);
         updateWorkflowButtonState();
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
