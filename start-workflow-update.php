@@ -67,7 +67,7 @@ if (!$imageId) {
     $respond(['success' => false, 'message' => 'image_id fehlt (Bild nicht gefunden).'], 400);
 }
 
-$allowedActions = ['2k', '4k', 'edit'];
+$allowedActions = ['2K', '4K', 'edit'];
 if (!in_array($action, $allowedActions, true)) {
     $respond(['success' => false, 'message' => 'Ungültige Aktion: ' . htmlspecialchars($action)], 400);
 }

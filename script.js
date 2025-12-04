@@ -2249,6 +2249,8 @@ const loadRunDetails = async (runId) => {
 
         applyRunDataToUI(data);
         setActiveRun(numericId);
+
+        setCurrentRun(numericId);
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
     }
