@@ -1435,6 +1435,25 @@ function renderGeneratedImages(images) {
         delete slot.container.dataset.imageId;
         const rawData = imageList[index];
 
+        const badgeText =
+            rawData && typeof rawData === 'object' && typeof rawData.badge === 'string'
+                ? rawData.badge
+                : '';
+        let badgeElement = slot.container.querySelector('.slot-badge');
+
+        if (badgeText) {
+            if (!badgeElement) {
+                badgeElement = document.createElement('div');
+                badgeElement.classList.add('slot-badge');
+            }
+            badgeElement.textContent = badgeText;
+            if (!badgeElement.parentElement) {
+                slot.container.appendChild(badgeElement);
+            }
+        } else if (badgeElement) {
+            badgeElement.remove();
+        }
+
         if (rawData) {
             let imageUrl = '';
             let altText = `Generiertes Bild ${index + 1}`;
