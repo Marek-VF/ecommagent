@@ -105,6 +105,6 @@ try {
 } catch (Throwable $exception) {
     $respond([
         'ok'      => false,
-        'message' => 'server error',
-    ], 500);
+        'message' => 'no run id',
+    ], 200);
 }
