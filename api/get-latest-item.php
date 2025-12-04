@@ -159,7 +159,7 @@ try {
         $images = [];
 
         $imagesStatement = $pdo->prepare(
-            'SELECT url, position
+            'SELECT id, url, position
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
              ORDER BY position ASC, id ASC'
@@ -182,6 +182,7 @@ try {
 
             $position = isset($row['position']) ? (int) $row['position'] : 0;
             $images[] = [
+                'id'       => isset($row['id']) ? (int) $row['id'] : null,
                 'url'      => $url,
                 'position' => $position,
             ];
@@ -198,6 +199,7 @@ try {
                 'product_description' => '',
                 'images'              => array_map(
                     static fn (array $row): array => [
+                        'id'       => $row['id'],
                         'url'      => $row['url'],
                         'position' => (int) $row['position'],
                     ],
@@ -232,7 +234,7 @@ try {
 
     if ($runId !== null) {
         $imagesStatement = $pdo->prepare(
-            'SELECT url, position
+            'SELECT id, url, position
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
              ORDER BY position ASC, id ASC'
@@ -255,6 +257,7 @@ try {
 
             $position = isset($row['position']) ? (int) $row['position'] : 0;
             $images[] = [
+                'id'       => isset($row['id']) ? (int) $row['id'] : null,
                 'url'      => $url,
                 'position' => $position,
             ];
@@ -294,6 +297,7 @@ try {
             'product_description' => $productDescription,
             'images'              => array_map(
                 static fn (array $row): array => [
+                    'id'       => $row['id'],
                     'url'      => $row['url'],
                     'position' => (int) $row['position'],
                 ],
