@@ -115,6 +115,9 @@ if ($requestedUserId !== null && $requestedUserId !== $userId) {
     ], 403);
 }
 
+$imageId = $normalizePositiveInt($data['image_id'] ?? null);
+$position = $normalizePositiveInt($data['position'] ?? null);
+
 $action = isset($data['action']) && is_string($data['action']) ? strtolower(trim($data['action'])) : '';
 $allowedActions = ['2k', '4k', 'edit'];
 if (!in_array($action, $allowedActions, true)) {
@@ -226,6 +229,8 @@ try {
         'user_id'     => $userId,
         'action'      => $action,
         'image_url'   => $imageUrl,
+        'image_id'    => $imageId,
+        'position'    => $position,
         'timestamp'   => $timestamp(),
         'requested_at'=> $timestamp(),
     ];
