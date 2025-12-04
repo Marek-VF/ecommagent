@@ -159,7 +159,7 @@ try {
         $images = [];
 
         $imagesStatement = $pdo->prepare(
-            'SELECT id, url, position
+            'SELECT id, url, position, badge
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
              ORDER BY position ASC, id ASC'
@@ -170,7 +170,17 @@ try {
         ]);
         $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
 
+        $latestByPos = [];
         foreach ($imageRows as $row) {
+            $pos = isset($row['position']) ? (int) $row['position'] : 0;
+            $latestByPos[$pos] = $row;
+        }
+
+        if ($latestByPos !== []) {
+            ksort($latestByPos);
+        }
+
+        foreach ($latestByPos as $row) {
             $url = isset($row['url']) ? (string) $row['url'] : '';
             if ($url === '') {
                 continue;
@@ -185,6 +195,7 @@ try {
                 'id'       => isset($row['id']) ? (int) $row['id'] : null,
                 'url'      => $url,
                 'position' => $position,
+                'badge'    => array_key_exists('badge', $row) && $row['badge'] !== null ? (string) $row['badge'] : null,
             ];
         }
 
@@ -202,6 +213,7 @@ try {
                         'id'       => $row['id'],
                         'url'      => $row['url'],
                         'position' => (int) $row['position'],
+                        'badge'    => $row['badge'],
                     ],
                     $images
                 ),
@@ -234,7 +246,7 @@ try {
 
     if ($runId !== null) {
         $imagesStatement = $pdo->prepare(
-            'SELECT id, url, position
+            'SELECT id, url, position, badge
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
              ORDER BY position ASC, id ASC'
@@ -245,7 +257,17 @@ try {
         ]);
         $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
 
+        $latestByPos = [];
         foreach ($imageRows as $row) {
+            $pos = isset($row['position']) ? (int) $row['position'] : 0;
+            $latestByPos[$pos] = $row;
+        }
+
+        if ($latestByPos !== []) {
+            ksort($latestByPos);
+        }
+
+        foreach ($latestByPos as $row) {
             $url = isset($row['url']) ? (string) $row['url'] : '';
             if ($url === '') {
                 continue;
@@ -260,6 +282,7 @@ try {
                 'id'       => isset($row['id']) ? (int) $row['id'] : null,
                 'url'      => $url,
                 'position' => $position,
+                'badge'    => array_key_exists('badge', $row) && $row['badge'] !== null ? (string) $row['badge'] : null,
             ];
         }
     }
@@ -300,6 +323,7 @@ try {
                     'id'       => $row['id'],
                     'url'      => $row['url'],
                     'position' => (int) $row['position'],
+                    'badge'    => $row['badge'],
                 ],
                 $images
             ),
