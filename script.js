@@ -2160,6 +2160,20 @@ const applyRunDataToUI = (payload) => {
         }
 
         const image = normalizedImages.find((entry) => Number.isFinite(entry.position) && entry.position === expectedPosition);
+
+// --- BADGE LOGIK START (Dies fehlte!) ---
+        // Altes Badge entfernen
+        const existingBadge = slot.container.querySelector('.slot-badge');
+        if (existingBadge) existingBadge.remove();
+
+        // Neues Badge setzen, wenn vorhanden
+        if (image && image.badge) {
+            const badgeEl = document.createElement('div');
+            badgeEl.className = 'slot-badge';
+            badgeEl.textContent = image.badge;
+            slot.container.appendChild(badgeEl);
+        }
+
         if (image && image.url) {
             const resolvedImageUrl = toAbsoluteUrl(image.url);
             if (resolvedImageUrl) {

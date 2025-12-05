@@ -528,10 +528,10 @@ SQL;
         ]);
     }
 
-    if ((float) $width * (float) $height > 12_000_000) {
+    if ((float) $width * (float) $height > 24_000_000) {
         jsonResponse(413, [
             'ok'      => false,
-            'message' => 'Bildauflösung zu hoch (maximal 12 Megapixel).',
+            'message' => 'Bildauflösung zu hoch (maximal 24 Megapixel).',
         ]);
     }
 
