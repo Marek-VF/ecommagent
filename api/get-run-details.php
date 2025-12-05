@@ -47,7 +47,7 @@ $imgStmt = $pdo->prepare('
     SELECT id, url, position, badge
     FROM item_images
     WHERE user_id = :user_id AND run_id = :run_id
-    ORDER BY position ASC, created_at ASC
+    ORDER BY position ASC, id ASC
 ');
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
 $allRows = $imgStmt->fetchAll(PDO::FETCH_ASSOC);

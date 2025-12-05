@@ -158,16 +158,18 @@ try {
 
         $images = [];
 
-        $imagesStatement = $pdo->prepare(
-            'SELECT id, url, position, badge
+$imageRunStatement = $pdo->prepare(
+            'SELECT run_id
              FROM item_images
-             WHERE user_id = :user_id AND run_id = :run_id
-             ORDER BY position ASC, created_at ASC'
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1'
         );
-        $imagesStatement->execute([
-            ':user_id' => $userId,
-            ':run_id'  => $runId,
-        ]);
+        
+        // KORREKTUR: Richtige Variable nutzen und nur user_id übergeben
+        $imageRunStatement->execute([':user_id' => $userId]);
+        
+        $imageRunId = $imageRunStatement->fetchColumn();
         $allRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
         $latestBySlot = [];
 
@@ -250,7 +252,7 @@ try {
             'SELECT id, url, position, badge
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
-             ORDER BY position ASC, created_at ASC'
+             ORDER BY position ASC, id ASC' 
         );
         $imagesStatement->execute([
             ':user_id' => $userId,
