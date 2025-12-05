@@ -1108,6 +1108,11 @@ const clearSlotContent = (slot) => {
         existingImage.remove();
     }
 
+    const badgeElement = slot.container.querySelector('.slot-badge');
+    if (badgeElement) {
+        badgeElement.remove();
+    }
+
     ensurePlaceholderForSlot(slot);
 };
 
