@@ -306,8 +306,8 @@ cloud_upload
             <div class="slot-actions__skeleton-line skeleton-line"></div>
         </div>
         <div class="slot-actions slot-actions--menu is-hidden">
-            <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
-            <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="2K" title="Upscale 2K">2K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="4K" title="Upscale 4K">4K</button>
             <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
                 <span class="material-icons-outlined">edit</span>
             </button>
@@ -322,8 +322,8 @@ cloud_upload
             <div class="slot-actions__skeleton-line skeleton-line"></div>
         </div>
         <div class="slot-actions slot-actions--menu is-hidden">
-            <button type="button" class="action-btn btn-toggle" data-type="2k" title="Upscale 2K">2K</button>
-            <button type="button" class="action-btn btn-toggle" data-type="4k" title="Upscale 4K">4K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="2K" title="Upscale 2K">2K</button>
+            <button type="button" class="action-btn btn-toggle" data-type="4K" title="Upscale 4K">4K</button>
             <button type="button" class="action-btn btn-toggle" data-type="edit" title="Bearbeiten">
                 <span class="material-icons-outlined">edit</span>
             </button>

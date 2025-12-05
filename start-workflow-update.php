@@ -52,13 +52,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 // 2. Input lesen & Parsen
 $rawBody = file_get_contents('php://input');
+
+
+
 $data = json_decode($rawBody ?: '', true) ?? $_POST;
 
 // 3. Validierung der Pflichtfelder
 $runId = $normalizePositiveInt($data['run_id'] ?? null);
 $imageId = $normalizePositiveInt($data['image_id'] ?? null);
 $position = $normalizePositiveInt($data['position'] ?? null);
-$action = isset($data['action']) ? strtolower(trim((string)$data['action'])) : '';
+$action = isset($data['action']) ? trim((string)$data['action']) : '';
 
 if (!$runId) {
     $respond(['success' => false, 'message' => 'run_id fehlt.'], 400);
