@@ -162,25 +162,26 @@ try {
             'SELECT id, url, position, badge
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
-             ORDER BY position ASC, id ASC'
+             ORDER BY position ASC, created_at ASC'
         );
         $imagesStatement->execute([
             ':user_id' => $userId,
             ':run_id'  => $runId,
         ]);
-        $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
+        $allRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
+        $latestBySlot = [];
 
-        $latestByPos = [];
-        foreach ($imageRows as $row) {
-            $pos = isset($row['position']) ? (int) $row['position'] : 0;
-            $latestByPos[$pos] = $row;
+        foreach ($allRows as $row) {
+            // Wir nutzen die Position als Key.
+            // Da die DB-Abfrage nach 'created_at ASC' sortiert ist,
+            // überschreibt der spätere (neuester) Eintrag automatisch den früheren.
+            $pos = (int) ($row['position'] ?? 0);
+            $latestBySlot[$pos] = $row;
         }
 
-        if ($latestByPos !== []) {
-            ksort($latestByPos);
-        }
-
-        foreach ($latestByPos as $row) {
+        // Indizes zurücksetzen für sauberes JSON-Array
+        $images = [];
+        foreach (array_values($latestBySlot) as $row) {
             $url = isset($row['url']) ? (string) $row['url'] : '';
             if ($url === '') {
                 continue;
@@ -249,25 +250,26 @@ try {
             'SELECT id, url, position, badge
              FROM item_images
              WHERE user_id = :user_id AND run_id = :run_id
-             ORDER BY position ASC, id ASC'
+             ORDER BY position ASC, created_at ASC'
         );
         $imagesStatement->execute([
             ':user_id' => $userId,
             ':run_id'  => $runId,
         ]);
-        $imageRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
+        $allRows = $imagesStatement->fetchAll(PDO::FETCH_ASSOC);
+        $latestBySlot = [];
 
-        $latestByPos = [];
-        foreach ($imageRows as $row) {
-            $pos = isset($row['position']) ? (int) $row['position'] : 0;
-            $latestByPos[$pos] = $row;
+        foreach ($allRows as $row) {
+            // Wir nutzen die Position als Key.
+            // Da die DB-Abfrage nach 'created_at ASC' sortiert ist,
+            // überschreibt der spätere (neuester) Eintrag automatisch den früheren.
+            $pos = (int) ($row['position'] ?? 0);
+            $latestBySlot[$pos] = $row;
         }
 
-        if ($latestByPos !== []) {
-            ksort($latestByPos);
-        }
-
-        foreach ($latestByPos as $row) {
+        // Indizes zurücksetzen für sauberes JSON-Array
+        $images = [];
+        foreach (array_values($latestBySlot) as $row) {
             $url = isset($row['url']) ? (string) $row['url'] : '';
             if ($url === '') {
                 continue;

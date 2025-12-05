@@ -50,7 +50,19 @@ $imgStmt = $pdo->prepare('
     ORDER BY position ASC, created_at ASC
 ');
 $imgStmt->execute(['user_id' => $userId, 'run_id' => $runId]);
-$images = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
+$allRows = $imgStmt->fetchAll(PDO::FETCH_ASSOC);
+$latestBySlot = [];
+
+foreach ($allRows as $row) {
+    // Wir nutzen die Position als Key.
+    // Da die DB-Abfrage nach 'created_at ASC' sortiert ist,
+    // überschreibt der spätere (neuester) Eintrag automatisch den früheren.
+    $pos = (int) ($row['position'] ?? 0);
+    $latestBySlot[$pos] = $row;
+}
+
+// Indizes zurücksetzen für sauberes JSON-Array
+$images = array_values($latestBySlot);
 
 $runImagesStmt = $pdo->prepare('
     SELECT file_path
