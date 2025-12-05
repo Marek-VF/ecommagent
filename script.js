@@ -2250,6 +2250,9 @@ const setActiveRun = (runId) => {
 };
 
 const loadRunDetails = async (runId) => {
+
+    stopPolling();
+
     const numericId = Number(runId);
     if (!Number.isFinite(numericId) || numericId <= 0) {
         return;
