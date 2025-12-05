@@ -267,6 +267,8 @@ try {
         }
     }
 
+    $isRunningInput = $_POST['isrunning'] ?? $_POST['is_running'] ?? null;
+
     $userId = resolveUserId();
 
     $userIdFromPost = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
@@ -707,7 +709,35 @@ SQL;
         throw $transactionException;
     }
 
-    if ($executedSuccessfully && $runId !== null && $userId > 0) {
+    $shouldFinish = $executedSuccessfully
+        && $isRunningInput !== null
+        && toBooleanFlag($isRunningInput) === false;
+
+    if ($shouldFinish && $runId !== null && $userId > 0) {
+        $finishRun = $pdo->prepare(
+            "UPDATE workflow_runs SET status = 'finished', last_step_status = :status, finished_at = NOW() WHERE id = :run_id AND user_id = :user_id"
+        );
+        $finishRun->execute([
+            ':status'  => 'success',
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
+
+        $stateStmt = $pdo->prepare(
+            'INSERT INTO user_state (user_id, current_run_id, last_status, last_message, updated_at) VALUES (:user_id, :current_run_id, :last_status, :last_message, NOW())'
+            . ' ON DUPLICATE KEY UPDATE'
+            . '     current_run_id = VALUES(current_run_id),'
+            . '     last_status = VALUES(last_status),'
+            . '     last_message = VALUES(last_message),'
+            . '     updated_at = NOW()'
+        );
+        $stateStmt->execute([
+            ':user_id'         => $userId,
+            ':current_run_id'  => $runId,
+            ':last_status'     => 'finished',
+            ':last_message'    => $loggedMessage ?? '',
+        ]);
+    } elseif ($executedSuccessfully && $runId !== null && $userId > 0) {
         $updateStepStatus = $pdo->prepare(
             'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
         );
