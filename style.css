@@ -1851,4 +1851,23 @@ textarea {
     transform: scale(1.02);
 }
 
+.generated-slot {
+    position: relative;
+}
+
+.slot-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 20;
+    pointer-events: none;
+}
+
  
