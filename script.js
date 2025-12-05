@@ -871,10 +871,12 @@ const normalizeLatestImagesObject = (input) => {
     const buildImageObject = (value) => {
         let url = '';
         let id = null;
+        let badge = null;
 
         if (value && typeof value === 'object') {
             url = typeof value.url === 'string' ? value.url.trim() : '';
             id = value.id || null;
+            badge = value.badge || null;
         } else if (typeof value === 'string') {
             url = value.trim();
         }
@@ -883,7 +885,7 @@ const normalizeLatestImagesObject = (input) => {
             return null;
         }
 
-        return { url, id };
+        return { url, id, badge };
     };
 
     const assignToKey = (key, value) => {
@@ -2139,6 +2141,7 @@ const applyRunDataToUI = (payload) => {
         position: Number(entry.position),
         url: typeof entry.url === 'string' ? entry.url.trim() : '',
         id: entry.id || null,
+        badge: entry.badge || null,
     }));
 
     gallerySlots.forEach((slot) => {
