@@ -101,14 +101,16 @@ function log_event(PDO $pdo, int $runId, int $userId, string $code, string $sour
 
 /**
  * Stores a status message in the new status log table if run and user IDs are valid.
+ * UPDATED: Jetzt mit optionalem Code und Severity für Custom-Icons.
  */
-function log_status_message(PDO $pdo, int $runId, int $userId, string $message): bool
+function log_status_message(PDO $pdo, int $runId, int $userId, string $message, ?string $code = null, string $severity = 'info'): bool
 {
     if ($runId <= 0 || $userId <= 0 || trim($message) === '') {
         return false;
     }
 
     try {
+        // ... (User/Run Checks bleiben gleich) ...
         $userStmt = $pdo->prepare('SELECT 1 FROM users WHERE id = :uid LIMIT 1');
         $userStmt->execute([':uid' => $userId]);
         if ($userStmt->fetchColumn() === false) {
@@ -116,22 +118,22 @@ function log_status_message(PDO $pdo, int $runId, int $userId, string $message):
         }
 
         $runStmt = $pdo->prepare('SELECT 1 FROM workflow_runs WHERE id = :rid AND user_id = :uid LIMIT 1');
-        $runStmt->execute([
-            ':rid' => $runId,
-            ':uid' => $userId,
-        ]);
-
+        $runStmt->execute([':rid' => $runId, ':uid' => $userId]);
         if ($runStmt->fetchColumn() === false) {
             return false;
         }
 
+        // NEU: Code und Severity mitspeichern
         $insert = $pdo->prepare(
-            'INSERT INTO status_logs_new (run_id, user_id, message, created_at) VALUES (:rid, :uid, :message, NOW())'
+            'INSERT INTO status_logs_new (run_id, user_id, message, code, severity, created_at) 
+             VALUES (:rid, :uid, :message, :code, :severity, NOW())'
         );
         $insert->execute([
-            ':rid'     => $runId,
-            ':uid'     => $userId,
-            ':message' => $message,
+            ':rid'      => $runId,
+            ':uid'      => $userId,
+            ':message'  => $message,
+            ':code'     => $code,        // Hier wird der Code (z.B. CREDITS_SPENT) gespeichert
+            ':severity' => $severity,
         ]);
 
         return true;

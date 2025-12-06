@@ -92,6 +92,12 @@ return [
         'icon_html' => '<span class="material-icons-outlined status-icon text-success">image</span>',
     ],
 
+    'IMAGE_UPDATE_SUCCESS' => [
+        'label'     => 'Update wurde erfolgreich generiert.',
+        'severity'  => 'success',
+        'icon_html' => '<span class="material-icons-outlined status-icon text-success">image</span>',
+    ],
+
     'IMAGE_ERROR' => [
         'label'     => 'Die Bildgenerierung ist fehlgeschlagen.',
         'severity'  => 'error',
@@ -115,7 +121,12 @@ return [
         'severity'  => 'info',
         'icon_html' => '<span class="material-icons-outlined status-icon text-info">payments</span>',
     ],
-
+'CREDITS_SPENT' => [
+        'label'     => 'Guthaben abgebucht', // Fallback-Text
+        'severity'  => 'info',
+       
+        'icon_html' => '<span class="material-icons-outlined" style="color: #f59e0b;">paid</span>', 
+    ],
     'UPLOAD_STARTED' => [
         'label'     => 'Bild wird hochgeladen …',
         'severity'  => 'info',

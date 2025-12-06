@@ -192,25 +192,7 @@ $appConfig = [
         </div>
  
         <main class="grid">
-<!--
-            <section class="panel panel--upload">
-                <div class="panel__section panel__section--upload">
-                  
-                                <div id="drop-zone" class="drop-zone" tabindex="0" aria-label="Datei hierher ziehen...">
-                                    
-                                    <span class="material-icons-outlined" style="font-size: 48px; color: var(--accent); margin-bottom: 16px;">
-                                        upload_file
-                                    </span>
-                                    <p>Ziehen Sie eine Bilddatei hierher oder klicken Sie, um eine Datei auszuwählen.</p>
-                                    
-                                    <button id="select-file" type="button" class="btn">Datei hinzufügen</button>
-                                    <input id="file-input" type="file" name="image" accept="image/*" hidden>
-                                </div>
-                    <div class="original-image-wrapper" data-original-images aria-live="polite"></div>
-                    <div id="upload-previews" class="preview-list" aria-live="polite"></div>
-                </div>
-            </section>
-        -->
+
 <section class="panel panel--upload" style="background: transparent; border: none; padding: 0; box-shadow: none;">
     
     <div class="status-upload-card">
@@ -219,7 +201,16 @@ $appConfig = [
             <div class="status-header-row">
                 <h3 class="status-header">Status Updates</h3>
             </div>
-            <div class="status-list" id="status-feed" aria-live="polite"></div>
+            <div class="status-list" id="status-feed" aria-live="polite">
+                <div class="status-item status-item--success" data-severity="success">
+                    <span class="status-icon-wrapper">
+                        <span class="material-icons-outlined status-icon text-success">
+                          waving_hand   
+                        </span>
+                    </span>
+                        <div class="status-content"><p class="status-text">Hallo Marek    </p></div>
+                </div>
+            </div>
             <div class="status-empty" id="status-feed-empty" style="display: none;">keine Statusmeldung vorhanden</div>
         </div>
 

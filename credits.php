@@ -105,6 +105,33 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
         ]);
 
         $pdo->commit();
+
+// --- NEU: User-Feedback über Abbuchung ---
+        if ($runId !== null) {
+            $formattedPrice = number_format($price, 2, ',', '.');
+            
+            // Mapping für schönere Anzeige (kannst du beliebig erweitern)
+            $displayReason = match ($stepType) {
+                '2K', '2k', 'upscale_2x' => 'Upscale 2K',
+                '4K', '4k', 'upscale_4x' => 'Upscale 4K',
+                'edit', 'inpainting'     => 'Bearbeitung',
+                'image_1', 'image_2', 'image_3' => 'Bildgenerierung',
+                'analysis' => 'Analyse',
+                default => ucfirst($stepType),
+            };
+            
+            $logMsg = sprintf('Guthaben: -%s Credits (%s)', $formattedPrice, $displayReason);
+            
+            // Status-Meldung mit speziellem Code 'CREDITS_SPENT'
+            if (function_exists('log_status_message')) {
+                log_status_message($pdo, $runId, $userId, $logMsg, 'CREDITS_SPENT');
+            }
+        }
+        // -----------------------------------------
+
+
+
+
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

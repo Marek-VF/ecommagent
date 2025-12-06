@@ -134,6 +134,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 24px;
+    height:70px;
 }
 
 /* Den alten Margin vom Grid nehmen wir weg, da der Header jetzt Abstand hat */

@@ -9,7 +9,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
-// Error Handler für saubere JSON-Antworten bei PHP-Fehlern
+// Error Handler
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
     if (!(error_reporting() & $severity)) {
         return false;
@@ -50,14 +50,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     $respond(['success' => false, 'message' => 'Methode nicht erlaubt.'], 405);
 }
 
-// 2. Input lesen & Parsen
+// 2. Konfiguration laden (WICHTIG: VOR dem Credit Check!)
+$config = auth_config();
+
+// 3. Input lesen & Parsen
 $rawBody = file_get_contents('php://input');
-
-
-
 $data = json_decode($rawBody ?: '', true) ?? $_POST;
 
-// 3. Validierung der Pflichtfelder
 $runId = $normalizePositiveInt($data['run_id'] ?? null);
 $imageId = $normalizePositiveInt($data['image_id'] ?? null);
 $position = $normalizePositiveInt($data['position'] ?? null);
@@ -70,13 +69,46 @@ if (!$imageId) {
     $respond(['success' => false, 'message' => 'image_id fehlt (Bild nicht gefunden).'], 400);
 }
 
-$allowedActions = ['2K', '4K', 'edit'];
+// Erlaube exakt die Keys aus der Config (Case Sensitive für Credit-Matching)
+$allowedActions = ['2K', '4K', 'edit']; 
 if (!in_array($action, $allowedActions, true)) {
     $respond(['success' => false, 'message' => 'Ungültige Aktion: ' . htmlspecialchars($action)], 400);
 }
 
+// --- CREDIT CHECK START ---
+$stepPrice = get_credit_price($config, $action);
+$requiredCredits = $stepPrice !== null ? $stepPrice : 0.0;
+
+if ($requiredCredits > 0) {
+    $pdo = auth_pdo();
+    
+    $balanceStmt = $pdo->prepare('SELECT credits_balance FROM users WHERE id = :uid LIMIT 1');
+    $balanceStmt->execute([':uid' => $userId]);
+    $currentBalance = (float) $balanceStmt->fetchColumn();
+
+    if ($currentBalance < $requiredCredits) {
+        $msg = sprintf(
+            'Nicht genügend Credits. Benötigt: %s, Verfügbar: %s',
+            number_format($requiredCredits, 2, ',', '.'),
+            number_format($currentBalance, 2, ',', '.')
+        );
+        
+        // Loggen (optional, falls PDO schon da ist)
+        if (function_exists('log_status_message')) {
+            log_status_message($pdo, $runId, $userId, $msg);
+        }
+
+        $respond([
+            'success' => false,
+            'status'  => 'not_enough_credits',
+            'message' => $msg
+        ], 400);
+    }
+}
+// --- CREDIT CHECK ENDE ---
+
 try {
-    $config = auth_config();
+    // $config haben wir oben schon geladen, daher hier entfernen oder wiederverwenden
     $webhookUrl = $config['workflow_webhook_update'] ?? null;
 
     if (!$webhookUrl || !is_string($webhookUrl)) {
@@ -84,6 +116,7 @@ try {
     }
 
     $pdo = auth_pdo();
+    
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // 4. Sicherheits-Check & URL aus DB holen (Single Source of Truth)
