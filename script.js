@@ -61,6 +61,19 @@ function setDropZoneState(isRunning) {
     }
 }
 
+function triggerPollingAnimation() {
+    const icon = document.querySelector('.dz-running .cta-icon');
+
+    if (!(icon instanceof HTMLElement)) {
+        return;
+    }
+
+    icon.classList.remove('is-spinning');
+    // Trigger Reflow, damit die Animation neu startet
+    void icon.offsetWidth;
+    icon.classList.add('is-spinning');
+}
+
 function showConfirmModal(title, message, onConfirmCallback) {
     const hasModalElements =
         confirmationModal && modalTitle && modalMessage && modalCancelButton && modalConfirmButton;
@@ -2684,6 +2697,8 @@ const closeHistory = () => {
 
 async function fetchLatestItem() {
     try {
+        triggerPollingAnimation();
+
         const response = await fetch(DATA_ENDPOINT, {
             cache: 'no-store',
         });
