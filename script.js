@@ -1977,6 +1977,17 @@ const handleFiles = (files) => {
     if (!files || files.length === 0) {
         return;
     }
+
+    const MAX_UPLOAD_COUNT = 2;
+    const currentCount = window.currentOriginalImages ? window.currentOriginalImages.length : 0;
+    const newCount = files ? files.length : 0;
+
+    if (currentCount + newCount > MAX_UPLOAD_COUNT) {
+        showWorkflowFeedback('error', 'Maximal 2 Bilder erlaubt.');
+        setStatusAndLog('warning', 'Upload abgelehnt: Limit von 2 Bildern erreicht.', 'UPLOAD_LIMIT_EXCEEDED');
+        return;
+    }
+
     uploadFiles(files);
 };
 
