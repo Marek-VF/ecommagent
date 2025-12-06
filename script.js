@@ -581,6 +581,12 @@ const ensureOriginalImagesState = () => {
     }
 };
 
+const setOriginalImagesLocked = (locked) => {
+    if (originalImagesWrapper) {
+        originalImagesWrapper.classList.toggle('no-delete', locked);
+    }
+};
+
 const updateOriginalImageLayoutMode = () => {
     if (!originalImagesWrapper) {
         return;
@@ -669,7 +675,7 @@ const appendOriginalImagePreview = (url, options = {}) => {
 
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
-    deleteButton.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-opacity opacity-0 group-hover:opacity-100';
+    deleteButton.className = 'delete-image-btn absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-opacity opacity-0 group-hover:opacity-100';
     deleteButton.innerHTML = '<span class="material-icons-outlined text-sm leading-none">close</span>';
     deleteButton.dataset.filename = filename;
 
@@ -1798,6 +1804,7 @@ const uploadFiles = async (files) => {
     }
 
     stopPolling();
+    setOriginalImagesLocked(false);
     hasObservedActiveRun = false;
     workflowIsRunning = false;
 
@@ -1936,6 +1943,8 @@ function onWorkflowStarted() {
 }
 
 async function startWorkflow() {
+    setOriginalImagesLocked(true);
+
     if (isStartingWorkflow) {
         return;
     }
@@ -2183,6 +2192,8 @@ const updateInterfaceFromData = (data) => {
 };
 
 const applyRunDataToUI = (payload) => {
+    setOriginalImagesLocked(true);
+
     const data = payload && typeof payload === 'object' ? payload : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
@@ -2918,6 +2929,7 @@ function stopPolling() {
 function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
+    setOriginalImagesLocked(false);
     activeRunId = null;
     setStatusAndLog('ready', 'Bereit zum Upload', 'READY_FOR_UPLOAD');
     clearProductFields({ loading: false });
