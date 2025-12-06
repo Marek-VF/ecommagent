@@ -26,6 +26,11 @@ const SIDEBAR_PROFILE_TRIGGER =
     SIDEBAR_PROFILE && SIDEBAR_PROFILE instanceof HTMLElement
         ? SIDEBAR_PROFILE.querySelector('[data-profile-trigger]')
         : null;
+const confirmationModal = document.getElementById('confirmation-modal');
+const modalTitle = document.getElementById('modal-title');
+const modalMessage = document.getElementById('modal-message');
+const modalCancelButton = document.getElementById('modal-cancel');
+let modalConfirmButton = document.getElementById('modal-confirm');
 
 const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 const FIELD_GROUP_STATE = {
@@ -41,6 +46,44 @@ let statusDotCount = 0;
 let baseStatusMessage = '';
 
 const isStatusAnimationActive = () => statusAnimationInterval !== null;
+
+function showConfirmModal(title, message, onConfirmCallback) {
+    const hasModalElements =
+        confirmationModal && modalTitle && modalMessage && modalCancelButton && modalConfirmButton;
+
+    if (!hasModalElements) {
+        const shouldProceed = window.confirm(
+            typeof message === 'string' && message.trim() !== '' ? message : title || ''
+        );
+
+        if (shouldProceed && typeof onConfirmCallback === 'function') {
+            onConfirmCallback();
+        }
+
+        return;
+    }
+
+    modalTitle.textContent = typeof title === 'string' ? title : 'Bestätigung';
+    modalMessage.textContent = typeof message === 'string' ? message : '';
+
+    const newConfirmButton = modalConfirmButton.cloneNode(true);
+    modalConfirmButton.replaceWith(newConfirmButton);
+    modalConfirmButton = newConfirmButton;
+
+    modalConfirmButton.onclick = async () => {
+        try {
+            if (typeof onConfirmCallback === 'function') {
+                await onConfirmCallback();
+            }
+        } finally {
+            confirmationModal.close();
+        }
+    };
+
+    modalCancelButton.onclick = () => confirmationModal.close();
+
+    confirmationModal.showModal();
+}
 
 function setStatusMessage(text, options = {}) {
     const bar = statusBar || document.getElementById('status-bar');
@@ -614,41 +657,43 @@ const clearOriginalImagePreviews = () => {
 };
 
 async function deleteOriginalImage(runId, wrapperElement, filename) {
-    if (!confirm('Möchtest du dieses Originalbild wirklich löschen?')) {
-        return;
-    }
+    showConfirmModal(
+        'Bild löschen',
+        'Möchten Sie dieses Originalbild wirklich unwiderruflich löschen?',
+        async () => {
+            try {
+                const response = await fetch('delete_image.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ run_id: runId, filename: filename }),
+                });
 
-    try {
-        const response = await fetch('delete_image.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ run_id: runId, filename: filename }),
-        });
+                const result = await response.json();
 
-        const result = await response.json();
+                if (response.ok && result.success) {
+                    // 1. DOM Element entfernen
+                    if (wrapperElement) wrapperElement.remove();
 
-        if (response.ok && result.success) {
-            // 1. DOM Element entfernen
-            if (wrapperElement) wrapperElement.remove();
+                    // 2. State bereinigen (WICHTIG für den Upload-Bug!)
+                    if (Array.isArray(window.currentOriginalImages)) {
+                        window.currentOriginalImages = window.currentOriginalImages.filter((u) => !u.includes(filename));
+                    }
 
-            // 2. State bereinigen (WICHTIG für den Upload-Bug!)
-            if (Array.isArray(window.currentOriginalImages)) {
-                window.currentOriginalImages = window.currentOriginalImages.filter((u) => !u.includes(filename));
+                    // 3. Layout Check
+                    updateOriginalImageLayoutMode();
+                    updateWorkflowButtonState();
+
+                    // 4. Feed aktualisieren (optional)
+                    fetchStatusFeed().catch(console.error);
+                } else {
+                    console.error('Löschen fehlgeschlagen:', result.message || result.error);
+                    alert('Fehler beim Löschen des Bildes.');
+                }
+            } catch (error) {
+                console.error('Netzwerkfehler beim Löschen:', error);
             }
-
-            // 3. Layout Check
-            updateOriginalImageLayoutMode();
-            updateWorkflowButtonState();
-
-            // 4. Feed aktualisieren (optional)
-            fetchStatusFeed().catch(console.error);
-        } else {
-            console.error('Löschen fehlgeschlagen:', result.message || result.error);
-            alert('Fehler beim Löschen des Bildes.');
         }
-    } catch (error) {
-        console.error('Netzwerkfehler beim Löschen:', error);
-    }
+    );
 }
 
 const appendOriginalImagePreview = (url, options = {}) => {
