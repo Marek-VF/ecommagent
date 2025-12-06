@@ -51,15 +51,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $input = json_decode((string) file_get_contents('php://input'), true);
 $runId = null;
+$filename = null;
 
 if (is_array($input) && array_key_exists('run_id', $input)) {
     $runId = filter_var($input['run_id'], FILTER_VALIDATE_INT);
+}
+
+if (is_array($input) && array_key_exists('filename', $input)) {
+    $filename = is_string($input['filename']) ? trim($input['filename']) : '';
 }
 
 if (!is_int($runId) || $runId <= 0) {
     $respond([
         'success' => false,
         'message' => 'Ungültige run_id.',
+    ], 400);
+}
+
+if ($filename === null || $filename === '' || strpos($filename, '..') !== false) {
+    $respond([
+        'success' => false,
+        'message' => 'Ungültiger Dateiname.',
     ], 400);
 }
 
@@ -81,28 +93,23 @@ try {
         ], 404);
     }
 
-    $imageStmt = $pdo->prepare('SELECT id, file_path FROM run_images WHERE run_id = :run_id');
-    $imageStmt->execute([':run_id' => $runId]);
-    $images = $imageStmt->fetchAll(PDO::FETCH_ASSOC);
+    $imageStmt = $pdo->prepare('SELECT id, file_path FROM run_images WHERE run_id = :run_id AND file_path LIKE :search LIMIT 1');
+    $imageStmt->execute([
+        ':run_id' => $runId,
+        ':search' => '%' . $filename,
+    ]);
+    $image = $imageStmt->fetch(PDO::FETCH_ASSOC);
 
-    $pathsToDelete = [];
-    foreach ($images as $image) {
-        if (!isset($image['file_path'])) {
-            continue;
-        }
-
-        $path = trim((string) $image['file_path']);
-        if ($path !== '') {
-            $pathsToDelete[] = $path;
-        }
+    if (!$image || !isset($image['id'], $image['file_path'])) {
+        $pdo->rollBack();
+        $respond([
+            'success' => false,
+            'message' => 'Bild wurde nicht gefunden.',
+        ], 404);
     }
 
-    $originalImagePath = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
-    if ($originalImagePath !== '') {
-        $pathsToDelete[] = $originalImagePath;
-    }
-
-    foreach ($pathsToDelete as $path) {
+    $path = trim((string) $image['file_path']);
+    if ($path !== '') {
         $absolutePath = __DIR__ . '/' . ltrim($path, '/');
 
         if (is_file($absolutePath) && file_exists($absolutePath)) {
@@ -110,14 +117,17 @@ try {
         }
     }
 
-    $deleteImagesStmt = $pdo->prepare('DELETE FROM run_images WHERE run_id = :run_id');
-    $deleteImagesStmt->execute([':run_id' => $runId]);
+    $deleteImagesStmt = $pdo->prepare('DELETE FROM run_images WHERE id = :id');
+    $deleteImagesStmt->execute([':id' => (int) $image['id']]);
 
-    $updateRunStmt = $pdo->prepare('UPDATE workflow_runs SET original_image = NULL WHERE id = :run_id AND user_id = :user_id');
-    $updateRunStmt->execute([
-        ':run_id'  => $runId,
-        ':user_id' => $userId,
-    ]);
+    $originalImagePath = isset($run['original_image']) ? trim((string) $run['original_image']) : '';
+    if ($originalImagePath !== '' && $originalImagePath === $path) {
+        $updateRunStmt = $pdo->prepare('UPDATE workflow_runs SET original_image = NULL WHERE id = :run_id AND user_id = :user_id');
+        $updateRunStmt->execute([
+            ':run_id'  => $runId,
+            ':user_id' => $userId,
+        ]);
+    }
 
     log_status_message($pdo, $runId, $userId, 'Originalbild entfernt', 'IMAGE_DELETED', 'warning');
 
