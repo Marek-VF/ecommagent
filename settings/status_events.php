@@ -145,6 +145,12 @@ return [
         'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error</span>',
     ],
 
+    'IMAGE_DELETED' => [
+        'label'     => 'Originalbild gelöscht',
+        'severity'  => 'warning',
+        'icon_html' => '<span class="material-icons-outlined" style="color: #ef4444;">delete</span>',
+    ],
+
     'UPLOAD_HTTP_404' => [
         'label'     => 'Upload fehlgeschlagen (Server meldet 404).',
         'severity'  => 'error',
