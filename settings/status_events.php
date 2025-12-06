@@ -145,6 +145,12 @@ return [
         'icon_html' => '<span class="material-icons-outlined status-icon text-danger">error</span>',
     ],
 
+    'UPLOAD_LIMIT_EXCEEDED' => [
+        'label'     => 'Upload-Limit erreicht',
+        'severity'  => 'warning',
+        'icon_html' => '<span class="material-icons-outlined" style="color: #f59e0b;">block</span>',
+    ],
+
     'IMAGE_DELETED' => [
         'label'     => 'Originalbild gelöscht',
         'severity'  => 'warning',
