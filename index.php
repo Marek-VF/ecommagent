@@ -242,8 +242,8 @@ $appConfig = [
                 </div>
 
                 <div class="dz-complete cta-content">
-                    <span class="material-icons-outlined cta-icon">check_circle</span>
-                    <span class="cta-text">Fertig! Neu starten</span>
+                    <span class="material-icons-outlined cta-icon">restart_alt</span>
+                    <span class="cta-text">Neu starten</span>
                 </div>
             </div>
         </div>
