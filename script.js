@@ -47,6 +47,20 @@ let baseStatusMessage = '';
 
 const isStatusAnimationActive = () => statusAnimationInterval !== null;
 
+function setDropZoneState(isRunning) {
+    const zone = dropZone || document.getElementById('drop-zone');
+
+    if (!zone) {
+        return;
+    }
+
+    if (isRunning) {
+        zone.classList.add('is-running');
+    } else {
+        zone.classList.remove('is-running');
+    }
+}
+
 function showConfirmModal(title, message, onConfirmCallback) {
     const hasModalElements =
         confirmationModal && modalTitle && modalMessage && modalCancelButton && modalConfirmButton;
@@ -2003,6 +2017,7 @@ function onWorkflowStarted() {
 }
 
 async function startWorkflow() {
+    setDropZoneState(true);
     setOriginalImagesLocked(true);
 
     if (isStartingWorkflow) {
@@ -2361,6 +2376,10 @@ const applyRunDataToUI = (payload) => {
         updateProcessingIndicator(indicatorMessage || 'Bereit.', indicatorState);
     } else if (Object.prototype.hasOwnProperty.call(data, 'isrunning')) {
         runIsRunning = toBoolean(data.isrunning);
+    }
+
+    if (runIsRunning) {
+        setDropZoneState(true);
     }
 
     applyStatusBarMessage(data, { isRunning: runIsRunning });
@@ -2988,6 +3007,7 @@ function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
     setOriginalImagesLocked(false);
+    setDropZoneState(false);
     activeRunId = null;
     setStatusAndLog('ready', 'Bereit zum Upload', 'READY_FOR_UPLOAD');
     clearProductFields({ loading: false });

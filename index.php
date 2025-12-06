@@ -231,14 +231,20 @@ $appConfig = [
 
         <div class="drop-area">
             <div id="drop-zone" class="drop-zone drop-zone--cta" tabindex="0" aria-label="Datei hochladen">
-                <div class="cta-content">
-                   <span class="material-icons-outlined cta-icon">
+                <div class="dz-idle">
+                    <div class="cta-content">
+                        <span class="material-icons-outlined cta-icon">
 cloud_upload
 </span>
-                    <span class="cta-text">Datei hochladen</span>
+                        <span class="cta-text">Datei hochladen</span>
+                    </div>
+                    <input id="file-input" type="file" name="image" accept="image/*" hidden>
+                    <button id="select-file" type="button" style="display:none;">Button</button>
                 </div>
-                <input id="file-input" type="file" name="image" accept="image/*" hidden>
-                <button id="select-file" type="button" style="display:none;">Button</button>
+                <div class="dz-running">
+                    <span class="material-icons-outlined dz-icon">autorenew</span>
+                    <p>Verarbeitung läuft</p>
+                </div>
             </div>
         </div>
 
