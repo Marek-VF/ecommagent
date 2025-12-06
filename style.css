@@ -1877,6 +1877,10 @@ textarea {
     display: none;
 }
 
+.drop-zone .dz-complete {
+    display: none;
+}
+
 /* Wenn Workflow läuft (.is-running) */
 .drop-zone.is-running {
     /* Interaktion sperren */
@@ -1898,7 +1902,35 @@ textarea {
 
 .drop-zone.is-running .dz-running {
     /* 'display: flex' ist wichtig, da .cta-content ein Flex-Container ist */
-    display: flex; 
+    display: flex;
+}
+
+/* Status: Workflow Fertig */
+.drop-zone.is-complete {
+    /* Zurück zum kräftigen Orange (#ff5722), da Button wieder aktiv */
+    background-color: #ff5722 !important; 
+    border-color: transparent;
+    
+    /* Wichtig: Klickbar machen */
+    cursor: pointer;
+    pointer-events: auto;
+    
+    /* Hover Effekt für Feedback */
+    transition: background-color 0.2s;
+}
+
+.drop-zone.is-complete:hover {
+    background-color: #f4511e !important; /* Etwas dunkleres Orange beim Hover */
+}
+
+/* Toggle Logik: Zeige nur .dz-complete */
+.drop-zone.is-complete .dz-idle,
+.drop-zone.is-complete .dz-running {
+    display: none;
+}
+
+.drop-zone.is-complete .dz-complete {
+    display: flex; /* Flexbox beibehalten für Zentrierung */
 }
 
 /* Sicherheits-Check: Stelle sicher, dass das Icon im Running-State 

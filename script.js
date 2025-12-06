@@ -47,18 +47,18 @@ let baseStatusMessage = '';
 
 const isStatusAnimationActive = () => statusAnimationInterval !== null;
 
-function setDropZoneState(isRunning) {
+function setDropZoneState(state) {
     const zone = dropZone || document.getElementById('drop-zone');
 
     if (!zone) {
         return;
     }
 
-    if (isRunning) {
-        zone.classList.add('is-running');
-    } else {
-        zone.classList.remove('is-running');
-    }
+    const isRunning = typeof state === 'object' ? Boolean(state.isRunning) : Boolean(state);
+    const isComplete = typeof state === 'object' && 'isComplete' in state ? Boolean(state.isComplete) : false;
+
+    zone.classList.toggle('is-running', isRunning);
+    zone.classList.toggle('is-complete', !isRunning && isComplete);
 }
 
 function triggerPollingAnimation() {
@@ -2392,7 +2392,11 @@ const applyRunDataToUI = (payload) => {
     }
 
     if (runIsRunning) {
-        setDropZoneState(true);
+        setDropZoneState({ isRunning: true });
+    } else if (['finished', 'success', 'completed'].includes(statusRaw)) {
+        setDropZoneState({ isRunning: false, isComplete: true });
+    } else {
+        setDropZoneState({ isRunning: false, isComplete: false });
     }
 
     applyStatusBarMessage(data, { isRunning: runIsRunning });
@@ -2737,6 +2741,9 @@ async function fetchLatestItem() {
                 : (typeof payload.status === 'string' ? payload.status : '');
         const statusLabel = statusLabelRaw ? statusLabelRaw.trim().toLowerCase() : '';
 
+        const shouldShowComplete = !isRunning && statusLabel !== 'pending';
+        setDropZoneState({ isRunning, isComplete: shouldShowComplete });
+
         if (!isRunning) {
             if (statusLabel === 'pending') {
                 setStatusAndLog('info', 'Bereit für Workflow-Start', 'WORKFLOW_PENDING');
@@ -2818,7 +2825,21 @@ function setupUploadHandler() {
         }
     });
 
-    dropZone.addEventListener('click', () => {
+    dropZone.addEventListener('click', (e) => {
+        // Fall A: Button ist im "Fertig"-Modus -> Seite neu laden
+        if (dropZone.classList.contains('is-complete')) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.reload(); // Hard Reset
+            return;
+        }
+
+        // Fall B: Workflow läuft -> Klick ignorieren (Safety Check)
+        if (dropZone.classList.contains('is-running')) {
+            return;
+        }
+
+        // Fall C: Standard (Idle) -> Upload Dialog öffnen
         if (fileInput) {
             fileInput.click();
         }

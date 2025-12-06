@@ -218,7 +218,7 @@ $appConfig = [
                 <div class="status-item status-item--success" data-severity="success">
                     <span class="status-icon-wrapper">
                         <span class="material-icons-outlined status-icon text-success">
-                          waving_hand   
+                          waving_hand
                         </span>
                     </span>
                         <div class="status-content"><p class="status-text">Hallo Marek    </p></div>
@@ -239,6 +239,11 @@ $appConfig = [
 
                 <div class="dz-running cta-content">
                     <span class="material-icons-outlined cta-icon">autorenew</span> <span class="cta-text">Verarbeitung läuft</span>
+                </div>
+
+                <div class="dz-complete cta-content">
+                    <span class="material-icons-outlined cta-icon">check_circle</span>
+                    <span class="cta-text">Fertig! Neu starten</span>
                 </div>
             </div>
         </div>
