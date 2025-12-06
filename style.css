@@ -1906,17 +1906,15 @@ textarea {
        Wir müssen hier nichts überschreiben, solange HTML korrekt ist. */
 }
 
-/* Optional rotation animation for the running icon */
-/*
-@keyframes dz-rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+/* Polling Animation: einmalige, nahtlose 360° Rotation */
+@keyframes spin-once {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
-.dz-running .dz-icon {
-    animation: dz-rotate 1.25s linear infinite;
+.dz-running .cta-icon.is-spinning {
+    animation: spin-once 1.5s ease-out forwards;
 }
-*/
 
 /* Hover States */
 .drop-zone--cta:hover,
