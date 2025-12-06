@@ -1870,32 +1870,40 @@ textarea {
     color: #ffffff;
 }
 
+/* --- Drop Zone State Switching --- */
+
+/* Standard: Running-Inhalt ist versteckt */
 .drop-zone .dz-running {
     display: none;
 }
 
+/* Wenn Workflow läuft (.is-running) */
 .drop-zone.is-running {
+    /* KEIN Hintergrund-Wechsel! Es bleibt Orange (var(--accent)) durch die Basis-Klasse */
+    /* Nur Interaktion sperren */
     pointer-events: none;
     cursor: default;
-    background: #f5f5f5;
+    
+    /* Optional: Minimale Transparenz, damit man sieht, dass es inaktiv ist, 
+       aber ohne die Farbe zu verlieren. */
+    opacity: 0.9; 
 }
 
+/* Toggle Logik: Idle weg, Running her */
 .drop-zone.is-running .dz-idle {
     display: none;
 }
 
 .drop-zone.is-running .dz-running {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    text-align: center;
+    /* 'display: flex' ist wichtig, da .cta-content ein Flex-Container ist */
+    display: flex; 
 }
 
-.dz-running .dz-icon {
-    font-size: 48px;
-    color: #9ca3af;
+/* Sicherheits-Check: Stelle sicher, dass das Icon im Running-State 
+   die gleiche Größe hat wie im Idle-State (geerbt von .cta-icon) */
+.dz-running .cta-icon {
+    /* In deiner CSS ist .cta-icon 24px und weiß. 
+       Wir müssen hier nichts überschreiben, solange HTML korrekt ist. */
 }
 
 /* Optional rotation animation for the running icon */
