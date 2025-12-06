@@ -1426,6 +1426,12 @@ textarea {
     border: 1px solid var(--border);
 }
 
+/* Verstecke Löschen-Button, wenn der Status gesperrt ist */
+.original-image-wrapper.no-delete .delete-image-btn {
+    display: none !important;
+    pointer-events: none;
+}
+
 
 
 /* --- Generated Cards & Action Bar --- */
