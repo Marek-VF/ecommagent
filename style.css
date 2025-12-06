@@ -640,7 +640,9 @@ a.btn-primary.is-disabled {
     margin-top: 1rem;
     margin-bottom: 1.5rem;
 }
-
+.original-image-wrapper button{
+    line-height: 0px;
+}
 .original-image-wrapper img.original-image-preview {
     display: block;
     width: auto;
@@ -650,6 +652,31 @@ a.btn-primary.is-disabled {
     background: rgba(0, 0, 0, 0.15);
     transition: transform 0.2s ease-in-out;
 }
+
+/* 1. Basis-Styling (Mobile / Touch ist der Standard)
+   Der Button ist hier immer sichtbar. */
+.original-image-wrapper button {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* 2. Desktop-Logik (Nur für Geräte mit Maus) */
+@media (hover: hover) {
+  
+  /* Auf Desktop ist der Button erst mal unsichtbar */
+  .original-image-wrapper button {
+    opacity: 0;
+    visibility: hidden; /* Verhindert Klicks auf den unsichtbaren Button */
+  }
+
+  /* Sobald man über den Container fährt -> Button zeigen */
+  .original-image-wrapper:hover button {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
 
 .original-image-wrapper.single img.original-image-preview {
     max-width: 300px;
