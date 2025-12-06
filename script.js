@@ -607,6 +607,48 @@ const clearOriginalImagePreviews = () => {
     updateOriginalImageLayoutMode();
 };
 
+const deleteOriginalImage = async (runId, wrapperElement) => {
+    const normalizedRunId = Number(runId ?? window.currentRunId);
+    if (!Number.isFinite(normalizedRunId) || normalizedRunId <= 0) {
+        return;
+    }
+
+    const shouldDelete = window.confirm('Wirklich löschen?');
+    if (!shouldDelete) {
+        return;
+    }
+
+    try {
+        const response = await fetch('delete_image.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ run_id: normalizedRunId }),
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+            throw new Error(result?.message || 'Request fehlgeschlagen');
+        }
+
+        if (wrapperElement && typeof wrapperElement.remove === 'function') {
+            wrapperElement.remove();
+        }
+
+        ensureOriginalImagesState();
+        window.currentOriginalImages = [];
+        updateOriginalImageLayoutMode();
+        updateWorkflowButtonState();
+        fetchStatusFeed().catch((error) => {
+            console.error('Status-Feed konnte nach dem Löschen nicht aktualisiert werden.', error);
+        });
+    } catch (error) {
+        console.error('Originalbild konnte nicht gelöscht werden.', error);
+        window.alert('Originalbild konnte nicht gelöscht werden.');
+    }
+};
+
 const appendOriginalImagePreview = (url, options = {}) => {
     if (!originalImagesWrapper) {
         return;
@@ -617,12 +659,31 @@ const appendOriginalImagePreview = (url, options = {}) => {
         return;
     }
 
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative inline-block m-2 group';
+
     const img = document.createElement('img');
     img.src = rawUrl;
     img.alt = 'Originalbild';
     img.classList.add('original-image-preview');
     img.setAttribute('data-full', rawUrl);
-    originalImagesWrapper.appendChild(img);
+    wrapper.appendChild(img);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-opacity opacity-0 group-hover:opacity-100';
+    deleteButton.innerHTML = '<span class="material-icons-outlined text-sm leading-none">close</span>';
+
+    const targetRunId = options.runId ?? window.currentRunId;
+    deleteButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteOriginalImage(targetRunId, wrapper);
+    });
+
+    wrapper.appendChild(deleteButton);
+
+    originalImagesWrapper.appendChild(wrapper);
     applyFadeInAnimation(img);
     attachLightboxToImage(img, rawUrl);
     updateOriginalImageLayoutMode();
