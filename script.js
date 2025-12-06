@@ -607,47 +607,43 @@ const clearOriginalImagePreviews = () => {
     updateOriginalImageLayoutMode();
 };
 
-const deleteOriginalImage = async (runId, wrapperElement, filename) => {
-    const normalizedRunId = Number(runId ?? window.currentRunId);
-    if (!Number.isFinite(normalizedRunId) || normalizedRunId <= 0) {
-        return;
-    }
-
-    const shouldDelete = window.confirm('Wirklich löschen?');
-    if (!shouldDelete) {
+async function deleteOriginalImage(runId, wrapperElement, filename) {
+    if (!confirm('Möchtest du dieses Originalbild wirklich löschen?')) {
         return;
     }
 
     try {
         const response = await fetch('delete_image.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ run_id: normalizedRunId, filename }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ run_id: runId, filename: filename }),
         });
 
         const result = await response.json();
-        if (!response.ok || !result?.success) {
-            throw new Error(result?.message || 'Request fehlgeschlagen');
-        }
 
-        if (wrapperElement && typeof wrapperElement.remove === 'function') {
-            wrapperElement.remove();
-        }
+        if (response.ok && result.success) {
+            // 1. DOM Element entfernen
+            if (wrapperElement) wrapperElement.remove();
 
-        ensureOriginalImagesState();
-        window.currentOriginalImages = [];
-        updateOriginalImageLayoutMode();
-        updateWorkflowButtonState();
-        fetchStatusFeed().catch((error) => {
-            console.error('Status-Feed konnte nach dem Löschen nicht aktualisiert werden.', error);
-        });
+            // 2. State bereinigen (WICHTIG für den Upload-Bug!)
+            if (Array.isArray(window.currentOriginalImages)) {
+                window.currentOriginalImages = window.currentOriginalImages.filter((u) => !u.includes(filename));
+            }
+
+            // 3. Layout Check
+            updateOriginalImageLayoutMode();
+            updateWorkflowButtonState();
+
+            // 4. Feed aktualisieren (optional)
+            fetchStatusFeed().catch(console.error);
+        } else {
+            console.error('Löschen fehlgeschlagen:', result.message || result.error);
+            alert('Fehler beim Löschen des Bildes.');
+        }
     } catch (error) {
-        console.error('Originalbild konnte nicht gelöscht werden.', error);
-        window.alert('Originalbild konnte nicht gelöscht werden.');
+        console.error('Netzwerkfehler beim Löschen:', error);
     }
-};
+}
 
 const appendOriginalImagePreview = (url, options = {}) => {
     if (!originalImagesWrapper) {
@@ -659,7 +655,7 @@ const appendOriginalImagePreview = (url, options = {}) => {
         return;
     }
 
-    const filename = rawUrl.substring(rawUrl.lastIndexOf('/') + 1);
+    const filename = url.substring(url.lastIndexOf('/') + 1);
 
     const wrapper = document.createElement('div');
     wrapper.className = 'relative inline-block m-2 group';
@@ -677,11 +673,9 @@ const appendOriginalImagePreview = (url, options = {}) => {
     deleteButton.innerHTML = '<span class="material-icons-outlined text-sm leading-none">close</span>';
     deleteButton.dataset.filename = filename;
 
-    const targetRunId = options.runId ?? window.currentRunId;
-    deleteButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        deleteOriginalImage(targetRunId, wrapper, filename);
+    deleteButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteOriginalImage(window.currentRunId, wrapper, filename);
     });
 
     wrapper.appendChild(deleteButton);
@@ -1912,11 +1906,6 @@ const uploadFiles = async (files) => {
 
             if (rawImageUrl) {
                 ensureOriginalImagesState();
-
-                if (window.currentOriginalImages.length === 0) {
-                    clearOriginalImagePreviews();
-                }
-
                 appendOriginalImagePreview(rawImageUrl);
             }
         } catch (error) {
