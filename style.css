@@ -1814,40 +1814,50 @@ textarea {
 .status-time { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
 .status-icon { font-size: 20px; margin-top: 1px; }
 
-/* --- Status Item Animation --- */
+/* --- Status Item Animation & Fixes --- */
 
-/* Basis-Zustand (Sichtbar) */
+/* Basis-Zustand (Sichtbar & Endzustand der Animation) */
 .status-item {
-    /* Transition für Höhe, Außenabstand, Sichtbarkeit und Transformation */
-    /* opacity hat ein kleines Delay (0.15s), damit erst Platz geschaffen wird */
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    
+    /* CRITICAL FIX: Verhindert, dass Flexbox die Items zerquetscht */
+    flex-shrink: 0; 
+    
+    /* Animation Definition */
     transition: 
-        max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.3s ease-out 0.1s,
-        transform 0.3s ease-out 0.1s,
-        margin 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.4s ease-out 0.2s,       /* Warte kurz mit Opacity */
+        transform 0.4s ease-out 0.2s,     /* Warte kurz mit Bewegung */
+        margin-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        padding-top 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        padding-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         
     opacity: 1;
-    max-height: 100px; /* Groß genug für mehrzeiligen Text */
+    /* Groß genug wählen, damit Transition funktioniert, aber Inhalt passt */
+    max-height: 500px; 
     transform: translateY(0) scale(1);
-    overflow: hidden; /* Wichtig, damit Inhalt beim Aufklappen nicht sichtbar ist */
+    overflow: hidden;
+    
+    /* Explizite Abstände für den Endzustand */
+    margin-bottom: 12px; 
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
 /* Start-Zustand (Wird per JS beim Einfügen gesetzt) */
 .status-item.is-entering {
     opacity: 0;
     max-height: 0;
-    margin-top: 0;
+    
+    /* Alle Abstände auf 0 zwingen für den Slide-Effekt */
     margin-bottom: 0;
     padding-top: 0;
     padding-bottom: 0;
-    transform: translateY(-10px) scale(0.95);
-    border: none; /* Rahmen verstecken während Animation */
+    
+    transform: translateY(-20px) scale(0.9);
 }
-
-.text-success { color: var(--status-success); }
-.text-info { color: var(--status-info); }
-.text-error { color: var(--status-error); }
 
 /* 3. Die Trennlinie */
 .card-divider {

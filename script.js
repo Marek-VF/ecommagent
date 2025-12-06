@@ -442,7 +442,7 @@ function renderStatusFeed(items) {
 /**
  * Fügt eine neue Statusnachricht mit Animation hinzu.
  * @param {string} text - Der Nachrichtentext
- * @param {string} type - 'success', 'info', 'error' (bestimmt Icon/Farbe)
+ * @param {string} type - 'success', 'info', 'error'
  */
 function addStatusMessage(text, type = 'info') {
     const list = document.querySelector('.status-list');
@@ -450,16 +450,15 @@ function addStatusMessage(text, type = 'info') {
 
     // 1. HTML erstellen
     const item = document.createElement('div');
-    // Wichtig: 'is-entering' Klasse direkt setzen für Start-Zustand
+    // Start-Zustand setzen (Klasse .is-entering sorgt für max-height: 0)
     item.className = 'status-item is-entering'; 
     
-    // Icon Logik
+    // Icon & Farb Logik
     let iconName = 'info';
     let colorClass = 'text-info';
     if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
     if (type === 'error') { iconName = 'error'; colorClass = 'text-error'; }
 
-    // Zeitstempel generieren (HH:MM:SS)
     const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     item.innerHTML = `
@@ -473,17 +472,19 @@ function addStatusMessage(text, type = 'info') {
     `;
 
     // 2. Element oben einfügen (Prepend)
+    // Es ist jetzt im DOM, aber unsichtbar (Höhe 0)
     list.prepend(item);
 
-    // 3. Reflow erzwingen
-    // Das zwingt den Browser, den 'is-entering' Zustand (Höhe 0) zu rendern,
-    // bevor wir die Klasse entfernen.
-    void item.offsetWidth;
-
-    // 4. Animation starten (Klasse entfernen -> CSS Transition greift)
-    item.classList.remove('is-entering');
+    // 3. Animation starten (Reflow Hack)
+    // Wir nutzen requestAnimationFrame für einen sauberen Reflow
+    requestAnimationFrame(() => {
+        // Layout-Berechnung erzwingen
+        void item.offsetHeight; 
+        // Klasse entfernen -> CSS Transition startet
+        item.classList.remove('is-entering');
+    });
     
-    // Optional: Liste sauber halten (z.B. max 50 Einträge)
+    // 4. Liste aufräumen (Maximal 50 Einträge)
     if (list.children.length > 50) {
         list.lastElementChild.remove();
     }
