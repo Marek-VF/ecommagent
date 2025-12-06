@@ -1814,6 +1814,37 @@ textarea {
 .status-time { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
 .status-icon { font-size: 20px; margin-top: 1px; }
 
+/* --- Status Item Animation --- */
+
+/* Basis-Zustand (Sichtbar) */
+.status-item {
+    /* Transition für Höhe, Außenabstand, Sichtbarkeit und Transformation */
+    /* opacity hat ein kleines Delay (0.15s), damit erst Platz geschaffen wird */
+    transition: 
+        max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s ease-out 0.1s,
+        transform 0.3s ease-out 0.1s,
+        margin 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        
+    opacity: 1;
+    max-height: 100px; /* Groß genug für mehrzeiligen Text */
+    transform: translateY(0) scale(1);
+    overflow: hidden; /* Wichtig, damit Inhalt beim Aufklappen nicht sichtbar ist */
+}
+
+/* Start-Zustand (Wird per JS beim Einfügen gesetzt) */
+.status-item.is-entering {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    transform: translateY(-10px) scale(0.95);
+    border: none; /* Rahmen verstecken während Animation */
+}
+
 .text-success { color: var(--status-success); }
 .text-info { color: var(--status-info); }
 .text-error { color: var(--status-error); }
