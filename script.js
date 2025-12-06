@@ -607,7 +607,7 @@ const clearOriginalImagePreviews = () => {
     updateOriginalImageLayoutMode();
 };
 
-const deleteOriginalImage = async (runId, wrapperElement) => {
+const deleteOriginalImage = async (runId, wrapperElement, filename) => {
     const normalizedRunId = Number(runId ?? window.currentRunId);
     if (!Number.isFinite(normalizedRunId) || normalizedRunId <= 0) {
         return;
@@ -624,7 +624,7 @@ const deleteOriginalImage = async (runId, wrapperElement) => {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ run_id: normalizedRunId }),
+            body: JSON.stringify({ run_id: normalizedRunId, filename }),
         });
 
         const result = await response.json();
@@ -659,6 +659,8 @@ const appendOriginalImagePreview = (url, options = {}) => {
         return;
     }
 
+    const filename = rawUrl.substring(rawUrl.lastIndexOf('/') + 1);
+
     const wrapper = document.createElement('div');
     wrapper.className = 'relative inline-block m-2 group';
 
@@ -673,12 +675,13 @@ const appendOriginalImagePreview = (url, options = {}) => {
     deleteButton.type = 'button';
     deleteButton.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-opacity opacity-0 group-hover:opacity-100';
     deleteButton.innerHTML = '<span class="material-icons-outlined text-sm leading-none">close</span>';
+    deleteButton.dataset.filename = filename;
 
     const targetRunId = options.runId ?? window.currentRunId;
     deleteButton.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        deleteOriginalImage(targetRunId, wrapper);
+        deleteOriginalImage(targetRunId, wrapper, filename);
     });
 
     wrapper.appendChild(deleteButton);
