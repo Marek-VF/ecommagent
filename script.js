@@ -267,6 +267,7 @@ function updateGlobalStartButtonState() {
         return;
     }
 
+    const spinner = btn.querySelector('.loading-spinner');
     const startIsBlocked = Boolean(workflowIsRunning || isProcessing || isStartingWorkflow);
     const hasActiveToggle = Boolean(document.querySelector('.btn-toggle.is-active'));
     const hasUpload = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0;
@@ -281,6 +282,14 @@ function updateGlobalStartButtonState() {
         btn.setAttribute('disabled', 'true');
         btn.classList.add('is-disabled');
         btn.setAttribute('aria-disabled', 'true');
+    }
+
+    if (spinner) {
+        if (workflowIsRunning || isProcessing || isStartingWorkflow) {
+            spinner.classList.remove('hidden');
+        } else {
+            spinner.classList.add('hidden');
+        }
     }
 }
 
