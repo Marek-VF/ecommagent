@@ -384,6 +384,22 @@ cloud_upload
         <img src="" alt="Großansicht" class="lightbox__image">
     </div>
 
+    <dialog
+        id="confirmation-modal"
+        class="rounded-xl shadow-2xl bg-white p-0 overflow-hidden w-full max-w-md backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+    >
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 id="modal-title" class="font-semibold text-lg text-gray-800">Bestätigung</h3>
+        </div>
+        <div class="p-6">
+            <p id="modal-message" class="text-gray-600">Möchten Sie das wirklich tun?</p>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+            <button id="modal-cancel" class="btn btn-secondary">Abbrechen</button>
+            <button id="modal-confirm" class="btn-primary">Bestätigen</button>
+        </div>
+    </dialog>
+
     <script>
         window.APP_CONFIG = <?php echo json_encode($appConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
     </script>
