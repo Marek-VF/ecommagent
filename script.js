@@ -1973,18 +1973,22 @@ const uploadFiles = async (files) => {
     await Promise.all(uploads);
 };
 
-const handleFiles = (files) => {
+const handleFiles = async (files) => {
     if (!files || files.length === 0) {
         return;
     }
 
     const MAX_UPLOAD_COUNT = 2;
     const currentCount = window.currentOriginalImages ? window.currentOriginalImages.length : 0;
-    const newCount = files ? files.length : 0;
+    const newCount = files.length;
 
     if (currentCount + newCount > MAX_UPLOAD_COUNT) {
-        showWorkflowFeedback('error', 'Maximal 2 Bilder erlaubt.');
-        setStatusAndLog('warning', 'Upload abgelehnt: Limit von 2 Bildern erreicht.', 'UPLOAD_LIMIT_EXCEEDED');
+        const msg = 'Upload abgelehnt: Maximal 2 Bilder erlaubt.';
+        showWorkflowFeedback('error', msg);
+
+        await setStatusAndLog('warning', msg, 'UPLOAD_LIMIT_EXCEEDED');
+        await fetchStatusFeed();
+
         return;
     }
 
@@ -2928,18 +2932,16 @@ function setStatusAndLog(level, message, statusCode) {
     setStatus(level, message);
 
     if (!statusCode) {
-        return;
+        return Promise.resolve();
     }
 
     try {
-        const result = logFrontendStatus(statusCode);
-        if (result && typeof result.catch === 'function') {
-            result.catch((error) => {
-                console.error('Fehler beim Logging des Frontend-Status:', error);
-            });
-        }
+        return logFrontendStatus(statusCode).catch((error) => {
+            console.error('Fehler beim Logging des Frontend-Status:', error);
+        });
     } catch (error) {
         console.error('Fehler beim Aufruf von logFrontendStatus:', error);
+        return Promise.resolve();
     }
 }
 
