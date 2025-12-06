@@ -1870,6 +1870,46 @@ textarea {
     color: #ffffff;
 }
 
+.drop-zone .dz-running {
+    display: none;
+}
+
+.drop-zone.is-running {
+    pointer-events: none;
+    cursor: default;
+    background: #f5f5f5;
+}
+
+.drop-zone.is-running .dz-idle {
+    display: none;
+}
+
+.drop-zone.is-running .dz-running {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.dz-running .dz-icon {
+    font-size: 48px;
+    color: #9ca3af;
+}
+
+/* Optional rotation animation for the running icon */
+/*
+@keyframes dz-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.dz-running .dz-icon {
+    animation: dz-rotate 1.25s linear infinite;
+}
+*/
+
 /* Hover States */
 .drop-zone--cta:hover,
 .drop-zone--cta:focus {
