@@ -1879,14 +1879,16 @@ textarea {
 
 /* Wenn Workflow läuft (.is-running) */
 .drop-zone.is-running {
-    /* KEIN Hintergrund-Wechsel! Es bleibt Orange (var(--accent)) durch die Basis-Klasse */
-    /* Nur Interaktion sperren */
+    /* Interaktion sperren */
     pointer-events: none;
     cursor: default;
     
-    /* Optional: Minimale Transparenz, damit man sieht, dass es inaktiv ist, 
-       aber ohne die Farbe zu verlieren. */
-    opacity: 0.9; 
+    /* Hintergrund: Dein Orange (#ff5722) mit 60% Deckkraft */
+    /* Das macht den Button visuell "inaktiv", behält aber den weißen Text bei */
+    background-color: rgba(255, 87, 34, 0.6) !important;
+    
+    /* Rahmen entfernen, damit es sauber aussieht */
+    border-color: transparent;
 }
 
 /* Toggle Logik: Idle weg, Running her */
