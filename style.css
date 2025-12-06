@@ -1907,20 +1907,28 @@ textarea {
 
 /* Status: Workflow Fertig */
 .drop-zone.is-complete {
-    /* Zurück zum kräftigen Orange (#ff5722), da Button wieder aktiv */
-    background-color: #ff5722 !important; 
-    border-color: transparent;
+    /* 1. Heller Hintergrund wie gewünscht */
+    background-color: #f1f5f9 !important;
     
-    /* Wichtig: Klickbar machen */
+    /* 2. WICHTIG: Textfarbe auf Dunkel ändern (da Hintergrund jetzt hell ist) */
+    /* Wir nutzen hier Variable --text oder einen dunklen Grauwert */
+    color: #1f2937 !important; 
+    
+    /* Rahmen hinzufügen, damit sich der helle Button vom weißen Hintergrund abhebt */
+    border: 1px solid #e5e7eb !important;
+    
     cursor: pointer;
     pointer-events: auto;
-    
-    /* Hover Effekt für Feedback */
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+}
+
+.drop-zone.is-complete .cta-icon {
+    color: inherit; /* Erbt #1f2937 vom Parent */
 }
 
 .drop-zone.is-complete:hover {
-    background-color: #f4511e !important; /* Etwas dunkleres Orange beim Hover */
+    background-color: #e2e8f0 !important; 
+    border-color: #d1d5db !important;
 }
 
 /* Toggle Logik: Zeige nur .dz-complete */
