@@ -439,6 +439,56 @@ function renderStatusFeed(items) {
     });
 }
 
+/**
+ * Fügt eine neue Statusnachricht mit Animation hinzu.
+ * @param {string} text - Der Nachrichtentext
+ * @param {string} type - 'success', 'info', 'error' (bestimmt Icon/Farbe)
+ */
+function addStatusMessage(text, type = 'info') {
+    const list = document.querySelector('.status-list');
+    if (!list) return;
+
+    // 1. HTML erstellen
+    const item = document.createElement('div');
+    // Wichtig: 'is-entering' Klasse direkt setzen für Start-Zustand
+    item.className = 'status-item is-entering'; 
+    
+    // Icon Logik
+    let iconName = 'info';
+    let colorClass = 'text-info';
+    if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
+    if (type === 'error') { iconName = 'error'; colorClass = 'text-error'; }
+
+    // Zeitstempel generieren (HH:MM:SS)
+    const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    item.innerHTML = `
+        <div class="status-icon ${colorClass}">
+            <span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span>
+        </div>
+        <div class="status-content">
+            <p class="status-text">${text}</p>
+            <p class="status-time">${time}</p>
+        </div>
+    `;
+
+    // 2. Element oben einfügen (Prepend)
+    list.prepend(item);
+
+    // 3. Reflow erzwingen
+    // Das zwingt den Browser, den 'is-entering' Zustand (Höhe 0) zu rendern,
+    // bevor wir die Klasse entfernen.
+    void item.offsetWidth;
+
+    // 4. Animation starten (Klasse entfernen -> CSS Transition greift)
+    item.classList.remove('is-entering');
+    
+    // Optional: Liste sauber halten (z.B. max 50 Einträge)
+    if (list.children.length > 50) {
+        list.lastElementChild.remove();
+    }
+}
+
 async function fetchStatusFeed() {
     if (!statusFeedContainer) {
         return;
