@@ -2762,10 +2762,11 @@ async function fetchLatestItem() {
                     setCurrentRun(payload.run_id);
                 }
             } else {
-                setStatusAndLog('success', 'Workflow abgeschlossen', 'WORKFLOW_COMPLETED');
-                if (!statusBarText) {
-                    showWorkflowFeedback('success', 'Workflow abgeschlossen.');
-                }
+                // Keine UI-Meldung mehr hier generieren! Das kommt aus dem Status-Feed der DB.
+                // Nur technisches Logging für Debugging.
+                console.log('[Polling] Workflow erfolgreich beendet.');
+                logFrontendStatus('WORKFLOW_COMPLETED');
+
                 stopPolling();
                 activeRunId = null;
                 setCurrentRun(null);
