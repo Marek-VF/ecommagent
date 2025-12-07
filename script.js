@@ -3000,6 +3000,71 @@ function setStatusAndLog(level, message, statusCode) {
     }
 }
 
+/**
+ * Fügt eine Statusnachricht mit Web Animations API hinzu.
+ */
+function addStatusMessage(text, type = 'info') {
+    const list = document.querySelector('.status-list');
+    if (!list) return;
+
+    // 1. Content erstellen
+    let iconName = 'info';
+    let colorClass = 'text-info';
+    if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
+    if (type === 'error') { iconName = 'error'; colorClass = 'text-error'; }
+
+    const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const item = document.createElement('div');
+    item.className = 'status-item';
+    item.innerHTML = `
+        <div class="status-icon ${colorClass}">
+            <span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span>
+        </div>
+        <div class="status-content">
+            <p class="status-text">${text}</p>
+            <p class="status-time">${time}</p>
+        </div>
+    `;
+
+    // 2. Einfügen (Prepend)
+    // Das Element ist sofort im DOM und hat seine volle, natürliche Größe.
+    list.prepend(item);
+
+    // 3. Höhe messen
+    const naturalHeight = item.offsetHeight;
+
+    // 4. Animation starten (Web Animations API)
+    // Wir animieren von "Alles 0" zu "Alles normal".
+    // Wenn die Animation fertig ist, entfernt der Browser sie automatisch 
+    // und das Element behält seine CSS-Styles (Höhe auto, Margin 18px).
+    item.animate(
+        [
+            { 
+                height: '0px', 
+                opacity: 0, 
+                marginBottom: '0px', 
+                transform: 'translateY(-10px)' 
+            },
+            { 
+                height: naturalHeight + 'px', 
+                opacity: 1, 
+                marginBottom: '18px', 
+                transform: 'translateY(0)' 
+            }
+        ],
+        {
+            duration: 400,
+            easing: 'cubic-bezier(0.25, 1, 0.5, 1)' // Soft Ease-Out
+        }
+    );
+
+    // 5. Aufräumen (Liste begrenzen, z.B. max 50 Einträge)
+    if (list.children.length > 50) {
+        list.lastElementChild.remove();
+    }
+}
+
 function setStatus(level, message) {
     const normalizedMessage = sanitizeLogMessage(message);
     if (!normalizedMessage) {
@@ -3007,6 +3072,10 @@ function setStatus(level, message) {
     }
 
     const label = typeof level === 'string' && level.trim() !== '' ? level.trim().toLowerCase() : 'info';
+
+    // NEU: UI Update mit Animation triggern
+    addStatusMessage(normalizedMessage, label);
+
     const logEntry = `[Status:${label}] ${normalizedMessage}`;
 
     if (label === 'error') {
