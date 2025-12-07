@@ -389,54 +389,61 @@ const setScanOverlayActive = (isActive) => {
     });
 };
 
+/**
+ * Verarbeitet die Status-Liste vom Server (Smart Update).
+ */
 function renderStatusFeed(items) {
-    if (!statusFeedContainer) {
+    if (!statusFeedContainer) return;
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    // FALL A: Initialer Load (Liste ist leer)
+    // Wir bauen die Liste einmalig statisch auf. Keine Animation, kein Stress.
+    if (statusFeedContainer.children.length === 0) {
+        let html = '';
+        // Wir iterieren durch alle Items und bauen einen HTML String
+        items.forEach(item => {
+            const icon = item.icon_html || ''; 
+            // Zeitstempel fehlt oft in der History, wir lassen ihn leer oder nehmen das Datum falls vorhanden
+            html += `
+            <div class="status-item" style="margin-bottom: 18px; flex-shrink: 0;">
+                ${icon.includes('status-icon') ? icon : '<div class="status-icon-wrapper">' + icon + '</div>'}
+                <div class="status-content">
+                    <p class="status-text">${item.message}</p>
+                    <p class="status-time"></p>
+                </div>
+            </div>`;
+        });
+        statusFeedContainer.innerHTML = html;
         return;
     }
 
-    statusFeedContainer.innerHTML = '';
+    // FALL B: Update (Liste hat schon Inhalt)
+    // Wir wollen NICHT alles löschen. Wir suchen nur nach Nachrichten, die NEUER sind.
+    
+    // 1. Was ist die oberste Nachricht aktuell im DOM?
+    const topDomItem = statusFeedContainer.firstElementChild;
+    const topDomText = topDomItem ? topDomItem.querySelector('.status-text')?.textContent : '';
 
-    const emptyNode = statusFeedEmpty || null;
-
-    if (!Array.isArray(items) || items.length === 0) {
-        if (emptyNode) {
-            emptyNode.style.display = '';
+    // 2. Welche Nachrichten vom Server sind neu?
+    // Die API liefert meist [Neueste, Zweitneueste, ...].
+    // Wir gehen die Liste durch, bis wir auf den Text treffen, den wir schon kennen.
+    const newItems = [];
+    for (const item of items) {
+        if (item.message === topDomText) {
+            break; // Aha! Ab hier kennen wir alles schon. Stopp.
         }
-        return;
+        newItems.push(item);
     }
 
-    if (emptyNode) {
-        emptyNode.style.display = 'none';
+    // 3. Neue Nachrichten einfügen
+    // Da wir "prepend" nutzen (oben einfügen), müssen wir die neuen Items 
+    // umkehren (Älteste zuerst, Neueste zuletzt), damit die Reihenfolge stimmt.
+    if (newItems.length > 0) {
+        // Reverse array in place vermeiden wir lieber, daher [...newItems]
+        [...newItems].reverse().forEach(item => {
+            addStatusMessage(item.message, item.severity, item.icon_html);
+        });
     }
-
-    items.forEach((item) => {
-        const entry = document.createElement('div');
-        const severity = item && typeof item.severity === 'string' && item.severity.trim() !== ''
-            ? item.severity.trim()
-            : 'info';
-        entry.className = `status-item status-item--${severity}`;
-
-        entry.dataset.severity = severity;
-
-        const iconWrapper = document.createElement('span');
-        iconWrapper.className = 'status-icon-wrapper';
-        if (item && typeof item.icon_html === 'string') {
-            iconWrapper.innerHTML = item.icon_html;
-        }
-
-        const content = document.createElement('div');
-        content.className = 'status-content';
-
-        const text = document.createElement('p');
-        text.className = 'status-text';
-        text.textContent = item && typeof item.message === 'string' ? item.message : '';
-
-        content.appendChild(text);
-        entry.appendChild(iconWrapper);
-        entry.appendChild(content);
-
-        statusFeedContainer.appendChild(entry);
-    });
 }
 
 async function fetchStatusFeed() {
@@ -3001,68 +3008,68 @@ function setStatusAndLog(level, message, statusCode) {
 }
 
 /**
- * Fügt eine Statusnachricht mit Web Animations API hinzu.
+ * Fügt eine einzelne Statusnachricht animiert hinzu.
  */
-function addStatusMessage(text, type = 'info') {
+function addStatusMessage(text, type = 'info', customIconHtml = null) {
     const list = document.querySelector('.status-list');
     if (!list) return;
 
-    // 1. Content erstellen
-    let iconName = 'info';
-    let colorClass = 'text-info';
-    if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
-    if (type === 'error') { iconName = 'error'; colorClass = 'text-error'; }
+    // DUPLIKAT-CHECK: Verhindert, dass dieselbe Nachricht doppelt animiert wird
+    // Wir prüfen einfach, ob der Text der obersten Nachricht identisch ist.
+    const firstItem = list.firstElementChild;
+    if (firstItem) {
+        const currentText = firstItem.querySelector('.status-text')?.textContent;
+        // Wenn der Text identisch ist, brechen wir ab -> Kein Flackern, kein Doppeleintrag
+        if (currentText === text) return;
+    }
 
     const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
     const item = document.createElement('div');
     item.className = 'status-item';
+    
+    // Icon Logik: Backend-HTML hat Vorrang
+    let iconHtml = '';
+    if (customIconHtml) {
+        // Falls das Backend schon das Wrapper-Div liefert, nutzen wir es, sonst wrappen wir es
+        iconHtml = customIconHtml.includes('status-icon') 
+            ? customIconHtml 
+            : `<div class="status-icon text-${type}">${customIconHtml}</div>`;
+    } else {
+        // Fallback Client-Side Icons
+        let iconName = 'info';
+        let colorClass = 'text-info';
+        if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
+        if (type === 'error') { iconName = 'error'; colorClass = 'text-error'; }
+        iconHtml = `<div class="status-icon ${colorClass}"><span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span></div>`;
+    }
+
     item.innerHTML = `
-        <div class="status-icon ${colorClass}">
-            <span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span>
-        </div>
+        ${iconHtml}
         <div class="status-content">
             <p class="status-text">${text}</p>
             <p class="status-time">${time}</p>
         </div>
     `;
 
-    // 2. Einfügen (Prepend)
-    // Das Element ist sofort im DOM und hat seine volle, natürliche Größe.
+    // 1. Einfügen (Das Element ist sofort da)
     list.prepend(item);
 
-    // 3. Höhe messen
+    // 2. Animieren (Von Höhe 0 auf Auto)
+    // Das verhindert das "Springen" und schiebt alte Elemente weich nach unten.
     const naturalHeight = item.offsetHeight;
-
-    // 4. Animation starten (Web Animations API)
-    // Wir animieren von "Alles 0" zu "Alles normal".
-    // Wenn die Animation fertig ist, entfernt der Browser sie automatisch 
-    // und das Element behält seine CSS-Styles (Höhe auto, Margin 18px).
     item.animate(
         [
-            { 
-                height: '0px', 
-                opacity: 0, 
-                marginBottom: '0px', 
-                transform: 'translateY(-10px)' 
-            },
-            { 
-                height: naturalHeight + 'px', 
-                opacity: 1, 
-                marginBottom: '18px', 
-                transform: 'translateY(0)' 
-            }
+            { height: '0px', opacity: 0, marginBottom: '0px', transform: 'translateY(-10px)' },
+            { height: naturalHeight + 'px', opacity: 1, marginBottom: '18px', transform: 'translateY(0)' }
         ],
         {
             duration: 400,
-            easing: 'cubic-bezier(0.25, 1, 0.5, 1)' // Soft Ease-Out
+            easing: 'cubic-bezier(0.25, 1, 0.5, 1)' 
         }
     );
 
-    // 5. Aufräumen (Liste begrenzen, z.B. max 50 Einträge)
-    if (list.children.length > 50) {
-        list.lastElementChild.remove();
-    }
+    // 3. Aufräumen (Max 50 Einträge)
+    if (list.children.length > 50) list.lastElementChild.remove();
 }
 
 function setStatus(level, message) {
