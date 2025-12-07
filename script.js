@@ -2172,7 +2172,7 @@ async function startWorkflow() {
         activeRunId = Number.isFinite(numericRunId) && numericRunId > 0 ? numericRunId : null;
 
         showWorkflowFeedback('success', successMessage);
-        setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_STARTED');
+        logFrontendStatus('WORKFLOW_STARTED'); // Nur Logging, UI macht der Button
         setLoadingState(true, { indicatorText: 'Verarbeitung läuft…', indicatorState: 'running' });
         clearProductFields({ loading: true });
         const hasPreviewImage = Boolean(previewList && previewList.childElementCount > 0);
@@ -2771,10 +2771,10 @@ async function fetchLatestItem() {
                 setCurrentRun(null);
             }
         } else {
-            setStatusAndLog('info', 'Verarbeitung läuft …', 'WORKFLOW_RUNNING');
-            if (!statusBarText) {
-                showWorkflowFeedback('info', 'Verarbeitung läuft …');
-            }
+            // Nur technisches Logging, keine UI-Ausgabe mehr!
+            // Das verhindert "Verarbeitung läuft" Spam in der Liste.
+            console.log('[Polling] Workflow läuft...');
+            logFrontendStatus('WORKFLOW_RUNNING');
         }
     } catch (error) {
         console.error('Polling-Fehler:', error);
