@@ -2,33 +2,58 @@
 
 /**
  * Liefert den hinterlegten Preis für einen Step-Typ zurück.
+ * Unterstützt das neue Array-Format ['price' => 1.00, 'group_id' => 1]
+ * sowie das alte Float-Format.
  */
 function get_credit_price(array $config, string $stepType): ?float
 {
     $prices = $config['credits']['prices'] ?? [];
-    return isset($prices[$stepType]) ? (float) $prices[$stepType] : null;
+    
+    if (!isset($prices[$stepType])) {
+        return null;
+    }
+
+    $entry = $prices[$stepType];
+
+    // Neu: Array-Struktur supporten
+    if (is_array($entry)) {
+        return isset($entry['price']) ? (float)$entry['price'] : null;
+    }
+
+    // Fallback: Direkter Float (alte Config)
+    return (float)$entry;
 }
 
 /**
- * Ermittelt, wie viele Credits ein vollständiger Workflow voraussichtlich benötigt.
- *
- * Aktuell: Summe aller positiven Preise aus $config['credits']['prices'].
+ * Ermittelt, wie viele Credits ein vollständiger Workflow (Haupt-Run) benötigt.
+ * Summiert NUR Einträge mit 'group_id' => 1.
  *
  * @param array $config Globale Konfiguration aus config.php
- *
- * @return float Benötigte Credits für einen vollständigen Run
+ * @return float Benötigte Credits
  */
 function get_required_credits_for_run(array $config): float
 {
     $prices = $config['credits']['prices'] ?? [];
-
     $total = 0.0;
-    foreach ($prices as $price) {
-        if (is_numeric($price)) {
-            $numericPrice = (float) $price;
-            if ($numericPrice > 0) {
-                $total += $numericPrice;
+
+    foreach ($prices as $entry) {
+        // Wir verarbeiten primär das neue Array-Format
+        if (is_array($entry)) {
+            $price = (float)($entry['price'] ?? 0.0);
+            $groupId = (int)($entry['group_id'] ?? 0);
+
+            // Nur Gruppe 1 (Haupt-Run) wird für den Start-Button berechnet
+            if ($groupId === 1 && $price > 0) {
+                $total += $price;
             }
+        } 
+        // Optionaler Fallback: Wenn in der Config noch einfache Floats stehen (z.B. 'analysis' => 0.5),
+        // zählen wir diese sicherheitshalber dazu, damit der Workflow nicht "kostenlos" wird.
+        elseif (is_numeric($entry)) {
+             $val = (float)$entry;
+             if ($val > 0) {
+                 $total += $val;
+             }
         }
     }
 
@@ -37,18 +62,11 @@ function get_required_credits_for_run(array $config): float
 
 /**
  * Bucht Credits für einen bestimmten Step eines Users ab und protokolliert die Bewegung.
- *
- * @param PDO    $pdo      Geöffnete PDO-Datenbankverbindung
- * @param array  $config   Globale Konfiguration aus config.php
- * @param int    $userId   ID des Users
- * @param int|null $runId  ID des Runs (optional, kann NULL sein z.B. bei allgemeinen Gutschriften)
- * @param string $stepType Logischer Step-Typ (z. B. 'analysis', 'image_1', 'image_2', 'image_3', 'topup' usw.)
- * @param array  $meta     Optionale Zusatzinformationen (werden serialisiert in credit_transactions.meta abgelegt)
- *
- * @return void
+ * (Diese Funktion bleibt in ihrer Logik unverändert, nutzt aber jetzt das neue get_credit_price)
  */
 function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, string $stepType, array $meta = []): void
 {
+    // Hier wird automatisch die neue Logik von oben verwendet
     $price = get_credit_price($config, $stepType);
 
     // Keine Abbuchung vornehmen, wenn kein Preis hinterlegt ist oder der Preis 0/negativ ist.
@@ -78,7 +96,6 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
         ]);
 
         if ($runId !== null) {
-            // Gesamtkosten dieses Runs (credits_spent) um den Preis des aktuellen Steps erhöhen
             $updateRunStmt = $pdo->prepare('
                 UPDATE workflow_runs
                 SET credits_spent = credits_spent + :price
@@ -106,11 +123,10 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
 
         $pdo->commit();
 
-// --- NEU: User-Feedback über Abbuchung ---
+        // User-Feedback über Abbuchung
         if ($runId !== null) {
             $formattedPrice = number_format($price, 2, ',', '.');
             
-            // Mapping für schönere Anzeige (kannst du beliebig erweitern)
             $displayReason = match ($stepType) {
                 '2K', '2k', 'upscale_2x' => 'Upscale 2K',
                 '4K', '4k', 'upscale_4x' => 'Upscale 4K',
@@ -122,23 +138,15 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
             
             $logMsg = sprintf('Guthaben: -%s Credits (%s)', $formattedPrice, $displayReason);
             
-            // Status-Meldung mit speziellem Code 'CREDITS_SPENT'
             if (function_exists('log_status_message')) {
                 log_status_message($pdo, $runId, $userId, $logMsg, 'CREDITS_SPENT');
             }
         }
-        // -----------------------------------------
-
-
-
 
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-
         throw $e;
     }
 }
-
-// Credits für einen Step-Typ (z. B. 'analysis', 'image_1') abbuchen und in credit_transactions protokollieren.
