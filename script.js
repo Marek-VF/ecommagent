@@ -3040,16 +3040,16 @@ function setStatusAndLog(level, message, statusCode) {
 
 /**
  * Fügt eine einzelne Statusnachricht animiert hinzu.
+ * KORREKTUR: Kein Filter mehr. Wir vertrauen darauf, dass das Backend nur Relevantes sendet.
  */
 function addStatusMessage(text, type = 'info', customIconHtml = null) {
     if (!text) {
         return;
     }
 
-    const lowerText = text.toLowerCase();
-    if (lowerText.includes('guthaben') || lowerText.includes('credit')) {
-        return;
-    }
+    // FILTER ENTFERNT: Wir zeigen ALLES an, was hier ankommt.
+    // Das Backend sendet keine Erfolgs-Abbuchungen mehr, aber WICHTIGE Fehler
+    // (z.B. "Nicht genügend Guthaben") kommen durch.
 
     const list = document.querySelector('.status-list');
     if (!list) return;
