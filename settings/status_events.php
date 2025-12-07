@@ -134,7 +134,7 @@ return [
     ],
 
     'UPLOAD_SUCCESS' => [
-        'label'     => 'Upload erfolgreich – Workflow kann gestartet werden.',
+        'label'     => 'Upload erfolgreich – Workflow kann gestartet werden..',
         'severity'  => 'success',
         'icon_html' => '<span class="material-icons-outlined status-icon text-success">cloud_upload</span>',
     ],
