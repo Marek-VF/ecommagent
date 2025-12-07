@@ -3015,6 +3015,15 @@ function setStatusAndLog(level, message, statusCode) {
  * Fügt eine einzelne Statusnachricht animiert hinzu.
  */
 function addStatusMessage(text, type = 'info', customIconHtml = null) {
+    if (!text) {
+        return;
+    }
+
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('guthaben') || lowerText.includes('credit')) {
+        return;
+    }
+
     const list = document.querySelector('.status-list');
     if (!list) return;
 
