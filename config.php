@@ -26,14 +26,20 @@ return [
         'from_address' => 'no-reply@example.com',
         'from_name'    => 'Artikelverwaltung',
     ],
-    'credits'          => [
+    'credits' => [
         'prices' => [
-            // Beispielpreise – können später im Projekt angepasst werden
-            'analysis' => 0.50,
-            'image_1'  => 0.75,
-            'image_2'  => 0.75,
-            'image_3'  => 0.75,
-            // weitere step_type-Werte können später ergänzt werden, z.B. 'text', 'product_photo', ...
+            // --- GRUPPE 1: Haupt-Workflow (Initiale Generierung) ---
+            // Diese Kosten werden beim Klick auf "Start Workflow" zusammengerechnet.
+            'analysis' => ['price' => 0.50, 'group_id' => 1],
+            'image_1'  => ['price' => 0.75, 'group_id' => 1],
+            'image_2'  => ['price' => 0.75, 'group_id' => 1],
+            'image_3'  => ['price' => 0.75, 'group_id' => 1],
+
+            // --- GRUPPE 2: Updates & Add-ons ---
+            // Diese Kosten fallen erst an, wenn der User später auf 2K/4K/Edit klickt.
+            '2K'   => ['price' => 1.00, 'group_id' => 2],
+            '4K'   => ['price' => 1.00, 'group_id' => 2],
+            'edit' => ['price' => 1.00, 'group_id' => 2],
         ],
     ],
 ];
