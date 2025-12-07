@@ -1814,50 +1814,42 @@ textarea {
 .status-time { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
 .status-icon { font-size: 20px; margin-top: 1px; }
 
-/* --- Status Item Animation & Fixes --- */
+/* --- Status Item Animation (Grid Method) --- */
 
-/* --- Status Item Animation --- */
-
-/* Basis-Zustand (Sichtbar) */
 .status-item {
+    /* Grid Setup für Animation 0 -> Auto */
+    display: grid;
+    grid-template-rows: 1fr;
+    
+    /* Animation Definition */
+    transition: 
+        grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        margin-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.5s ease-out;
+        
+    /* End-Zustand */
+    opacity: 1;
+    margin-bottom: 12px;
+    flex-shrink: 0; /* Verhindert Stauchen in der Liste */
+}
+
+/* Der innere Wrapper hält das Layout und Padding */
+/* Das ist notwendig, weil Padding am Parent die 0px-Höhe verhindern würde */
+.status-item-inner {
     display: flex;
     align-items: flex-start;
     gap: 12px;
+    overflow: hidden; /* Wichtig: Versteckt Inhalt beim Schrumpfen */
     
-    /* WICHTIG: Verhindert Schrumpfen in Flex-Containern */
-    flex-shrink: 0; 
-    
-    /* Weiche Animation für Öffnen & Schließen */
-    transition: 
-        max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.4s ease-out 0.1s,
-        transform 0.4s ease-out 0.1s,
-        margin-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-        padding-top 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-        padding-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        
-    opacity: 1;
-    max-height: 500px; /* Fallback nach der Animation */
-    transform: translateY(0) scale(1);
-    overflow: hidden;
-    
-    /* End-Abstände */
-    margin-bottom: 12px; 
-    padding-top: 4px;
-    padding-bottom: 4px;
+    /* Hierhin verschieben wir das Padding vom Item */
+    padding: 4px 0; 
 }
 
-/* Start-Zustand (Wird per JS eingefügt) */
+/* Start-Zustand (Wird per JS gesetzt) */
 .status-item.is-entering {
-    opacity: 0;
-    max-height: 0 !important; /* Startet bei 0 */
-    
-    /* Abstände entfernen für Slide-Down */
+    grid-template-rows: 0fr; /* Schrumpft auf 0 Höhe */
     margin-bottom: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    
-    transform: translateY(-10px);
+    opacity: 0;
 }
 
 /* 3. Die Trennlinie */

@@ -440,14 +440,13 @@ function renderStatusFeed(items) {
 }
 
 /**
- * Fügt eine neue Statusnachricht mit präziser Slide-Animation hinzu.
- * Nutzt Ghost-Measurement für exakte Höhen-Transition.
+ * Fügt eine neue Statusnachricht hinzu (Grid Animation Method).
  */
 function addStatusMessage(text, type = 'info') {
     const list = document.querySelector('.status-list');
     if (!list) return;
 
-    // 1. Content vorbereiten
+    // 1. Icon & Farbe bestimmen
     let iconName = 'info';
     let colorClass = 'text-info';
     if (type === 'success') { iconName = 'check_circle'; colorClass = 'text-success'; }
@@ -455,53 +454,35 @@ function addStatusMessage(text, type = 'info') {
 
     const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    const innerHTML = `
-        <div class="status-icon ${colorClass}">
-            <span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span>
-        </div>
-        <div class="status-content">
-            <p class="status-text">${text}</p>
-            <p class="status-time">${time}</p>
+    // 2. Element erstellen
+    const item = document.createElement('div');
+    // Start-Zustand: .is-entering (Höhe 0, Margin 0)
+    item.className = 'status-item is-entering';
+    
+    // WICHTIG: Inhalt in .status-item-inner wrappen!
+    item.innerHTML = `
+        <div class="status-item-inner">
+            <div class="status-icon ${colorClass}">
+                <span class="material-icons-outlined" style="font-size: 20px;">${iconName}</span>
+            </div>
+            <div class="status-content">
+                <p class="status-text">${text}</p>
+                <p class="status-time">${time}</p>
+            </div>
         </div>
     `;
 
-    // 2. Element erstellen (Start: Geschlossen)
-    const item = document.createElement('div');
-    item.className = 'status-item is-entering';
-    item.innerHTML = innerHTML;
-
-    // 3. Ghost Measurement (Echte Höhe messen)
-    const ghost = item.cloneNode(true);
-    ghost.className = 'status-item'; // Ohne 'is-entering' für volle Größe
-    ghost.style.position = 'absolute';
-    ghost.style.visibility = 'hidden';
-    ghost.style.width = list.clientWidth + 'px'; // Gleiche Breite simulieren
-    list.appendChild(ghost);
-    const targetHeight = ghost.scrollHeight; // Das ist die Ziel-Höhe!
-    ghost.remove();
-
-    // 4. Element einfügen (noch unsichtbar/klein)
+    // 3. Einfügen
     list.prepend(item);
 
-    // 5. Animation starten
-    requestAnimationFrame(() => {
-        // Reflow erzwingen
-        void item.offsetHeight;
-        
-        // Klasse entfernen -> CSS Transitions starten
-        item.classList.remove('is-entering');
-        
-        // TRICK: Wir animieren exakt zur gemessenen Höhe, nicht zu 500px!
-        item.style.maxHeight = targetHeight + 'px';
-    });
-
-    // 6. Cleanup nach Animation (500ms entspricht CSS Transition)
+    // 4. Animation starten
+    // setTimeout garantiert, dass der Browser den Start-Zustand (0px) erst malt,
+    // bevor wir ihn auf "1fr" ändern.
     setTimeout(() => {
-        // Fixe Höhe entfernen, damit Content bei Resize responsive bleibt
-        item.style.maxHeight = '';
-    }, 500);
+        item.classList.remove('is-entering');
+    }, 50); // 50ms Puffer für Rendering
 
-    // 7. Liste begrenzen
+    // 5. Liste aufräumen
     if (list.children.length > 50) {
         list.lastElementChild.remove();
     }
