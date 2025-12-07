@@ -1908,7 +1908,7 @@ textarea {
 /* Status: Workflow Fertig */
 .drop-zone.is-complete {
     /* 1. Heller Hintergrund wie gewünscht */
-    background-color: #f1f5f9 !important;
+    background-color: #fff !important;
     
     /* 2. WICHTIG: Textfarbe auf Dunkel ändern (da Hintergrund jetzt hell ist) */
     /* Wir nutzen hier Variable --text oder einen dunklen Grauwert */
@@ -1922,8 +1922,9 @@ textarea {
     transition: all 0.2s;
 }
 
-.drop-zone.is-complete .cta-icon {
-    color: inherit; /* Erbt #1f2937 vom Parent */
+.drop-zone.is-complete .cta-icon,
+.drop-zone.is-complete .cta-text {
+    color: #374151;  
 }
 
 .drop-zone.is-complete:hover {
