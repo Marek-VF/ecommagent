@@ -1816,47 +1816,48 @@ textarea {
 
 /* --- Status Item Animation & Fixes --- */
 
-/* Basis-Zustand (Sichtbar & Endzustand der Animation) */
+/* --- Status Item Animation --- */
+
+/* Basis-Zustand (Sichtbar) */
 .status-item {
     display: flex;
     align-items: flex-start;
     gap: 12px;
     
-    /* CRITICAL FIX: Verhindert, dass Flexbox die Items zerquetscht */
+    /* WICHTIG: Verhindert Schrumpfen in Flex-Containern */
     flex-shrink: 0; 
     
-    /* Animation Definition */
+    /* Weiche Animation für Öffnen & Schließen */
     transition: 
         max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.4s ease-out 0.2s,       /* Warte kurz mit Opacity */
-        transform 0.4s ease-out 0.2s,     /* Warte kurz mit Bewegung */
+        opacity 0.4s ease-out 0.1s,
+        transform 0.4s ease-out 0.1s,
         margin-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1),
         padding-top 0.5s cubic-bezier(0.4, 0, 0.2, 1),
         padding-bottom 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         
     opacity: 1;
-    /* Groß genug wählen, damit Transition funktioniert, aber Inhalt passt */
-    max-height: 500px; 
+    max-height: 500px; /* Fallback nach der Animation */
     transform: translateY(0) scale(1);
     overflow: hidden;
     
-    /* Explizite Abstände für den Endzustand */
+    /* End-Abstände */
     margin-bottom: 12px; 
     padding-top: 4px;
     padding-bottom: 4px;
 }
 
-/* Start-Zustand (Wird per JS beim Einfügen gesetzt) */
+/* Start-Zustand (Wird per JS eingefügt) */
 .status-item.is-entering {
     opacity: 0;
-    max-height: 0;
+    max-height: 0 !important; /* Startet bei 0 */
     
-    /* Alle Abstände auf 0 zwingen für den Slide-Effekt */
+    /* Abstände entfernen für Slide-Down */
     margin-bottom: 0;
     padding-top: 0;
     padding-bottom: 0;
     
-    transform: translateY(-20px) scale(0.9);
+    transform: translateY(-10px);
 }
 
 /* 3. Die Trennlinie */
