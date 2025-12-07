@@ -2037,9 +2037,6 @@ function onWorkflowStarted() {
 }
 
 async function startWorkflow() {
-    setDropZoneState(true);
-    setOriginalImagesLocked(true);
-
     if (isStartingWorkflow) {
         return;
     }
@@ -2154,6 +2151,7 @@ async function startWorkflow() {
             showWorkflowFeedback('error', message);
             setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
             resetActiveToggle();
+            setDropZoneState(false);
 
             if (result.logout) {
                 window.location.href = 'auth/logout.php';
@@ -2165,6 +2163,10 @@ async function startWorkflow() {
         const successMessage = typeof result.message === 'string' && result.message.trim() !== ''
             ? result.message
             : 'Workflow gestartet.';
+
+        // MOVED: Status erst ändern, wenn wir sicher sind, dass der Workflow läuft!
+        setDropZoneState(true);
+        setOriginalImagesLocked(true);
 
         setCurrentRun(result.run_id ?? window.currentRunId, result.user_id ?? window.currentUserId);
         const resolvedRunId = window.currentRunId ?? result.run_id;
@@ -2190,6 +2192,7 @@ async function startWorkflow() {
         showWorkflowFeedback('error', message);
         setStatusAndLog('error', message, 'WORKFLOW_START_FAILED');
         resetActiveToggle();
+        setDropZoneState(false);
         logFrontendStatus('WORKFLOW_START_FAILED');
         // auch wenn das Polling noch nicht läuft, können wir den Feed einmalig ziehen
         fetchStatusFeed().catch((err) => {
