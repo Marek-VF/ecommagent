@@ -2736,6 +2736,7 @@ async function fetchLatestItem() {
     try {
         triggerPollingAnimation();
 
+        // 1. Neueste Daten (Bilder, Texte) holen
         const response = await fetch(DATA_ENDPOINT, {
             cache: 'no-store',
         });
@@ -2751,60 +2752,63 @@ async function fetchLatestItem() {
 
         const payload = raw.data && typeof raw.data === 'object' ? raw.data : {};
 
+        // Run ID aktualisieren, falls vorhanden
         if (payload.run_id !== undefined && payload.run_id !== null) {
             const numericRunId = Number(payload.run_id);
             activeRunId = Number.isFinite(numericRunId) && numericRunId > 0 ? numericRunId : null;
         }
 
+        // UI aktualisieren (Bilder, Texte)
         const normalized = updateUiWithData(payload);
 
+        // 2. WICHTIG: Status-Feed (Liste) aktualisieren
+        // Das fehlte wahrscheinlich oder war auskommentiert.
         try {
             await fetchStatusFeed();
         } catch (feedError) {
             console.error('Status-Feed-Fehler:', feedError);
         }
 
+        // Status-Logik prüfen
         const hasIsRunning = normalized && Object.prototype.hasOwnProperty.call(normalized, 'isrunning');
         const isRunning = hasIsRunning ? toBoolean(normalized.isrunning) : toBoolean(payload.isrunning);
-        const statusBarText = resolveStatusBarMessage(payload);
-
-        const statusLabelRaw =
-            (normalized && typeof normalized.status === 'string' && normalized.status.trim() !== '')
+        
+        // Dropzone Status setzen
+        const statusLabelRaw = (normalized && typeof normalized.status === 'string' && normalized.status.trim() !== '')
                 ? normalized.status
                 : (typeof payload.status === 'string' ? payload.status : '');
         const statusLabel = statusLabelRaw ? statusLabelRaw.trim().toLowerCase() : '';
-
         const shouldShowComplete = !isRunning && statusLabel !== 'pending';
+        
         setDropZoneState({ isRunning, isComplete: shouldShowComplete });
 
         if (!isRunning) {
             if (statusLabel === 'pending') {
-                setStatusAndLog('info', 'Bereit für Workflow-Start', 'WORKFLOW_PENDING');
-                if (!statusBarText) {
-                    showWorkflowFeedback('info', 'Workflow bereit zum Start.');
-                }
+                // Pending ist okay, wir warten
                 updateProcessingIndicator('Bereit für Workflow-Start', 'idle');
                 if (payload.run_id !== undefined && payload.run_id !== null) {
                     setCurrentRun(payload.run_id);
                 }
             } else {
-                // Keine UI-Meldung mehr hier generieren! Das kommt aus dem Status-Feed der DB.
-                // Nur technisches Logging für Debugging.
-                console.log('[Polling] Workflow erfolgreich beendet.');
-                logFrontendStatus('WORKFLOW_COMPLETED');
-
+                // Workflow fertig (success oder error)
+                // Kein 'setStatusAndLog' mehr hier, um Dopplungen zu vermeiden!
+                console.log('[Polling] Workflow beendet. Status:', statusLabel);
+                
                 stopPolling();
                 activeRunId = null;
                 setCurrentRun(null);
             }
         } else {
-            // Nur technisches Logging, keine UI-Ausgabe mehr!
-            // Das verhindert "Verarbeitung läuft" Spam in der Liste.
-            console.log('[Polling] Workflow läuft...');
-            logFrontendStatus('WORKFLOW_RUNNING');
+            // Workflow läuft noch
+            // WICHTIG: Hier haben wir den 'logFrontendStatus' ENTFERNT, 
+            // damit die Datenbank nicht mit "Verarbeitung läuft" zugemüllt wird.
+            // Wir aktualisieren nur den lokalen Indikator (Konsole).
+            updateProcessingIndicator('Verarbeitung läuft …', 'running');
         }
+
     } catch (error) {
         console.error('Polling-Fehler:', error);
+        // Fehler loggen wir weiterhin, damit man Probleme sieht
         setStatusAndLog('error', 'Fehler beim Abrufen des Status', 'STATUS_POLLING_ERROR');
     }
 }
