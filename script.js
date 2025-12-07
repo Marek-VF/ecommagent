@@ -339,10 +339,28 @@ function updateGlobalStartButtonState() {
 
     const spinner = btn.querySelector('.loading-spinner');
     const startIsBlocked = Boolean(workflowIsRunning || isProcessing || isStartingWorkflow);
+    
+    // 1. Gibt es ein aktives Toggle (2K, 4K, Edit)?
     const hasActiveToggle = Boolean(document.querySelector('.btn-toggle.is-active'));
-    const hasUpload = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0;
+    
+    // 2. Haben wir generell eine Run ID (Upload oder History)?
+    const hasRunId = Number.isFinite(Number(window.currentRunId)) && Number(window.currentRunId) > 0;
+    
+    // 3. NEU: Haben wir bereits generierte Ergebnisse? (Prüfung auf Inhalt in den Slots)
+    // Wir schauen, ob mindestens ein Slot ein Bild hat.
+    const hasGeneratedResults = gallerySlots.some(slot => slot.container.dataset.hasContent === 'true');
 
-    const shouldEnable = !startIsBlocked && (hasActiveToggle || hasUpload);
+    let shouldEnable = false;
+
+    if (hasGeneratedResults) {
+        // FALL A: History / Update Modus
+        // Button nur aktiv, wenn Workflow nicht blockiert UND eine Aktion (Toggle) gewählt wurde.
+        shouldEnable = !startIsBlocked && hasActiveToggle;
+    } else {
+        // FALL B: Frischer Upload Modus
+        // Button aktiv, sobald ein Upload (RunID) existiert. Kein Toggle nötig.
+        shouldEnable = !startIsBlocked && hasRunId;
+    }
 
     if (shouldEnable) {
         btn.removeAttribute('disabled');
@@ -2292,6 +2310,9 @@ const updateInterfaceFromData = (data) => {
 const applyRunDataToUI = (payload) => {
     setOriginalImagesLocked(true);
 
+    // NEU: Alle Toggles zurücksetzen beim Laden eines Runs
+    document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('is-active'));
+
     const data = payload && typeof payload === 'object' ? payload : {};
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
@@ -2417,6 +2438,8 @@ const applyRunDataToUI = (payload) => {
 
     const hasOriginalPreviews = window.currentOriginalImages.length > 0;
     setScanOverlayActive(runIsRunning && hasOriginalPreviews);
+
+    updateGlobalStartButtonState();
 };
 
 const setActiveRun = (runId) => {
