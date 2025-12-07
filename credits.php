@@ -123,25 +123,9 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
 
         $pdo->commit();
 
-        // User-Feedback über Abbuchung
-        if ($runId !== null) {
-            $formattedPrice = number_format($price, 2, ',', '.');
-            
-            $displayReason = match ($stepType) {
-                '2K', '2k', 'upscale_2x' => 'Upscale 2K',
-                '4K', '4k', 'upscale_4x' => 'Upscale 4K',
-                'edit', 'inpainting'     => 'Bearbeitung',
-                'image_1', 'image_2', 'image_3' => 'Bildgenerierung',
-                'analysis' => 'Analyse',
-                default => ucfirst($stepType),
-            };
-            
-            $logMsg = sprintf('Guthaben: -%s Credits (%s)', $formattedPrice, $displayReason);
-            
-            if (function_exists('log_status_message')) {
-                log_status_message($pdo, $runId, $userId, $logMsg, 'CREDITS_SPENT');
-            }
-        }
+        // ENTFERNT: Status-Meldung über Abbuchung.
+        // Wir wollen den User-Feed nicht mit "Guthaben: -0,50" zuspammen.
+        // Die Transaktion ist oben bereits sicher in 'credit_transactions' protokolliert.
 
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
