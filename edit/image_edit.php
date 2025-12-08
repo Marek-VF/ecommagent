@@ -123,20 +123,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             <div class="app__header-left">
                 <h1>Bild bearbeiten</h1>
             </div>
-            <div class="w-full flex md:w-auto md:block">
-                <div class="profile" id="sidebar-profile">
-                    <div class="profile-trigger" data-profile-trigger>
-                        <div class="profile-avatar"><?php echo htmlspecialchars($userInitial, ENT_QUOTES); ?></div>
-                        <div class="profile-info">
-                            <span class="profile-name"><?php echo htmlspecialchars($userDisplayName, ENT_QUOTES); ?></span>
-                        </div>
-                    </div>
-                    <div class="profile-menu" id="sidebar-profile-menu">
-                        <a class="profile-item" href="../settings">Einstellungen</a>
-                        <a class="profile-item profile-item--danger" href="../auth/logout.php">Abmelden</a>
-                    </div>
-                </div>
-            </div>
+
         </header>
 
         <main class="edit-main">
