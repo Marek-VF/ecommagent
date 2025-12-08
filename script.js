@@ -1238,6 +1238,22 @@ const gallerySlots = Array.from(document.querySelectorAll('.generated-slot')).ma
     };
 });
 
+const syncActionButtonsForSlot = (slot, imageId = null) => {
+    if (!slot || !slot.actions || !slot.actions.menu) {
+        return;
+    }
+
+    const normalizedId = imageId !== null && imageId !== undefined && imageId !== '' ? String(imageId) : null;
+
+    slot.actions.menu.querySelectorAll('.btn-toggle').forEach((button) => {
+        if (normalizedId) {
+            button.dataset.imageId = normalizedId;
+        } else {
+            delete button.dataset.imageId;
+        }
+    });
+};
+
 const placeholderDimensions = appConfig.placeholderDimensions || null;
 
 if (placeholderDimensions && placeholderDimensions.width && placeholderDimensions.height) {
@@ -1274,6 +1290,7 @@ const clearSlotContent = (slot) => {
     slot.container.classList.remove('has-shadow');
     slot.container.classList.remove('first-active');
     delete slot.container.dataset.imageId;
+    syncActionButtonsForSlot(slot, null);
 
     const existingImage = slot.container.querySelector('img');
     if (existingImage) {
@@ -1644,6 +1661,7 @@ function renderGeneratedImages(images) {
                 if (rawData.id) {
                     slot.container.dataset.imageId = rawData.id;
                     console.log('Slot', index, 'ImageID:', rawData.id);
+                    syncActionButtonsForSlot(slot, rawData.id);
                 }
             }
 
@@ -1676,6 +1694,7 @@ function renderGeneratedImages(images) {
         delete slot.container.dataset.imageId;
         slot.container.dataset.isLoading = 'false';
         lastKnownImages[slot.key] = null;
+        syncActionButtonsForSlot(slot, null);
     });
 
     updateSlotActions(workflowIsRunning);
@@ -3208,6 +3227,22 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleButtons.forEach((btn) => {
         btn.addEventListener('click', (event) => {
             event.stopPropagation();
+
+            const actionType = btn.dataset ? btn.dataset.type : null;
+            if (actionType === 'edit') {
+                const imageId =
+                    (btn.dataset && btn.dataset.imageId) ||
+                    btn.closest('.generated-card')?.querySelector('.generated-slot')?.dataset?.imageId;
+
+                if (!imageId) {
+                    console.warn('Kein Bild für die Bearbeitung gefunden.');
+                    return;
+                }
+
+                const targetUrl = `edit/image_edit.php?image_id=${encodeURIComponent(imageId)}`;
+                window.location.href = targetUrl;
+                return;
+            }
 
             const wasActive = btn.classList.contains('is-active');
             document.querySelectorAll('.btn-toggle').forEach((toggle) => toggle.classList.remove('is-active'));

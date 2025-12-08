@@ -2010,4 +2010,10 @@ textarea {
     pointer-events: none;
 }
 
+.image-edit__preview img {
+    max-width: 400px;
+    margin: 0 auto;
+    display: block;
+}
+
  
