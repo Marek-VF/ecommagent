@@ -230,6 +230,23 @@ body {
     background: rgba(0,0,0,0.05); /* Leichter Hover-Effekt */
 }
 
+.app__back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    color: var(--text);
+    border-radius: var(--radius-md);
+}
+
+.app__back-link:hover,
+.app__back-link:focus-visible {
+    background: rgba(0, 0, 0, 0.05);
+}
+
 /* --- SIDEBAR (Light Mode) --- */
 
 .history-sidebar {
@@ -514,6 +531,89 @@ body {
 
 .panel__section {
     padding: 0; /* Inneres Padding entfernen, da Panel es jetzt hat */
+}
+
+/* --- EDIT PAGE LAYOUT --- */
+.edit-main {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.edit-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: flex-start;
+    margin-top: 32px;
+}
+
+@media (max-width: 900px) {
+    .edit-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.edit-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.edit-card__header,
+.edit-card__body,
+.edit-card__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.edit-card__title {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.edit-card__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.edit-card__label {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
+
+.edit-card__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.edit-card__row--actions {
+    margin-top: 4px;
+}
+
+.edit-card textarea,
+.edit-card input[type="text"] {
+    width: 100%;
+}
+
+.image-edit__preview img {
+    max-width: 400px;
+    width: 100%;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+    border-radius: 12px;
 }
 
 
