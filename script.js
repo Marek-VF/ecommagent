@@ -300,6 +300,18 @@ const uploadEndpoint = 'upload.php';
 const POLLING_INTERVAL = 2000;
 const DATA_ENDPOINT = 'api/get-latest-item.php';
 
+function getRunIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get('run_id');
+
+    if (!value) {
+        return null;
+    }
+
+    const numeric = parseInt(value, 10);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
 const SCAN_OVERLAY_SELECTOR = '.scan-overlay';
 const SCAN_OVERLAY_ACTIVE_CLASS = 'active';
 
@@ -2493,7 +2505,7 @@ const loadRunDetails = async (runId) => {
 
     const numericId = Number(runId);
     if (!Number.isFinite(numericId) || numericId <= 0) {
-        return;
+        return false;
     }
 
     try {
@@ -2502,12 +2514,12 @@ const loadRunDetails = async (runId) => {
         });
 
         if (!response.ok) {
-            return;
+            return false;
         }
 
         const json = await response.json();
         if (!json || typeof json !== 'object' || json.ok !== true) {
-            return;
+            return false;
         }
 
         const data = json.data && typeof json.data === 'object' ? json.data : {};
@@ -2516,8 +2528,10 @@ const loadRunDetails = async (runId) => {
         setActiveRun(numericId);
 
         setCurrentRun(numericId);
+        return true;
     } catch (error) {
         console.error('Run-Details laden fehlgeschlagen', error);
+        return false;
     }
 };
 
@@ -3206,6 +3220,31 @@ function setInitialUiState() {
     resetFrontendState();
 }
 
+async function fetchLatestItemAndInit() {
+    await fetchLatestItem();
+}
+
+async function initializeAppData() {
+    const runIdFromUrl = getRunIdFromUrl();
+
+    if (runIdFromUrl) {
+        try {
+            const loaded = await loadRunDetails(runIdFromUrl);
+
+            if (loaded) {
+                window.currentRunId = runIdFromUrl;
+                return;
+            }
+
+            console.error('Failed to load run from URL, falling back to latest item.');
+        } catch (error) {
+            console.error('Failed to load run from URL, falling back', error);
+        }
+    }
+
+    await fetchLatestItemAndInit();
+}
+
 document.addEventListener('DOMContentLoaded', initCopyButtons);
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -3219,6 +3258,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateWorkflowButtonState();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeAppData().catch((error) => {
+        console.error('Initialisierung fehlgeschlagen', error);
+    });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
