@@ -17,6 +17,7 @@ $imageId = isset($_GET['image_id']) ? (int) $_GET['image_id'] : 0;
 
 $error = null;
 $image = null;
+$runId = null;
 
 if ($imageId <= 0) {
     http_response_code(400);
@@ -37,6 +38,12 @@ if ($imageId <= 0) {
         $error = 'Bild nicht gefunden oder keine Berechtigung.';
     } else {
         $image = $row;
+        if (isset($row['run_id'])) {
+            $candidateRunId = (int) $row['run_id'];
+            if ($candidateRunId > 0) {
+                $runId = $candidateRunId;
+            }
+        }
     }
 }
 
@@ -100,6 +107,10 @@ if (function_exists('mb_strtoupper')) {
 
 $assetBaseUrl = $config['asset_base_url'] ?? ($baseUrl !== '' ? $baseUrl . '/assets' : '');
 $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/assets';
+$backLink = '../index.php';
+if ($runId !== null) {
+    $backLink .= '?run_id=' . urlencode((string) $runId);
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -141,7 +152,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
         <main class="edit-main">
             <div class="edit-main__nav">
-                <a href="../index.php" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+                <a href="<?php echo htmlspecialchars($backLink, ENT_QUOTES); ?>" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
             </div>
             <?php if ($error !== null): ?>
                 <div class="status-item status-item--error" data-severity="error">
