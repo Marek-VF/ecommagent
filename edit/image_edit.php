@@ -121,7 +121,6 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
     <div class="app">
         <header class="app__header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div class="app__header-left">
-                <a href="../index.php" class="history-toggle app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
                 <h1>Bild bearbeiten</h1>
             </div>
             <div class="w-full flex md:w-auto md:block">
@@ -140,11 +139,10 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             </div>
         </header>
 
-        <div class="app__status-row">
-            <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
-        </div>
-
         <main class="edit-main">
+            <div class="edit-main__nav">
+                <a href="../index.php" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+            </div>
             <?php if ($error !== null): ?>
                 <div class="status-item status-item--error" data-severity="error">
                     <span class="status-icon-wrapper">
@@ -163,17 +161,6 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                                 <span class="edit-card__label">Prompt</span>
                                 <textarea class="input" rows="4" placeholder="Beschreibe die gewünschte Anpassung..."></textarea>
                             </label>
-
-                            <div class="edit-card__row">
-                                <label class="edit-card__field">
-                                    <span class="edit-card__label">Stil</span>
-                                    <input type="text" class="input" placeholder="z. B. Modern">
-                                </label>
-                                <label class="edit-card__field">
-                                    <span class="edit-card__label">Farbschema</span>
-                                    <input type="text" class="input" placeholder="z. B. Warm">
-                                </label>
-                            </div>
 
                             <div class="edit-card__row edit-card__row--actions">
                                 <button type="button" class="btn-primary w-full" aria-label="Workflow starten">
@@ -196,9 +183,11 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                         </div>
                         <div class="edit-card__footer">
                             <form method="post" action="#">
-                                <button type="button" class="btn-secondary w-full" aria-label="Bild speichern">
-                                    Speichern
-                                </button>
+                                <div class="image-edit__actions">
+                                    <button type="button" class="btn-secondary" aria-label="Bild speichern">
+                                        Speichern
+                                    </button>
+                                </div>
                                 <!-- TODO: Speichern-Logik implementieren -->
                             </form>
                         </div>

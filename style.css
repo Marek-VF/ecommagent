@@ -540,15 +540,23 @@ body {
     gap: 24px;
 }
 
+.edit-main__nav {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .edit-layout {
     display: grid;
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
     gap: 24px;
     align-items: flex-start;
-    margin-top: 32px;
 }
 
 @media (max-width: 900px) {
+    .edit-main__nav {
+        justify-content: flex-start;
+    }
+
     .edit-layout {
         grid-template-columns: 1fr;
     }
@@ -614,6 +622,25 @@ body {
     margin: 0 auto;
     display: block;
     border-radius: 12px;
+}
+
+.image-edit__actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.image-edit__actions .btn-secondary {
+    min-width: 140px;
+}
+
+@media (max-width: 900px) {
+    .image-edit__actions {
+        justify-content: stretch;
+    }
+
+    .image-edit__actions .btn-secondary {
+        width: 100%;
+    }
 }
 
 
