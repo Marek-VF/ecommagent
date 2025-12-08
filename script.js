@@ -2352,6 +2352,33 @@ const applyRunDataToUI = (payload) => {
     const originalImagesToDisplay = originalImagesFromPayload.length > 0
         ? originalImagesFromPayload
         : (originalImage ? [originalImage] : []);
+    const runIdFromPayload = (() => {
+        if (data.run && typeof data.run === 'object' && Number.isFinite(Number(data.run.id))) {
+            return Number(data.run.id);
+        }
+
+        if (Number.isFinite(Number(data.run_id))) {
+            return Number(data.run_id);
+        }
+
+        if (Number.isFinite(Number(data.id))) {
+            return Number(data.id);
+        }
+
+        return null;
+    })();
+
+    if (runIdFromPayload && runIdFromPayload > 0) {
+        if (workflowOutput) {
+            workflowOutput.dataset.runId = String(runIdFromPayload);
+        }
+
+        const userIdFromPayload = data.run && typeof data.run === 'object' && Number.isFinite(Number(data.run.user_id))
+            ? Number(data.run.user_id)
+            : undefined;
+
+        setCurrentRun(runIdFromPayload, userIdFromPayload);
+    }
     renderOriginalImagePreviews(originalImagesToDisplay);
     let runIsRunning = false;
     let statusRaw = '';
@@ -2406,17 +2433,22 @@ const applyRunDataToUI = (payload) => {
 
                 if (slot.container && image.id) {
                     slot.container.dataset.imageId = image.id;
+                    syncActionButtonsForSlot(slot, image.id);
                     console.log('History Image ID set:', slotKey, image.id);
+                } else {
+                    syncActionButtonsForSlot(slot, null);
                 }
             } else {
                 clearSlotContent(slot);
                 setSlotLoadingState(slot, false);
                 lastKnownImages[slotKey] = null;
+                syncActionButtonsForSlot(slot, null);
             }
         } else {
             clearSlotContent(slot);
             setSlotLoadingState(slot, false);
             lastKnownImages[slotKey] = null;
+            syncActionButtonsForSlot(slot, null);
         }
     });
 
