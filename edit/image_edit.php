@@ -121,8 +121,8 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
     <div class="app">
         <header class="app__header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div class="app__header-left">
-                <a href="../index.php" class="history-toggle" aria-label="Zurück zur Übersicht">&#8592;</a>
-                <h1>Ecom Studio</h1>
+                <a href="../index.php" class="history-toggle app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+                <h1>Bild bearbeiten</h1>
             </div>
             <div class="w-full flex md:w-auto md:block">
                 <div class="profile" id="sidebar-profile">
@@ -144,66 +144,67 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
         </div>
 
-        <main class="grid">
-            <section class="panel panel--upload" style="background: transparent; border: none; padding: 0; box-shadow: none;">
-                <?php if ($error !== null): ?>
-                    <div class="status-item status-item--error" data-severity="error">
-                        <span class="status-icon-wrapper">
-                            <span class="material-icons-outlined status-icon text-danger">error</span>
-                        </span>
-                        <div class="status-content"><p class="status-text"><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p></div>
-                    </div>
-                <?php else: ?>
-                    <div class="grid gap-6 lg:grid-cols-2">
-                        <div class="panel card">
-                            <div class="card__header">
-                                <h3 class="output-title">Prompting</h3>
-                            </div>
-                            <div class="card__body">
-                                <label class="block mb-4">
-                                    <span class="text-sm font-medium text-gray-700">Prompt</span>
-                                    <textarea class="w-full mt-1 rounded-md border-gray-300" rows="4" placeholder="Beschreibe die gewünschte Anpassung..."></textarea>
+        <main class="edit-main">
+            <?php if ($error !== null): ?>
+                <div class="status-item status-item--error" data-severity="error">
+                    <span class="status-icon-wrapper">
+                        <span class="material-icons-outlined status-icon text-danger">error</span>
+                    </span>
+                    <div class="status-content"><p class="status-text"><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p></div>
+                </div>
+            <?php else: ?>
+                <div class="edit-layout">
+                    <section class="edit-card">
+                        <div class="edit-card__header">
+                            <p class="edit-card__title">Prompting</p>
+                        </div>
+                        <div class="edit-card__body">
+                            <label class="edit-card__field">
+                                <span class="edit-card__label">Prompt</span>
+                                <textarea class="input" rows="4" placeholder="Beschreibe die gewünschte Anpassung..."></textarea>
+                            </label>
+
+                            <div class="edit-card__row">
+                                <label class="edit-card__field">
+                                    <span class="edit-card__label">Stil</span>
+                                    <input type="text" class="input" placeholder="z. B. Modern">
                                 </label>
-                                <div class="grid grid-cols-2 gap-4 mb-4">
-                                    <label class="block">
-                                        <span class="text-sm font-medium text-gray-700">Stil</span>
-                                        <input type="text" class="w-full mt-1 rounded-md border-gray-300" placeholder="z. B. Modern">
-                                    </label>
-                                    <label class="block">
-                                        <span class="text-sm font-medium text-gray-700">Farbschema</span>
-                                        <input type="text" class="w-full mt-1 rounded-md border-gray-300" placeholder="z. B. Warm">
-                                    </label>
-                                </div>
+                                <label class="edit-card__field">
+                                    <span class="edit-card__label">Farbschema</span>
+                                    <input type="text" class="input" placeholder="z. B. Warm">
+                                </label>
+                            </div>
+
+                            <div class="edit-card__row edit-card__row--actions">
                                 <button type="button" class="btn-primary w-full" aria-label="Workflow starten">
                                     Workflow starten
                                 </button>
-                                <!-- TODO: Workflow-Logik implementieren -->
                             </div>
                         </div>
+                    </section>
 
-                        <div class="panel card image-edit__preview">
-                            <div class="card__header">
-                                <h3 class="output-title">Bildvorschau</h3>
-                            </div>
-                            <div class="card__body">
-                                <?php if ($imageUrl !== null): ?>
-                                    <img src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" alt="Ausgewähltes Bild">
-                                <?php else: ?>
-                                    <p>Keine Bild-URL verfügbar.</p>
-                                <?php endif; ?>
-                            </div>
-                            <div class="card__footer">
-                                <form method="post" action="#">
-                                    <button type="button" class="btn-secondary w-full" aria-label="Bild speichern">
-                                        Speichern
-                                    </button>
-                                    <!-- TODO: Speichern-Logik implementieren -->
-                                </form>
-                            </div>
+                    <section class="edit-card image-edit__preview">
+                        <div class="edit-card__header">
+                            <p class="edit-card__title">Bildvorschau</p>
                         </div>
-                    </div>
-                <?php endif; ?>
-            </section>
+                        <div class="edit-card__body">
+                            <?php if ($imageUrl !== null): ?>
+                                <img src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" alt="Ausgewähltes Bild">
+                            <?php else: ?>
+                                <p>Keine Bild-URL verfügbar.</p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="edit-card__footer">
+                            <form method="post" action="#">
+                                <button type="button" class="btn-secondary w-full" aria-label="Bild speichern">
+                                    Speichern
+                                </button>
+                                <!-- TODO: Speichern-Logik implementieren -->
+                            </form>
+                        </div>
+                    </section>
+                </div>
+            <?php endif; ?>
         </main>
     </div>
 </body>
