@@ -162,16 +162,13 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                                     data-run-id="<?php echo (int)$image['run_id']; ?>"
                                     data-image-id="<?php echo (int)$image['id']; ?>"
                                     data-position="<?php echo (int)$image['position']; ?>">
-                                    
+
                                     <svg class="loading-spinner animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
 
                                     <span class="btn-text">Workflow starten</span>
-                                </button>
-                                <button type="button" id="btn-save-edit" class="btn-primary w-full flex items-center justify-center hidden opacity-50 cursor-not-allowed" disabled>
-                                    <span class="btn-text">Speichern</span>
                                 </button>
                             </div>
                         </div>
@@ -187,6 +184,11 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                             <?php else: ?>
                                 <p class="text-gray-400">Kein Bild geladen.</p>
                             <?php endif; ?>
+                        </div>
+                        <div class="edit-card__footer">
+                            <button type="button" id="btn-save-edit" class="btn-primary w-full flex items-center justify-center hidden opacity-50 cursor-not-allowed" disabled>
+                                <span class="btn-text">Speichern</span>
+                            </button>
                         </div>
                     </section>
                 </div>
@@ -211,8 +213,9 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             if (!promptInput || !startBtn || !saveBtn) return;
 
             const runId = startBtn.dataset.runId;
-            const imageId = startBtn.dataset.imageId;
+            const originalImageId = startBtn.dataset.imageId;
             const position = startBtn.dataset.position;
+            let currentActiveImageId = originalImageId;
 
             const resetStatus = () => {
                 statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
@@ -240,6 +243,30 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 }
             };
 
+            const onPreviewReady = (image) => {
+                if (!image) return;
+
+                stagingId = image.id ?? null;
+                if (image.id) {
+                    currentActiveImageId = image.id;
+                }
+
+                if (image.url && previewImage) {
+                    previewImage.src = image.url;
+                }
+
+                saveBtn.classList.remove('hidden');
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (spinner) spinner.classList.add('hidden');
+                if (btnText) btnText.textContent = 'Workflow starten';
+
+                setStatus('Vorschau aktualisiert. Du kannst weiter editieren oder speichern.', 'info');
+            };
+
             const startPollingForEdit = () => {
                 stopPolling();
                 pollInterval = window.setInterval(async () => {
@@ -249,21 +276,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
                         if (response.ok && data.ok && data.found) {
                             stopPolling();
-                            stagingId = data.image?.id ?? null;
-
-                            if (data.image?.url && previewImage) {
-                                previewImage.src = data.image.url;
-                            }
-
-                            if (spinner) spinner.classList.add('hidden');
-                            if (btnText) btnText.textContent = 'Entwurf bereit';
-
-                            startBtn.classList.add('hidden');
-                            saveBtn.classList.remove('hidden');
-                            saveBtn.disabled = false;
-                            saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-                            setStatus('Dein Entwurf ist fertig. Du kannst ihn jetzt speichern.', 'success');
+                            onPreviewReady(data.image ?? null);
                         }
                     } catch (error) {
                         console.error('Polling failed', error);
@@ -294,6 +307,8 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 // UI Loading State
                 startBtn.disabled = true;
                 startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 if (spinner) spinner.classList.remove('hidden');
                 if (btnText) btnText.textContent = 'Verarbeitung läuft...';
 
@@ -309,7 +324,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                         },
                         body: JSON.stringify({
                             run_id: runId,
-                            image_id: imageId,
+                            image_id: currentActiveImageId,
                             position: position,
                             action: 'edit',
                             userprompt: prompt
