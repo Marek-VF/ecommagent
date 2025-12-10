@@ -260,6 +260,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                promptInput.disabled = false;
                 if (spinner) spinner.classList.add('hidden');
                 if (btnText) btnText.textContent = 'Workflow starten';
 
@@ -302,7 +303,6 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 if (startBtn.disabled) return;
 
                 const prompt = promptInput.value.trim();
-                const idBeforeStart = currentActiveImageId;
 
                 // UI Loading State
                 startBtn.disabled = true;
@@ -314,8 +314,24 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
                 // Status Reset
                 resetStatus();
+                promptInput.disabled = true;
 
                 try {
+                    // SCHRITT 1: Baseline ermitteln (Was ist das aktuellste Staging-Bild?)
+                    let pollingThreshold = 0;
+                    try {
+                        // Wir fragen mit min_id=0 nach dem allerneuesten Bild
+                        const checkRes = await fetch(`../api/check-edit-polling.php?run_id=${runId}&min_id=0&t=${Date.now()}`);
+                        const checkData = await checkRes.json();
+                        if (checkData.ok && checkData.found && checkData.image && checkData.image.id) {
+                            pollingThreshold = checkData.image.id;
+                        }
+                        console.log('Polling Baseline gesetzt auf Staging-ID:', pollingThreshold);
+                    } catch (e) {
+                        console.warn('Baseline Check fehlgeschlagen, starte bei 0', e);
+                    }
+
+                    // SCHRITT 2: Workflow starten
                     const response = await fetch('../start-workflow-update.php', {
                         method: 'POST',
                         headers: {
@@ -324,7 +340,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                         },
                         body: JSON.stringify({
                             run_id: runId,
-                            image_id: currentActiveImageId,
+                            image_id: currentActiveImageId, // Quelle für n8n (kann Live oder Staging sein)
                             position: position,
                             action: 'edit',
                             userprompt: prompt
@@ -334,8 +350,9 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                     const result = await response.json();
 
                     if (response.ok && result.success) {
-                        setStatus('Workflow gestartet. Wir prüfen regelmäßig auf deinen Entwurf...', 'info');
-                        startPolling(runId, idBeforeStart);
+                        setStatus('Workflow gestartet. Warte auf Ergebnis...', 'info');
+                        // SCHRITT 3: Polling mit der korrekten Baseline starten
+                        startPolling(runId, pollingThreshold);
                     } else {
                         throw new Error(result.message || 'Unbekannter Fehler');
                     }
@@ -345,6 +362,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
                     // Reset bei Fehler
                     startBtn.disabled = false;
+                    promptInput.disabled = false;
                     startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     if (spinner) spinner.classList.add('hidden');
                     if (btnText) btnText.textContent = 'Workflow starten';
