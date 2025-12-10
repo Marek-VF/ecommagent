@@ -134,8 +134,20 @@ try {
         ':uid' => $userId,
         ':rid' => $runId
     ]);
-    
+
     $dbImageUrl = $stmt->fetchColumn();
+
+    if (!$dbImageUrl) {
+        $stmtStaging = $pdo->prepare(
+            "SELECT url FROM item_images_staging WHERE id = :img_id AND user_id = :uid AND run_id = :rid LIMIT 1"
+        );
+        $stmtStaging->execute([
+            ':img_id' => $imageId,
+            ':uid' => $userId,
+            ':rid' => $runId
+        ]);
+        $dbImageUrl = $stmtStaging->fetchColumn();
+    }
 
     if (!$dbImageUrl) {
         // Entweder Bild existiert nicht, oder gehört nicht dem User/Run -> 404/403
