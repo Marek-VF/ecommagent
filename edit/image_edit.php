@@ -167,8 +167,11 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    
+
                                     <span class="btn-text">Workflow starten</span>
+                                </button>
+                                <button type="button" id="btn-save-edit" class="btn-primary w-full flex items-center justify-center hidden opacity-50 cursor-not-allowed" disabled>
+                                    <span class="btn-text">Speichern</span>
                                 </button>
                             </div>
                         </div>
@@ -195,18 +198,84 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
         document.addEventListener('DOMContentLoaded', () => {
             const promptInput = document.getElementById('edit-prompt');
             const startBtn = document.getElementById('btn-start-edit');
+            const saveBtn = document.getElementById('btn-save-edit');
             const charCount = document.getElementById('char-count');
             const statusMsg = document.getElementById('edit-status-message');
             const spinner = startBtn ? startBtn.querySelector('.loading-spinner') : null;
             const btnText = startBtn ? startBtn.querySelector('.btn-text') : null;
+            const previewImage = document.querySelector('.image-edit__preview img');
 
-            if (!promptInput || !startBtn) return;
+            let pollInterval = null;
+            let stagingId = null;
+
+            if (!promptInput || !startBtn || !saveBtn) return;
+
+            const runId = startBtn.dataset.runId;
+            const imageId = startBtn.dataset.imageId;
+            const position = startBtn.dataset.position;
+
+            const resetStatus = () => {
+                statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
+                statusMsg.textContent = '';
+            };
+
+            const setStatus = (message, type = 'info') => {
+                statusMsg.textContent = message;
+                statusMsg.className = 'mb-4 p-3 rounded text-sm';
+                statusMsg.classList.remove('hidden');
+
+                if (type === 'success') {
+                    statusMsg.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-200');
+                } else if (type === 'error') {
+                    statusMsg.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-200');
+                } else {
+                    statusMsg.classList.add('bg-blue-100', 'text-blue-800', 'border', 'border-blue-200');
+                }
+            };
+
+            const stopPolling = () => {
+                if (pollInterval !== null) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+            };
+
+            const startPollingForEdit = () => {
+                stopPolling();
+                pollInterval = window.setInterval(async () => {
+                    try {
+                        const response = await fetch(`../api/check-edit-polling.php?run_id=${encodeURIComponent(runId)}`);
+                        const data = await response.json();
+
+                        if (response.ok && data.ok && data.found) {
+                            stopPolling();
+                            stagingId = data.image?.id ?? null;
+
+                            if (data.image?.url && previewImage) {
+                                previewImage.src = data.image.url;
+                            }
+
+                            if (spinner) spinner.classList.add('hidden');
+                            if (btnText) btnText.textContent = 'Entwurf bereit';
+
+                            startBtn.classList.add('hidden');
+                            saveBtn.classList.remove('hidden');
+                            saveBtn.disabled = false;
+                            saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                            setStatus('Dein Entwurf ist fertig. Du kannst ihn jetzt speichern.', 'success');
+                        }
+                    } catch (error) {
+                        console.error('Polling failed', error);
+                    }
+                }, 2000);
+            };
 
             // Validierung: Button erst ab 3 Zeichen aktivieren
             promptInput.addEventListener('input', () => {
                 const len = promptInput.value.trim().length;
                 charCount.textContent = len + ' Zeichen';
-                
+
                 if (len >= 3) {
                     startBtn.removeAttribute('disabled');
                     startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -220,9 +289,6 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             startBtn.addEventListener('click', async () => {
                 if (startBtn.disabled) return;
 
-                const runId = startBtn.dataset.runId;
-                const imageId = startBtn.dataset.imageId;
-                const position = startBtn.dataset.position;
                 const prompt = promptInput.value.trim();
 
                 // UI Loading State
@@ -230,10 +296,9 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 startBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 if (spinner) spinner.classList.remove('hidden');
                 if (btnText) btnText.textContent = 'Verarbeitung läuft...';
-                
+
                 // Status Reset
-                statusMsg.classList.add('hidden');
-                statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
+                resetStatus();
 
                 try {
                     const response = await fetch('../start-workflow-update.php', {
@@ -254,25 +319,57 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                     const result = await response.json();
 
                     if (response.ok && result.success) {
-                        statusMsg.textContent = 'Workflow erfolgreich gestartet! Du kannst zurück zum Dashboard gehen.';
-                        statusMsg.classList.remove('hidden');
-                        statusMsg.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-200');
-                        
-                        // Button bleibt deaktiviert, um Doppel-Klicks zu verhindern
+                        setStatus('Workflow gestartet. Wir prüfen regelmäßig auf deinen Entwurf...', 'info');
+                        startPollingForEdit();
                     } else {
                         throw new Error(result.message || 'Unbekannter Fehler');
                     }
                 } catch (error) {
                     console.error(error);
-                    statusMsg.textContent = 'Fehler: ' + error.message;
-                    statusMsg.classList.remove('hidden');
-                    statusMsg.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-200');
+                    setStatus('Fehler: ' + error.message, 'error');
 
                     // Reset bei Fehler
                     startBtn.disabled = false;
                     startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     if (spinner) spinner.classList.add('hidden');
                     if (btnText) btnText.textContent = 'Workflow starten';
+                }
+            });
+
+            saveBtn.addEventListener('click', async () => {
+                if (saveBtn.disabled || !stagingId) {
+                    setStatus('Kein Entwurf zum Speichern gefunden.', 'error');
+                    return;
+                }
+
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                resetStatus();
+                setStatus('Speichern läuft...', 'info');
+
+                try {
+                    const response = await fetch('../api/publish-edit.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ staging_id: stagingId })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.ok) {
+                        window.location.href = `../index.php?run_id=${encodeURIComponent(runId)}`;
+                        return;
+                    }
+
+                    throw new Error(result.error || 'Speichern fehlgeschlagen');
+                } catch (error) {
+                    console.error(error);
+                    setStatus('Fehler beim Speichern: ' + error.message, 'error');
+                    saveBtn.disabled = false;
+                    saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
             });
         });
