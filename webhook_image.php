@@ -379,7 +379,12 @@ try {
                 }
             }
 
-            $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())');
+            $targetTable = 'item_images';
+            if (is_string($badge) && strcasecmp($badge, 'edit') === 0) {
+                $targetTable = 'item_images_staging';
+            }
+
+            $insertImage = $pdo->prepare("INSERT INTO {$targetTable} (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())");
             $insertImage->execute([
                 ':user'     => $userId,
                 ':run'      => $runId,
@@ -657,7 +662,12 @@ SQL;
             }
         }
 
-        $insertImage = $pdo->prepare('INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())');
+        $targetTable = 'item_images';
+        if (is_string($badge) && strcasecmp($badge, 'edit') === 0) {
+            $targetTable = 'item_images_staging';
+        }
+
+        $insertImage = $pdo->prepare("INSERT INTO {$targetTable} (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())");
         $insertImage->execute([
             ':user'     => $userId,
             ':run'      => $runId,
