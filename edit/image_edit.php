@@ -213,9 +213,8 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             if (!promptInput || !startBtn || !saveBtn) return;
 
             const runId = startBtn.dataset.runId;
-            const originalImageId = startBtn.dataset.imageId;
             const position = startBtn.dataset.position;
-            let currentActiveImageId = originalImageId;
+            let currentActiveImageId = parseInt(startBtn?.dataset.imageId || 0, 10);
 
             const resetStatus = () => {
                 statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
@@ -243,7 +242,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 }
             };
 
-            const onPreviewReady = (image) => {
+            const onNewImageReceived = (image) => {
                 if (!image) return;
 
                 stagingId = image.id ?? null;
@@ -267,16 +266,16 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 setStatus('Vorschau aktualisiert. Du kannst weiter editieren oder speichern.', 'info');
             };
 
-            const startPollingForEdit = () => {
+            const startPolling = (pollRunId, minId) => {
                 stopPolling();
                 pollInterval = window.setInterval(async () => {
                     try {
-                        const response = await fetch(`../api/check-edit-polling.php?run_id=${encodeURIComponent(runId)}`);
+                        const response = await fetch(`../api/check-edit-polling.php?run_id=${encodeURIComponent(pollRunId)}&min_id=${encodeURIComponent(minId)}&t=${Date.now()}`);
                         const data = await response.json();
 
                         if (response.ok && data.ok && data.found) {
                             stopPolling();
-                            onPreviewReady(data.image ?? null);
+                            onNewImageReceived(data.image ?? null);
                         }
                     } catch (error) {
                         console.error('Polling failed', error);
@@ -303,6 +302,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 if (startBtn.disabled) return;
 
                 const prompt = promptInput.value.trim();
+                const idBeforeStart = currentActiveImageId;
 
                 // UI Loading State
                 startBtn.disabled = true;
@@ -335,7 +335,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
                     if (response.ok && result.success) {
                         setStatus('Workflow gestartet. Wir prüfen regelmäßig auf deinen Entwurf...', 'info');
-                        startPollingForEdit();
+                        startPolling(runId, idBeforeStart);
                     } else {
                         throw new Error(result.message || 'Unbekannter Fehler');
                     }
