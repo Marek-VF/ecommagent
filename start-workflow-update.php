@@ -61,6 +61,7 @@ $runId = $normalizePositiveInt($data['run_id'] ?? null);
 $imageId = $normalizePositiveInt($data['image_id'] ?? null);
 $position = $normalizePositiveInt($data['position'] ?? null);
 $action = isset($data['action']) ? trim((string)$data['action']) : '';
+$userPrompt = isset($data['userprompt']) ? trim((string)$data['userprompt']) : '';
 
 if (!$runId) {
     $respond(['success' => false, 'message' => 'run_id fehlt.'], 400);
@@ -70,9 +71,13 @@ if (!$imageId) {
 }
 
 // Erlaube exakt die Keys aus der Config (Case Sensitive für Credit-Matching)
-$allowedActions = ['2K', '4K', 'edit']; 
+$allowedActions = ['2K', '4K', 'edit'];
 if (!in_array($action, $allowedActions, true)) {
     $respond(['success' => false, 'message' => 'Ungültige Aktion: ' . htmlspecialchars($action)], 400);
+}
+
+if ($action === 'edit' && mb_strlen($userPrompt) < 3) {
+    $respond(['success' => false, 'message' => 'Bitte gib einen Prompt mit mindestens 3 Zeichen ein.'], 400);
 }
 
 // --- CREDIT CHECK START ---
@@ -165,6 +170,7 @@ try {
         'image_id' => $imageId,     // WICHTIG für den Rückweg
         'position' => $position,    // WICHTIG für UI Zuordnung
         'action' => $action,
+        'userprompt' => $userPrompt, // NEU
         'image_url' => $finalImageUrl,
         'timestamp' => $timestamp(),
     ];

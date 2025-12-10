@@ -128,14 +128,19 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
         <main class="edit-main">
             <div class="edit-main__nav">
-                <a href="../index.php<?php echo isset($image['run_id']) ? '?run_id=' . (int)$image['run_id'] : ''; ?>" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+                <?php
+                    $backUrl = '../index.php';
+                    if (!empty($image['run_id'])) {
+                        $backUrl .= '?run_id=' . (int)$image['run_id'];
+                    }
+                ?>
+                <a href="<?php echo $backUrl; ?>" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
             </div>
+
             <?php if ($error !== null): ?>
-                <div class="status-item status-item--error" data-severity="error">
-                    <span class="status-icon-wrapper">
-                        <span class="material-icons-outlined status-icon text-danger">error</span>
-                    </span>
-                    <div class="status-content"><p class="status-text"><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p></div>
+                <div class="status-item status-item--error">
+                    <span class="material-icons-outlined status-icon text-danger">error</span>
+                    <p class="status-text"><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p>
                 </div>
             <?php else: ?>
                 <div class="edit-layout">
@@ -146,12 +151,24 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                         <div class="edit-card__body">
                             <label class="edit-card__field">
                                 <span class="edit-card__label">Prompt</span>
-                                <textarea class="input" rows="4" placeholder="Beschreibe die gewünschte Anpassung..."></textarea>
+                                <textarea id="edit-prompt" class="input" rows="4" placeholder="Beschreibe die gewünschte Anpassung (z.B. 'Hintergrund entfernen', 'Farbe rot machen')..."></textarea>
+                                <span class="text-xs text-gray-400 mt-1 block text-right" id="char-count">0 Zeichen</span>
                             </label>
 
+                            <div id="edit-status-message" class="hidden mb-4 p-3 rounded text-sm"></div>
+
                             <div class="edit-card__row edit-card__row--actions">
-                                <button type="button" class="btn-primary w-full" aria-label="Workflow starten">
-                                    Workflow starten
+                                <button type="button" id="btn-start-edit" class="btn-primary w-full flex items-center justify-center" disabled
+                                    data-run-id="<?php echo (int)$image['run_id']; ?>"
+                                    data-image-id="<?php echo (int)$image['id']; ?>"
+                                    data-position="<?php echo (int)$image['position']; ?>">
+                                    
+                                    <svg class="loading-spinner animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    
+                                    <span class="btn-text">Workflow starten</span>
                                 </button>
                             </div>
                         </div>
@@ -161,27 +178,104 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                         <div class="edit-card__header">
                             <p class="edit-card__title">Bildvorschau</p>
                         </div>
-                        <div class="edit-card__body">
+                        <div class="edit-card__body flex justify-center items-center bg-gray-50 min-h-[300px]">
                             <?php if ($imageUrl !== null): ?>
-                                <img src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" alt="Ausgewähltes Bild">
+                                <img src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" alt="Originalbild" class="max-w-full h-auto rounded shadow-sm">
                             <?php else: ?>
-                                <p>Keine Bild-URL verfügbar.</p>
+                                <p class="text-gray-400">Kein Bild geladen.</p>
                             <?php endif; ?>
-                        </div>
-                        <div class="edit-card__footer">
-                            <form method="post" action="#">
-                                <div class="image-edit__actions">
-                                    <button type="button" class="btn-secondary" aria-label="Bild speichern">
-                                        Speichern
-                                    </button>
-                                </div>
-                                <!-- TODO: Speichern-Logik implementieren -->
-                            </form>
                         </div>
                     </section>
                 </div>
             <?php endif; ?>
         </main>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const promptInput = document.getElementById('edit-prompt');
+            const startBtn = document.getElementById('btn-start-edit');
+            const charCount = document.getElementById('char-count');
+            const statusMsg = document.getElementById('edit-status-message');
+            const spinner = startBtn ? startBtn.querySelector('.loading-spinner') : null;
+            const btnText = startBtn ? startBtn.querySelector('.btn-text') : null;
+
+            if (!promptInput || !startBtn) return;
+
+            // Validierung: Button erst ab 3 Zeichen aktivieren
+            promptInput.addEventListener('input', () => {
+                const len = promptInput.value.trim().length;
+                charCount.textContent = len + ' Zeichen';
+                
+                if (len >= 3) {
+                    startBtn.removeAttribute('disabled');
+                    startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    startBtn.setAttribute('disabled', 'true');
+                    startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+
+            // Workflow Starten
+            startBtn.addEventListener('click', async () => {
+                if (startBtn.disabled) return;
+
+                const runId = startBtn.dataset.runId;
+                const imageId = startBtn.dataset.imageId;
+                const position = startBtn.dataset.position;
+                const prompt = promptInput.value.trim();
+
+                // UI Loading State
+                startBtn.disabled = true;
+                startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                if (spinner) spinner.classList.remove('hidden');
+                if (btnText) btnText.textContent = 'Verarbeitung läuft...';
+                
+                // Status Reset
+                statusMsg.classList.add('hidden');
+                statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
+
+                try {
+                    const response = await fetch('../start-workflow-update.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            run_id: runId,
+                            image_id: imageId,
+                            position: position,
+                            action: 'edit',
+                            userprompt: prompt
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        statusMsg.textContent = 'Workflow erfolgreich gestartet! Du kannst zurück zum Dashboard gehen.';
+                        statusMsg.classList.remove('hidden');
+                        statusMsg.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-200');
+                        
+                        // Button bleibt deaktiviert, um Doppel-Klicks zu verhindern
+                    } else {
+                        throw new Error(result.message || 'Unbekannter Fehler');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    statusMsg.textContent = 'Fehler: ' + error.message;
+                    statusMsg.classList.remove('hidden');
+                    statusMsg.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-200');
+
+                    // Reset bei Fehler
+                    startBtn.disabled = false;
+                    startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if (spinner) spinner.classList.add('hidden');
+                    if (btnText) btnText.textContent = 'Workflow starten';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
