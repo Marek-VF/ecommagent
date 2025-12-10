@@ -128,7 +128,7 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
 
         <main class="edit-main">
             <div class="edit-main__nav">
-                <a href="../index.php" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+                <a href="../index.php<?php echo isset($image['run_id']) ? '?run_id=' . (int)$image['run_id'] : ''; ?>" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
             </div>
             <?php if ($error !== null): ?>
                 <div class="status-item status-item--error" data-severity="error">

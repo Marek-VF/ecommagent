@@ -3219,6 +3219,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateWorkflowButtonState();
+
+    // Deep-Link Logik: Run direkt laden, wenn ID in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const runIdParam = urlParams.get('run_id');
+
+    if (runIdParam) {
+        // 1. URL bereinigen
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+
+        // 2. Run Details laden
+        loadRunDetails(runIdParam);
+
+        // Optional: Historie öffnen
+        if (typeof openHistory === 'function') openHistory();
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
