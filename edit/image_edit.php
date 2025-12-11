@@ -107,133 +107,191 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ecom Studio – Bild bearbeiten</title>
-
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
-
     <link rel="stylesheet" href="../style.css">
+    <style>
+        body { background-color: #F3F4F6; font-family: 'Inter', sans-serif; }
+        .btn-header {
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4B5563;
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            transition: background-color 150ms ease;
+        }
+        .btn-header:hover { background-color: #F3F4F6; }
+    </style>
 </head>
-<body>
-    <div class="app">
-        <header class="app__header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div class="app__header-left">
-                <h1>Bild bearbeiten</h1>
-            </div>
- 
-        </header>
+<body class="h-screen flex flex-col overflow-hidden">
 
-        <main class="edit-main">
-            <div class="edit-main__nav">
+    <header class="bg-white border-b border-gray-200 h-16 shrink-0 z-20">
+        <div class="h-full px-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="../index.php" class="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors" title="Zurück zur Historie">
+                    <span class="material-icons-outlined block">menu</span>
+                </a>
+                <span class="font-bold text-xl text-gray-800 tracking-tight">Ecom Studio</span>
+            </div>
+
+            <div>
                 <?php
                     $backUrl = '../index.php';
                     if (!empty($image['run_id'])) {
                         $backUrl .= '?run_id=' . (int)$image['run_id'];
                     }
                 ?>
-                <a href="<?php echo $backUrl; ?>" class="app__back-link" aria-label="Zurück zu Ecom Studio">&larr; Ecom Studio</a>
+                <a href="<?php echo $backUrl; ?>" class="btn-header flex items-center gap-2">
+                    <span class="material-icons-outlined text-lg">arrow_back</span>
+                    <span>Zurück</span>
+                </a>
             </div>
+        </div>
+    </header>
 
+    <main class="flex-1 overflow-y-auto p-6">
+        <div class="max-w-7xl mx-auto h-full">
+            
             <?php if ($error !== null): ?>
-                <div class="status-item status-item--error">
-                    <span class="material-icons-outlined status-icon text-danger">error</span>
-                    <p class="status-text"><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p>
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-3">
+                    <span class="material-icons-outlined">error</span>
+                    <p><?php echo htmlspecialchars($error, ENT_QUOTES); ?></p>
                 </div>
             <?php else: ?>
-                <div class="edit-layout">
-                    <section class="edit-card">
-                        <div class="edit-card__header">
-                            <p class="edit-card__title">Prompting</p>
-                        </div>
-                        <div class="edit-card__body">
-                            <label class="edit-card__field">
-                                <span class="edit-card__label">Prompt</span>
-                                <textarea id="edit-prompt" class="input" rows="4" placeholder="Beschreibe die gewünschte Anpassung (z.B. 'Hintergrund entfernen', 'Farbe rot machen')..."></textarea>
-                                <span class="text-xs text-gray-400 mt-1 block text-right" id="char-count">0 Zeichen</span>
-                            </label>
 
-                            <div id="edit-status-message" class="hidden mb-4 p-3 rounded text-sm"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+                    
+                    <div class="lg:col-span-4 flex flex-col gap-6">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                            <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Prompting</h2>
+                            
+                            <div class="relative">
+                                <textarea 
+                                    id="edit-prompt" 
+                                    class="w-full bg-gray-50 border-0 focus:ring-2 focus:ring-orange-500 rounded-xl p-4 text-gray-800 placeholder-gray-400 text-base leading-relaxed resize-none transition-shadow shadow-sm min-h-[160px]" 
+                                    placeholder="Beschreibe deine Änderungswünsche...&#10;z.B. 'Hintergrund entfernen' oder 'Model lächeln lassen'"
+                                ></textarea>
+                                <div class="absolute bottom-3 right-3 text-xs text-gray-400 font-medium" id="char-count">0 Zeichen</div>
+                            </div>
 
-                            <div class="edit-card__row edit-card__row--actions">
-                                <button type="button" id="btn-start-edit" class="btn-primary w-full flex items-center justify-center" disabled
-                                    data-run-id="<?php echo (int)$image['run_id']; ?>"
-                                    data-image-id="<?php echo (int)$image['id']; ?>"
-                                    data-position="<?php echo (int)$image['position']; ?>">
+                            <div id="edit-status-message" class="hidden mt-4 p-3 rounded-lg text-sm font-medium"></div>
 
-                                    <svg class="loading-spinner animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <div class="mt-6">
+                                <button type="button" id="btn-start-edit" class="btn-primary w-full py-3 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all" disabled
+                                    data-run-id="<?php echo isset($image['run_id']) ? (int)$image['run_id'] : 0; ?>"
+                                    data-image-id="<?php echo isset($image['id']) ? (int)$image['id'] : 0; ?>"
+                                    data-position="<?php echo isset($image['position']) ? (int)$image['position'] : 0; ?>"
+                                >
+                                    <svg class="loading-spinner animate-spin h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-
-                                    <span class="btn-text">Workflow starten</span>
+                                    <span class="btn-text font-medium">Workflow starten</span>
                                 </button>
                             </div>
                         </div>
-                    </section>
+                        
+                        <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                            <div class="flex items-start gap-3">
+                                <span class="material-icons-outlined text-blue-500 text-xl">info</span>
+                                <p class="text-sm text-blue-700 leading-relaxed">
+                                    Du kannst das Bild iterativ bearbeiten. Starte den Workflow mehrmals, bis das Ergebnis passt. Erst beim Speichern wird das Ergebnis übernommen.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
-                    <section class="edit-card image-edit__preview">
-                        <div class="edit-card__header">
-                            <p class="edit-card__title">Bildvorschau</p>
+                    <div class="lg:col-span-8 flex flex-col">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden relative">
+                            <div class="px-6 py-4 border-b border-gray-50 flex justify-between items-center bg-white">
+                                <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Bildvorschau</h2>
+                                <button type="button" id="btn-cancel-edit" class="text-xs text-red-500 hover:text-red-700 font-medium hidden">
+                                    Entwurf verwerfen
+                                </button>
+                            </div>
+
+                            <div class="flex-1 bg-gray-50 flex items-center justify-center p-8 overflow-hidden relative group">
+                                <?php if ($imageUrl !== null): ?>
+                                    <img 
+                                        id="preview-image" 
+                                        src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" 
+                                        alt="Originalbild" 
+                                        class="max-w-full max-h-[600px] w-auto h-auto object-contain rounded-lg shadow-sm transition-opacity duration-300"
+                                    >
+                                <?php else: ?>
+                                    <div class="text-center text-gray-400">
+                                        <span class="material-icons-outlined text-4xl mb-2">image_not_supported</span>
+                                        <p>Kein Bild geladen</p>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="px-6 py-4 border-t border-gray-100 bg-white flex justify-end">
+                                <button type="button" id="btn-save-edit" class="btn-primary px-8 py-2.5 rounded-xl font-medium shadow-md transition-all opacity-50 cursor-not-allowed" disabled>
+                                    Speichern
+                                </button>
+                            </div>
                         </div>
-                        <div class="edit-card__body flex justify-center items-center bg-gray-50 min-h-[300px]">
-                            <?php if ($imageUrl !== null): ?>
-                                <img src="<?php echo htmlspecialchars($imageUrl, ENT_QUOTES); ?>" alt="Originalbild" class="max-w-full h-auto rounded shadow-sm">
-                            <?php else: ?>
-                                <p class="text-gray-400">Kein Bild geladen.</p>
-                            <?php endif; ?>
-                        </div>
-                        <div class="edit-card__footer">
-                            <button type="button" id="btn-save-edit" class="btn-primary w-full flex items-center justify-center hidden opacity-50 cursor-not-allowed" disabled>
-                                <span class="btn-text">Speichern</span>
-                            </button>
-                        </div>
-                    </section>
+                    </div>
+
                 </div>
             <?php endif; ?>
-        </main>
-    </div>
+        </div>
+    </main>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Elemente holen
             const promptInput = document.getElementById('edit-prompt');
             const startBtn = document.getElementById('btn-start-edit');
             const saveBtn = document.getElementById('btn-save-edit');
+            const cancelBtn = document.getElementById('btn-cancel-edit');
             const charCount = document.getElementById('char-count');
             const statusMsg = document.getElementById('edit-status-message');
             const spinner = startBtn ? startBtn.querySelector('.loading-spinner') : null;
             const btnText = startBtn ? startBtn.querySelector('.btn-text') : null;
-            const previewImage = document.querySelector('.image-edit__preview img');
+            const previewImage = document.getElementById('preview-image');
 
+            // State
             let pollInterval = null;
             let stagingId = null;
+            let createdImageFilename = null;
 
             if (!promptInput || !startBtn || !saveBtn) return;
 
+            // Daten aus PHP Attributen lesen
             const runId = startBtn.dataset.runId;
             const position = startBtn.dataset.position;
-            let currentActiveImageId = parseInt(startBtn?.dataset.imageId || 0, 10);
+            // Initial ID (kann Original oder Staging sein, hier starten wir mit Original)
+            let currentActiveImageId = parseInt(startBtn.dataset.imageId || 0, 10);
+
+            // --- HELPER FUNKTIONEN ---
 
             const resetStatus = () => {
-                statusMsg.className = 'hidden mb-4 p-3 rounded text-sm';
+                statusMsg.className = 'hidden mt-4 p-3 rounded-lg text-sm font-medium';
                 statusMsg.textContent = '';
             };
 
             const setStatus = (message, type = 'info') => {
                 statusMsg.textContent = message;
-                statusMsg.className = 'mb-4 p-3 rounded text-sm';
+                statusMsg.className = 'mt-4 p-3 rounded-lg text-sm font-medium animate-fade-in';
                 statusMsg.classList.remove('hidden');
 
                 if (type === 'success') {
-                    statusMsg.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-200');
+                    statusMsg.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
                 } else if (type === 'error') {
-                    statusMsg.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-200');
+                    statusMsg.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
                 } else {
-                    statusMsg.classList.add('bg-blue-100', 'text-blue-800', 'border', 'border-blue-200');
+                    statusMsg.classList.add('bg-blue-50', 'text-blue-700', 'border', 'border-blue-100');
                 }
             };
+
+            // --- POLLING LOGIK ---
 
             const stopPolling = () => {
                 if (pollInterval !== null) {
@@ -245,26 +303,35 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
             const onNewImageReceived = (image) => {
                 if (!image) return;
 
+                // State Updates
                 stagingId = image.id ?? null;
-                if (image.id) {
-                    currentActiveImageId = image.id;
+                if (image.id) currentActiveImageId = image.id;
+                
+                if (image.url) {
+                    createdImageFilename = image.url.substring(image.url.lastIndexOf('/') + 1);
+                    if (previewImage) {
+                        previewImage.style.opacity = '0.5';
+                        setTimeout(() => {
+                            previewImage.src = image.url;
+                            previewImage.style.opacity = '1';
+                        }, 200);
+                    }
                 }
 
-                if (image.url && previewImage) {
-                    previewImage.src = image.url;
-                }
-
-                saveBtn.classList.remove('hidden');
+                // UI Updates: Buttons aktivieren
                 saveBtn.disabled = false;
                 saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                saveBtn.classList.add('hover:brightness-95', 'hover:shadow-lg'); // Hover effekt dazu
+                
+                if(cancelBtn) cancelBtn.classList.remove('hidden');
 
+                // Start Button Reset
                 startBtn.disabled = false;
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                promptInput.disabled = false;
                 if (spinner) spinner.classList.add('hidden');
                 if (btnText) btnText.textContent = 'Workflow starten';
 
-                setStatus('Vorschau aktualisiert. Du kannst weiter editieren oder speichern.', 'info');
+                setStatus('Vorschau aktualisiert. Gefällt es dir?', 'success');
             };
 
             const startPolling = (pollRunId, minId) => {
@@ -284,7 +351,8 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 }, 2000);
             };
 
-            // Validierung: Button erst ab 3 Zeichen aktivieren
+            // --- EVENT LISTENERS ---
+
             promptInput.addEventListener('input', () => {
                 const len = promptInput.value.trim().length;
                 charCount.textContent = len + ' Zeichen';
@@ -298,49 +366,40 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                 }
             });
 
-            // Workflow Starten
+            // Workflow Start
             startBtn.addEventListener('click', async () => {
                 if (startBtn.disabled) return;
 
                 const prompt = promptInput.value.trim();
+                
+                // Baseline Check
+                let pollingThreshold = 0;
+                try {
+                    // Wir fragen nach dem aktuellsten Staging Bild VOR dem Start
+                    const checkRes = await fetch(`../api/check-edit-polling.php?run_id=${runId}&min_id=0&t=${Date.now()}`);
+                    const checkData = await checkRes.json();
+                    if (checkData.ok && checkData.found && checkData.image) {
+                        pollingThreshold = checkData.image.id;
+                    }
+                } catch(e) { console.warn('Baseline check failed', e); }
 
-                // UI Loading State
+                // UI Sperren
                 startBtn.disabled = true;
                 startBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 saveBtn.disabled = true;
                 saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                
                 if (spinner) spinner.classList.remove('hidden');
                 if (btnText) btnText.textContent = 'Verarbeitung läuft...';
-
-                // Status Reset
                 resetStatus();
-                promptInput.disabled = true;
 
                 try {
-                    // SCHRITT 1: Baseline ermitteln (Was ist das aktuellste Staging-Bild?)
-                    let pollingThreshold = 0;
-                    try {
-                        // Wir fragen mit min_id=0 nach dem allerneuesten Bild
-                        const checkRes = await fetch(`../api/check-edit-polling.php?run_id=${runId}&min_id=0&t=${Date.now()}`);
-                        const checkData = await checkRes.json();
-                        if (checkData.ok && checkData.found && checkData.image && checkData.image.id) {
-                            pollingThreshold = checkData.image.id;
-                        }
-                        console.log('Polling Baseline gesetzt auf Staging-ID:', pollingThreshold);
-                    } catch (e) {
-                        console.warn('Baseline Check fehlgeschlagen, starte bei 0', e);
-                    }
-
-                    // SCHRITT 2: Workflow starten
                     const response = await fetch('../start-workflow-update.php', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                         body: JSON.stringify({
                             run_id: runId,
-                            image_id: currentActiveImageId, // Quelle für n8n (kann Live oder Staging sein)
+                            image_id: currentActiveImageId,
                             position: position,
                             action: 'edit',
                             userprompt: prompt
@@ -350,61 +409,64 @@ $assetBaseUrl = $assetBaseUrl !== '' ? rtrim((string) $assetBaseUrl, '/') : '/as
                     const result = await response.json();
 
                     if (response.ok && result.success) {
-                        setStatus('Workflow gestartet. Warte auf Ergebnis...', 'info');
-                        // SCHRITT 3: Polling mit der korrekten Baseline starten
+                        setStatus('Workflow gestartet. Bitte warten...', 'info');
                         startPolling(runId, pollingThreshold);
                     } else {
-                        throw new Error(result.message || 'Unbekannter Fehler');
+                        throw new Error(result.message || 'Fehler beim Starten');
                     }
                 } catch (error) {
                     console.error(error);
                     setStatus('Fehler: ' + error.message, 'error');
-
-                    // Reset bei Fehler
                     startBtn.disabled = false;
-                    promptInput.disabled = false;
                     startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     if (spinner) spinner.classList.add('hidden');
                     if (btnText) btnText.textContent = 'Workflow starten';
                 }
             });
 
+            // Speichern
             saveBtn.addEventListener('click', async () => {
-                if (saveBtn.disabled || !stagingId) {
-                    setStatus('Kein Entwurf zum Speichern gefunden.', 'error');
-                    return;
-                }
+                if (saveBtn.disabled || !stagingId) return;
 
                 saveBtn.disabled = true;
-                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                resetStatus();
-                setStatus('Speichern läuft...', 'info');
-
+                saveBtn.innerHTML = 'Speichere...'; // Simpler Text Change
+                
                 try {
                     const response = await fetch('../api/publish-edit.php', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ staging_id: stagingId })
                     });
-
                     const result = await response.json();
 
                     if (response.ok && result.ok) {
                         window.location.href = `../index.php?run_id=${encodeURIComponent(runId)}`;
-                        return;
+                    } else {
+                        throw new Error(result.error || 'Speichern fehlgeschlagen');
                     }
-
-                    throw new Error(result.error || 'Speichern fehlgeschlagen');
                 } catch (error) {
-                    console.error(error);
                     setStatus('Fehler beim Speichern: ' + error.message, 'error');
                     saveBtn.disabled = false;
-                    saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    saveBtn.innerHTML = 'Speichern';
                 }
             });
+
+            // Entwurf verwerfen
+            if(cancelBtn) {
+                cancelBtn.addEventListener('click', async () => {
+                    if (!createdImageFilename) return;
+                    if(!confirm('Möchtest du den aktuellen Entwurf wirklich verwerfen?')) return;
+
+                    try {
+                        await fetch('../delete_image.php', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ run_id: runId, filename: createdImageFilename })
+                        });
+                        window.location.reload(); // Reload um auf Originalzustand zu kommen
+                    } catch(e) { console.error(e); }
+                });
+            }
         });
     </script>
 </body>
