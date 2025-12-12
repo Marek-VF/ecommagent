@@ -32,6 +32,11 @@ const modalMessage = document.getElementById('modal-message');
 const modalCancelButton = document.getElementById('modal-cancel');
 let modalConfirmButton = document.getElementById('modal-confirm');
 
+let historyOffset = 0;
+let historyIsLoading = false;
+let historyFullyLoaded = false; // True, wenn Server weniger als 20 Items liefert
+const HISTORY_LIMIT = 20;
+
 const FIELD_GROUP_LOADING_CLASS = 'is-loading';
 const FIELD_GROUP_STATE = {
     idle: 'idle',
@@ -2521,22 +2526,26 @@ const loadRunDetails = async (runId) => {
     }
 };
 
-const renderRuns = (runs, options = {}) => {
+const renderRuns = (runs, options = {}, append = false) => {
     if (!HISTORY_LIST) {
         return;
     }
 
-    HISTORY_LIST.innerHTML = '';
+    if (!append) {
+        HISTORY_LIST.innerHTML = '';
+    }
 
     const emptyMessage = typeof options.emptyMessage === 'string' && options.emptyMessage.trim() !== ''
         ? options.emptyMessage.trim()
         : 'Keine Verläufe vorhanden.';
 
     if (!Array.isArray(runs) || runs.length === 0) {
-        const empty = document.createElement('li');
-        empty.className = 'history-list__empty';
-        empty.textContent = emptyMessage;
-        HISTORY_LIST.appendChild(empty);
+        if (!append) {
+            const empty = document.createElement('li');
+            empty.className = 'history-list__empty';
+            empty.textContent = emptyMessage;
+            HISTORY_LIST.appendChild(empty);
+        }
         return;
     }
 
@@ -2603,15 +2612,33 @@ const renderRuns = (runs, options = {}) => {
     });
 };
 
-const fetchRuns = async () => {
+const fetchRuns = async (append = false) => {
     if (!RUNS_ENDPOINT) {
         return;
     }
 
+    if (historyIsLoading) {
+        return;
+    }
+
+    if (append && historyFullyLoaded) {
+        return;
+    }
+
+    historyIsLoading = true;
+
+    if (!append) {
+        historyOffset = 0;
+        historyFullyLoaded = false;
+    }
+
     try {
-        const response = await fetch(`${RUNS_ENDPOINT}?${Date.now()}`, {
-            cache: 'no-store',
-        });
+        const response = await fetch(
+            `${RUNS_ENDPOINT}?limit=${HISTORY_LIMIT}&offset=${historyOffset}&t=${Date.now()}`,
+            {
+                cache: 'no-store',
+            }
+        );
 
         if (!response.ok) {
             throw new Error(`Serverantwort ${response.status}`);
@@ -2644,10 +2671,20 @@ const fetchRuns = async () => {
             }
         }
 
-        renderRuns(runs);
+        if (runs.length < HISTORY_LIMIT) {
+            historyFullyLoaded = true;
+        }
+
+        historyOffset += runs.length;
+
+        renderRuns(runs, {}, append);
     } catch (error) {
         console.error('Runs laden fehlgeschlagen', error);
-        renderRuns([], { emptyMessage: 'Verläufe konnten nicht geladen werden.' });
+        if (!append) {
+            renderRuns([], { emptyMessage: 'Verläufe konnten nicht geladen werden.' }, append);
+        }
+    } finally {
+        historyIsLoading = false;
     }
 };
 
@@ -2922,6 +2959,19 @@ function setupHistoryHandler() {
 
     if (HISTORY_CLOSE) {
         HISTORY_CLOSE.addEventListener('click', closeHistory);
+    }
+
+    const scrollContainer = HISTORY_SIDEBAR
+        ? HISTORY_SIDEBAR.querySelector('.history-sidebar__content') || HISTORY_SIDEBAR
+        : null;
+
+    if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+            if (scrollTop + clientHeight >= scrollHeight - 50) {
+                fetchRuns(true);
+            }
+        });
     }
 }
 

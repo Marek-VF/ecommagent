@@ -15,6 +15,16 @@ if (!$userId) {
 
 $pdo = getPDO();
 
+$limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 20;
+if ($limit < 1 || $limit > 50) {
+    $limit = 20;
+}
+
+$offset = isset($_GET['offset']) ? (int) $_GET['offset'] : 0;
+if ($offset < 0) {
+    $offset = 0;
+}
+
 $runsStmt = $pdo->prepare(
     "SELECT
         wr.id,
@@ -35,10 +45,13 @@ $runsStmt = $pdo->prepare(
         ) AS product_name
      FROM workflow_runs wr
      WHERE wr.user_id = :user_id
-     ORDER BY wr.started_at DESC, wr.id DESC
-     LIMIT 30"
+     ORDER BY wr.id DESC
+     LIMIT :limit OFFSET :offset"
 );
-$runsStmt->execute(['user_id' => $userId]);
+$runsStmt->bindValue('user_id', $userId, PDO::PARAM_INT);
+$runsStmt->bindValue('limit', $limit, PDO::PARAM_INT);
+$runsStmt->bindValue('offset', $offset, PDO::PARAM_INT);
+$runsStmt->execute();
 $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $items = [];
