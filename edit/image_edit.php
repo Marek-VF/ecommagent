@@ -10,6 +10,32 @@ auth_require_login();
 $config = auth_config();
 $currentUser = auth_user();
 
+$userDisplayName = 'Benutzer';
+if ($currentUser !== null) {
+    $candidate = $currentUser['name'] ?? $currentUser['email'] ?? null;
+    if (is_string($candidate)) {
+        $trimmedCandidate = trim($candidate);
+        if ($trimmedCandidate !== '') {
+            $userDisplayName = $trimmedCandidate;
+        }
+    }
+}
+
+$userInitial = $userDisplayName !== '' ? $userDisplayName : 'B';
+if (function_exists('mb_substr')) {
+    $initial = mb_substr($userInitial, 0, 1, 'UTF-8');
+} else {
+    $initial = substr($userInitial, 0, 1);
+}
+if ($initial === false || $initial === '') {
+    $initial = 'B';
+}
+if (function_exists('mb_strtoupper')) {
+    $userInitial = mb_strtoupper($initial, 'UTF-8');
+} else {
+    $userInitial = strtoupper($initial);
+}
+
 require_once __DIR__ . '/../db.php';
 
 $userId = $_SESSION['user']['id'] ?? null;
@@ -89,9 +115,32 @@ if ($image !== null) {
     <div id="history-sidebar" class="history-sidebar" aria-hidden="true">
         <div class="history-sidebar__header">
             <h2>Verläufe</h2>
-            <button id="history-close" class="history-sidebar__close" type="button">&times;</button>
+            <button id="history-close" class="history-sidebar__close" type="button" aria-label="Schließen">&times;</button>
         </div>
+        
         <ul id="history-list" class="history-list"></ul>
+
+        <?php if ($currentUser !== null): ?>
+        <div id="sidebar-profile" class="sidebar-profile" data-profile>
+            <button type="button" class="sidebar-profile__trigger" data-profile-trigger aria-haspopup="true" aria-expanded="false">
+                <span class="sidebar-profile__avatar" aria-hidden="true">
+                    <?php echo htmlspecialchars((string) $userInitial, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                </span>
+                <span class="sidebar-profile__info">
+                    <span class="sidebar-profile__name">
+                        <?php echo htmlspecialchars((string) $userDisplayName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>
+                    </span>
+                </span>
+                <span class="sidebar-profile__caret" aria-hidden="true">
+                    <span class="material-icons-outlined" style="font-size: 16px;">expand_more</span>
+                </span>
+            </button>
+            <div id="sidebar-profile-menu" class="sidebar-profile-menu" role="menu" aria-hidden="true">
+                <a class="profile-item" href="../settings/index.php" role="menuitem">Einstellungen</a>
+                <a class="profile-item profile-item--danger" href="../auth/logout.php" role="menuitem">Abmelden</a>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     <div class="app">
         
@@ -230,9 +279,22 @@ if ($image !== null) {
             let historyFullyLoaded = false;
 
             const historySidebar = document.getElementById('history-sidebar');
-            const historyList = document.getElementById('history-list');
             const historyToggle = document.getElementById('history-toggle');
             const historyClose = document.getElementById('history-close');
+            const historyList = document.getElementById('history-list');
+            const profileTrigger = document.querySelector('[data-profile-trigger]');
+            const profileMenu = document.getElementById('sidebar-profile-menu');
+            const profileContainer = document.getElementById('sidebar-profile');
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                if (Number.isNaN(date.getTime())) return dateStr;
+                return date.toLocaleString('de-DE', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                });
+            };
 
             const renderRuns = (runs, append = false) => {
                 if (!historyList || !Array.isArray(runs)) return;
@@ -241,11 +303,16 @@ if ($image !== null) {
                 }
 
                 runs.forEach((run) => {
+                    const title = (typeof run.title === 'string' && run.title.trim() !== '')
+                        ? run.title.trim()
+                        : `Run #${run.id ?? ''}`;
+                    const dateLabel = formatDate(run.started_at || run.finished_at || run.date || run.created_at);
+
                     const item = document.createElement('li');
                     item.className = 'history-list__item';
                     item.innerHTML = `
-                        <div class="history-list__item-title">${run.name || 'Run #' + run.id}</div>
-                        <div class="history-list__item-subtitle">${run.created_at || ''}</div>
+                        <div class="history-list__item-title">${title}</div>
+                        <div class="history-list__item-subtitle">${dateLabel || ''}</div>
                     `;
                     item.addEventListener('click', () => {
                         window.location.href = '../index.php?run_id=' + run.id;
@@ -262,15 +329,14 @@ if ($image !== null) {
                 try {
                     const response = await fetch(`../api/get-runs.php?limit=20&offset=${historyOffset}`);
                     const data = await response.json();
+                    const runs = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
-                    if (Array.isArray(data)) {
-                        if (data.length < 20) {
-                            historyFullyLoaded = true;
-                        }
-
-                        historyOffset += data.length;
-                        renderRuns(data, append);
+                    if (runs.length < 20) {
+                        historyFullyLoaded = true;
                     }
+
+                    historyOffset += runs.length;
+                    renderRuns(runs, append);
                 } catch (error) {
                     console.error('Fehler beim Laden der Verläufe', error);
                 } finally {
@@ -278,29 +344,57 @@ if ($image !== null) {
                 }
             };
 
-            if (historyList) {
-                historyList.addEventListener('scroll', () => {
-                    if (historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 50) {
-                        fetchRuns(true);
-                    }
-                });
-            }
+            const setupSidebar = () => {
+                if (historyToggle && historySidebar) {
+                    historyToggle.addEventListener('click', () => {
+                        historySidebar.classList.add('history-sidebar--open');
+                        historySidebar.setAttribute('aria-hidden', 'false');
 
-            if (historyToggle && historySidebar) {
-                historyToggle.addEventListener('click', () => {
-                    historySidebar.classList.add('history-sidebar--open');
+                        if (historyList && historyList.children.length === 0) {
+                            fetchRuns();
+                        }
+                    });
+                }
 
-                    if (historyList && historyList.children.length === 0) {
-                        fetchRuns();
-                    }
-                });
-            }
+                if (historyClose && historySidebar) {
+                    historyClose.addEventListener('click', () => {
+                        historySidebar.classList.remove('history-sidebar--open');
+                        historySidebar.setAttribute('aria-hidden', 'true');
+                    });
+                }
 
-            if (historyClose && historySidebar) {
-                historyClose.addEventListener('click', () => {
-                    historySidebar.classList.remove('history-sidebar--open');
-                });
-            }
+                if (historyList) {
+                    historyList.addEventListener('scroll', () => {
+                        if (historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 50) {
+                            fetchRuns(true);
+                        }
+                    });
+                }
+
+                const closeProfileMenu = () => {
+                    if (!profileContainer) return;
+                    profileContainer.classList.remove('open');
+                    if (profileTrigger) profileTrigger.setAttribute('aria-expanded', 'false');
+                    if (profileMenu) profileMenu.setAttribute('aria-hidden', 'true');
+                };
+
+                if (profileTrigger && profileContainer) {
+                    profileTrigger.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        const isOpen = profileContainer.classList.toggle('open');
+                        profileTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                        if (profileMenu) profileMenu.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+                    });
+
+                    document.addEventListener('click', (event) => {
+                        if (profileContainer && !profileContainer.contains(event.target)) {
+                            closeProfileMenu();
+                        }
+                    });
+                }
+            };
+
+            setupSidebar();
 
             let pollInterval = null;
             let stagingId = null;
