@@ -2632,6 +2632,19 @@ const fetchRuns = async (append = false) => {
         historyFullyLoaded = false;
     }
 
+    const loadingIndicator = (() => {
+        if (!append || !HISTORY_LIST) {
+            return null;
+        }
+
+        const indicator = document.createElement('li');
+        indicator.id = 'history-loading-indicator';
+        indicator.innerHTML = '<span class="material-icons-outlined animate-spin">refresh</span>';
+        HISTORY_LIST.appendChild(indicator);
+
+        return indicator;
+    })();
+
     try {
         const response = await fetch(
             `${RUNS_ENDPOINT}?limit=${HISTORY_LIMIT}&offset=${historyOffset}&t=${Date.now()}`,
@@ -2684,6 +2697,10 @@ const fetchRuns = async (append = false) => {
             renderRuns([], { emptyMessage: 'Verläufe konnten nicht geladen werden.' }, append);
         }
     } finally {
+        if (loadingIndicator && loadingIndicator.parentElement) {
+            loadingIndicator.remove();
+        }
+
         historyIsLoading = false;
     }
 };
@@ -2961,14 +2978,12 @@ function setupHistoryHandler() {
         HISTORY_CLOSE.addEventListener('click', closeHistory);
     }
 
-    const scrollContainer = HISTORY_SIDEBAR
-        ? HISTORY_SIDEBAR.querySelector('.history-sidebar__content') || HISTORY_SIDEBAR
-        : null;
+    const scrollContainer = HISTORY_LIST ? HISTORY_LIST.parentElement : null;
 
     if (scrollContainer) {
         scrollContainer.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-            if (scrollTop + clientHeight >= scrollHeight - 50) {
+            if (scrollTop + clientHeight >= scrollHeight - 100) {
                 fetchRuns(true);
             }
         });
