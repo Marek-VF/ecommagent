@@ -86,6 +86,13 @@ if ($image !== null) {
     </style>
 </head>
 <body>
+    <div id="history-sidebar" class="history-sidebar" aria-hidden="true">
+        <div class="history-sidebar__header">
+            <h2>Verläufe</h2>
+            <button id="history-close" class="history-sidebar__close" type="button">&times;</button>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
+    </div>
     <div class="app">
         
         <header class="app__header">
@@ -216,6 +223,84 @@ if ($image !== null) {
             const spinner = startBtn ? startBtn.querySelector('.loading-spinner') : null;
             const btnText = startBtn ? startBtn.querySelector('.btn-text') : null;
             const previewImage = document.getElementById('preview-image');
+
+            // --- HISTORY SIDEBAR STATE ---
+            let historyOffset = 0;
+            let historyIsLoading = false;
+            let historyFullyLoaded = false;
+
+            const historySidebar = document.getElementById('history-sidebar');
+            const historyList = document.getElementById('history-list');
+            const historyToggle = document.getElementById('history-toggle');
+            const historyClose = document.getElementById('history-close');
+
+            const renderRuns = (runs, append = false) => {
+                if (!historyList || !Array.isArray(runs)) return;
+                if (!append) {
+                    historyList.innerHTML = '';
+                }
+
+                runs.forEach((run) => {
+                    const item = document.createElement('li');
+                    item.className = 'history-list__item';
+                    item.innerHTML = `
+                        <div class="history-list__item-title">${run.name || 'Run #' + run.id}</div>
+                        <div class="history-list__item-subtitle">${run.created_at || ''}</div>
+                    `;
+                    item.addEventListener('click', () => {
+                        window.location.href = '../index.php?run_id=' + run.id;
+                    });
+                    historyList.appendChild(item);
+                });
+            };
+
+            const fetchRuns = async (append = false) => {
+                if (!historyList || historyIsLoading || historyFullyLoaded) return;
+
+                historyIsLoading = true;
+
+                try {
+                    const response = await fetch(`../api/get-runs.php?limit=20&offset=${historyOffset}`);
+                    const data = await response.json();
+
+                    if (Array.isArray(data)) {
+                        if (data.length < 20) {
+                            historyFullyLoaded = true;
+                        }
+
+                        historyOffset += data.length;
+                        renderRuns(data, append);
+                    }
+                } catch (error) {
+                    console.error('Fehler beim Laden der Verläufe', error);
+                } finally {
+                    historyIsLoading = false;
+                }
+            };
+
+            if (historyList) {
+                historyList.addEventListener('scroll', () => {
+                    if (historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 50) {
+                        fetchRuns(true);
+                    }
+                });
+            }
+
+            if (historyToggle && historySidebar) {
+                historyToggle.addEventListener('click', () => {
+                    historySidebar.classList.add('history-sidebar--open');
+
+                    if (historyList && historyList.children.length === 0) {
+                        fetchRuns();
+                    }
+                });
+            }
+
+            if (historyClose && historySidebar) {
+                historyClose.addEventListener('click', () => {
+                    historySidebar.classList.remove('history-sidebar--open');
+                });
+            }
 
             let pollInterval = null;
             let stagingId = null;
