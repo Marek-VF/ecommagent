@@ -2958,12 +2958,10 @@ function setupUploadHandler() {
 }
 
 function setupHistoryHandler() {
-    if (historyHandlersInitialized) {
-        return;
-    }
-
+    if (historyHandlersInitialized) return;
     historyHandlersInitialized = true;
 
+    // Toggle Logik (wie gehabt)
     if (HISTORY_TOGGLE) {
         HISTORY_TOGGLE.addEventListener('click', () => {
             if (HISTORY_SIDEBAR && HISTORY_SIDEBAR.classList.contains('history-sidebar--open')) {
@@ -2973,20 +2971,34 @@ function setupHistoryHandler() {
             }
         });
     }
+    if (HISTORY_CLOSE) HISTORY_CLOSE.addEventListener('click', closeHistory);
 
-    if (HISTORY_CLOSE) {
-        HISTORY_CLOSE.addEventListener('click', closeHistory);
+    // --- SCROLL FIX: Richtigen Container finden ---
+    let scrollContainer = document.querySelector('.history-sidebar__content');
+
+    // Fallback: Wenn es die Klasse nicht gibt, nimm das Parent oder die Sidebar selbst
+    if (!scrollContainer && HISTORY_LIST) {
+        scrollContainer = HISTORY_LIST.parentElement;
+    }
+    if (!scrollContainer) {
+        scrollContainer = HISTORY_SIDEBAR;
     }
 
-    const scrollContainer = HISTORY_LIST ? HISTORY_LIST.parentElement : null;
-
     if (scrollContainer) {
+        console.log('Scroll container found:', scrollContainer);
+
         scrollContainer.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-            if (scrollTop + clientHeight >= scrollHeight - 100) {
+            console.log('scrolling...', scrollTop);
+            const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+            // Wenn wir weniger als 100px vom Ende entfernt sind
+            if (distanceToBottom < 100) {
                 fetchRuns(true);
             }
         });
+    } else {
+        console.warn('Kein Scroll-Container für History gefunden!');
     }
 }
 
