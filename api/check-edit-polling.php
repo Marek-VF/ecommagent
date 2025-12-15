@@ -27,7 +27,7 @@ if ($runId <= 0) {
 $pdo = getPDO();
 
 $stmt = $pdo->prepare(
-    'SELECT id, url FROM item_images_staging WHERE user_id = :user_id AND run_id = :run_id AND id > :min_id ORDER BY id DESC LIMIT 1'
+    'SELECT id, url, error_message FROM item_images_staging WHERE user_id = :user_id AND run_id = :run_id AND id > :min_id ORDER BY id DESC LIMIT 1'
 );
 $stmt->execute([
     'user_id' => $userId,
@@ -44,6 +44,21 @@ if (!$row) {
     exit;
 }
 
+$isError = isset($row['error_message']) && (string) $row['error_message'] !== '';
+
+if ($isError) {
+    echo json_encode([
+        'ok'       => true,
+        'found'    => true,
+        'is_error' => true,
+        'message'  => (string) $row['error_message'],
+        'image'    => [
+            'id' => (int) $row['id'],
+        ],
+    ]);
+    exit;
+}
+
 $baseUrlConfig = $config['base_url'] ?? '';
 $baseUrl = '';
 if (is_string($baseUrlConfig) && $baseUrlConfig !== '') {
@@ -56,9 +71,10 @@ if ($url !== '' && !preg_match('#^https?://#i', $url) && !str_starts_with($url, 
 }
 
 echo json_encode([
-    'ok'    => true,
-    'found' => true,
-    'image' => [
+    'ok'       => true,
+    'found'    => true,
+    'is_error' => false,
+    'image'    => [
         'id'  => (int) $row['id'],
         'url' => $url,
     ],
