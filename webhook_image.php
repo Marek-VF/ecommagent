@@ -297,11 +297,11 @@ try {
     }
 
     if ($executedSuccessfully === false) {
+        // 1. Logging
         $serverMessage = isset($_POST['server_api_message']) ? trim((string) $_POST['server_api_message']) : 'Ein Fehler ist aufgetreten.';
-        
-        // 1. Fehler ins Status-Log schreiben
+
         $logStmt = $pdo->prepare(
-            'INSERT INTO status_logs_new (run_id, user_id, message, source, severity, code, created_at) 
+            'INSERT INTO status_logs_new (run_id, user_id, message, source, severity, code, created_at)
              VALUES (:run_id, :user_id, :message, :source, :severity, :code, NOW())'
         );
         $logStmt->execute([
@@ -313,11 +313,8 @@ try {
             ':code'     => 'WORKFLOW_ERROR'
         ]);
 
-        // 2. WICHTIG: Run Status aktualisieren, falls N8N sagt "is_running = false"
-        // $isRunningInput wird am Anfang des Skripts aus $_POST['isrunning'] geholt.
+        // 2. Status Update (Zombie-Prevention)
         if ($isRunningInput !== null && toBooleanFlag($isRunningInput) === false) {
-            // Wir setzen den Status auf 'failed', damit die API (get-latest-item) 'isrunning: false' meldet.
-            // Das Frontend stoppt dann automatisch das Polling.
             $finishStmt = $pdo->prepare(
                 "UPDATE workflow_runs SET status = 'failed', last_step_status = 'error', finished_at = NOW() WHERE id = :run_id AND user_id = :user_id"
             );
@@ -327,8 +324,39 @@ try {
             ]);
         }
 
-        // 3. Abbruch (Kein Bild speichern)
-        jsonResponse(200, ['ok' => true]);
+        // 3. Weiche: Update vs. Main Run
+        // Badge wurde oben im Skript bereits aus $_POST['badge'] gelesen
+        $isUpdate = in_array(strtolower((string) $badge), ['edit', '2k', '4k']);
+
+        if ($isUpdate) {
+            // Fall A: Update (Edit/Upscale)
+            // Wir speichern NICHTS, damit das alte Bild im Frontend stehen bleibt.
+            jsonResponse(200, ['ok' => true]);
+        } else {
+            // Fall B: Haupt-Run (Initial)
+            // Wir MÜSSEN einen Platzhalter speichern, sonst bleibt der Slot leer.
+
+            // Position ermitteln (falls noch nicht geschehen)
+            $position = $requestedPosition ?? null;
+            if ($position === null && $noteId !== null) {
+                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
+                $stmt->execute([':note' => $noteId]);
+                $nextPosition = (int) $stmt->fetchColumn();
+                $position = $nextPosition > 0 ? $nextPosition : 1;
+            }
+            if ($position === null) $position = 1;
+
+            $insertErrorImg = $pdo->prepare("INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, 'error', NOW())");
+            $insertErrorImg->execute([
+                ':user'     => $userId,
+                ':run'      => $runId,
+                ':note'     => $noteId,
+                ':url'      => 'assets/default-image1.jpg', // Platzhalterpfad
+                ':position' => $position
+            ]);
+
+            jsonResponse(200, ['ok' => true]);
+        }
     }
     $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
     if (!is_string($contentType) || stripos($contentType, 'multipart/form-data') !== 0) {
