@@ -297,8 +297,8 @@ try {
     }
 
     if ($executedSuccessfully === false) {
-        // Fehlerfall: Bild konnte nicht generiert werden → Default-Placeholder-Bild speichern,
-        // damit das Frontend den Slot als gefüllt behandelt und die Preload-Animation weiterwandern kann.
+        $serverMessage = isset($_POST['server_api_message']) ? trim((string) $_POST['server_api_message']) : 'Fehler bei der Generierung';
+
         $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
         $noteId = null;
         $productName = '';
@@ -348,6 +348,9 @@ try {
             ]);
         }
 
+        $targetTableBadge = $badge;
+        $isUpdate = in_array(strtolower((string) $badge), ['edit', '2k', '4k'], true);
+
         $positionInput = $_POST['position'] ?? null;
         $requestedPosition = null;
         if ($positionInput !== null && (is_string($positionInput) || is_numeric($positionInput))) {
@@ -360,7 +363,8 @@ try {
             }
         }
 
-        $relativeUrl = 'assets/default-image1.jpg';
+        $relativeUrl = $isUpdate ? '' : 'assets/default-image1.jpg';
+        $badge = 'error';
 
         $pdo->beginTransaction();
         try {
@@ -380,22 +384,23 @@ try {
             }
 
             $targetTable = 'item_images';
-            if (is_string($badge) && strcasecmp($badge, 'edit') === 0) {
+            if (is_string($targetTableBadge) && strcasecmp($targetTableBadge, 'edit') === 0) {
                 $targetTable = 'item_images_staging';
             }
 
-            $insertImage = $pdo->prepare("INSERT INTO {$targetTable} (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, :badge, NOW())");
+            $insertImage = $pdo->prepare("INSERT INTO {$targetTable} (user_id, run_id, note_id, url, position, badge, error_message, created_at) VALUES (:user, :run, :note, :url, :position, :badge, :error_message, NOW())");
             $insertImage->execute([
-                ':user'     => $userId,
-                ':run'      => $runId,
-                ':note'     => $noteId,
-                ':url'      => $relativeUrl,
-                ':position' => $position,
-                ':badge'    => $badge,
+                ':user'          => $userId,
+                ':run'           => $runId,
+                ':note'          => $noteId,
+                ':url'           => $relativeUrl,
+                ':position'      => $position,
+                ':badge'         => $badge,
+                ':error_message' => $serverMessage,
             ]);
 
             $eventForLogging = $statusEventFromRequest ?? resolve_status_event($statusMessageFromRequest ?? 'IMAGE_ERROR');
-            $loggedMessage = $eventForLogging['label'] ?? 'image generation failed';
+            $loggedMessage = $serverMessage !== '' ? $serverMessage : ($eventForLogging['label'] ?? 'image generation failed');
 
             log_event($pdo, $runId, $userId, $eventForLogging['code'] ?? 'IMAGE_ERROR', 'n8n');
 
@@ -441,12 +446,7 @@ SQL;
         }
 
         jsonResponse(200, [
-            'ok'          => true,
-            'url'         => $relativeUrl,
-            'note_id'     => $noteId,
-            'position'    => $requestedPosition ?? $position ?? null,
-            'run_id'      => $runId,
-            'placeholder' => true,
+            'ok' => true,
         ]);
     }
 
