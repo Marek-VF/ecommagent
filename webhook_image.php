@@ -334,25 +334,54 @@ try {
             jsonResponse(200, ['ok' => true]);
         } else {
             // Fall B: Haupt-Run (Initial)
-            // Wir MÜSSEN einen Platzhalter speichern, sonst bleibt der Slot leer.
+            // Wir MÜSSEN einen Platzhalter speichern.
 
-            // Position ermitteln (falls noch nicht geschehen)
-            $position = $requestedPosition ?? null;
-            if ($position === null && $noteId !== null) {
-                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
-                $stmt->execute([':note' => $noteId]);
-                $nextPosition = (int) $stmt->fetchColumn();
-                $position = $nextPosition > 0 ? $nextPosition : 1;
+            // 1. Note ID ermitteln (lokal für diesen Block, da globale Variable noch nicht existiert)
+            $localNoteId = null;
+            $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
+
+            if ($noteIdInput !== null) {
+                // Check ob übergebene Note ID existiert
+                $noteCheck = $pdo->prepare('SELECT id FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
+                $noteCheck->execute([':id' => $noteIdInput, ':user' => $userId, ':run' => $runId]);
+                $localNoteId = $noteCheck->fetchColumn();
             }
-            if ($position === null) $position = 1;
 
+            if (!$localNoteId) {
+                // Fallback: Existierende Note suchen oder neue anlegen
+                $existingNote = $pdo->prepare('SELECT id FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
+                $existingNote->execute([':user' => $userId, ':run' => $runId]);
+                $localNoteId = $existingNote->fetchColumn();
+
+                if (!$localNoteId) {
+                    $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
+                    $createNote->execute([':user' => $userId, ':run' => $runId]);
+                    $localNoteId = (int)$pdo->lastInsertId();
+                }
+            }
+
+            // 2. Position ermitteln
+            $finalPosition = 1;
+            $posInput = $_POST['position'] ?? null;
+
+            if ($posInput !== null && ctype_digit((string)$posInput)) {
+                $finalPosition = (int)$posInput;
+            } else {
+                // Automatisch nächste Position berechnen
+                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
+                $stmt->execute([':note' => $localNoteId]);
+                $calcPos = (int) $stmt->fetchColumn();
+                $finalPosition = $calcPos > 0 ? $calcPos : 1;
+            }
+
+            // 3. Insert mit den ermittelten Werten
             $insertErrorImg = $pdo->prepare("INSERT INTO item_images (user_id, run_id, note_id, url, position, badge, created_at) VALUES (:user, :run, :note, :url, :position, 'error', NOW())");
             $insertErrorImg->execute([
                 ':user'     => $userId,
                 ':run'      => $runId,
-                ':note'     => $noteId,
+                ':note'     => $localNoteId,
                 ':url'      => 'assets/default-image1.jpg', // Platzhalterpfad
-                ':position' => $position
+                ':position' => $finalPosition
             ]);
 
             jsonResponse(200, ['ok' => true]);
