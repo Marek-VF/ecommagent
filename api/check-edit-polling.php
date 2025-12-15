@@ -27,7 +27,7 @@ if ($runId <= 0) {
 $pdo = getPDO();
 
 $stmt = $pdo->prepare(
-    'SELECT id, url, error_message FROM item_images_staging WHERE user_id = :user_id AND run_id = :run_id AND id > :min_id ORDER BY id DESC LIMIT 1'
+    'SELECT id, url FROM item_images_staging WHERE user_id = :user_id AND run_id = :run_id AND id > :min_id ORDER BY id DESC LIMIT 1'
 );
 $stmt->execute([
     'user_id' => $userId,
@@ -37,24 +37,27 @@ $stmt->execute([
 
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
+    $runStmt = $pdo->prepare('SELECT status, last_message FROM workflow_runs WHERE id = :run_id');
+    $runStmt->execute(['run_id' => $runId]);
+    $runRow = $runStmt->fetch(PDO::FETCH_ASSOC);
+
+    $status = isset($runRow['status']) ? strtolower((string) $runRow['status']) : '';
+    $hasFailed = in_array($status, ['failed', 'error', 'cancelled'], true);
+
+    if ($hasFailed) {
+        echo json_encode([
+            'ok'       => true,
+            'found'    => true,
+            'is_error' => true,
+            'message'  => (string) ($runRow['last_message'] ?? ''),
+            'image'    => null,
+        ]);
+        exit;
+    }
+
     echo json_encode([
         'ok'    => true,
         'found' => false,
-    ]);
-    exit;
-}
-
-$isError = isset($row['error_message']) && (string) $row['error_message'] !== '';
-
-if ($isError) {
-    echo json_encode([
-        'ok'       => true,
-        'found'    => true,
-        'is_error' => true,
-        'message'  => (string) $row['error_message'],
-        'image'    => [
-            'id' => (int) $row['id'],
-        ],
     ]);
     exit;
 }
