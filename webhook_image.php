@@ -297,159 +297,39 @@ try {
     }
 
     if ($executedSuccessfully === false) {
-        $serverMessage = isset($_POST['server_api_message']) ? trim((string) $_POST['server_api_message']) : 'Fehler bei der Generierung';
-
-        $noteIdInput = normalizeNoteId($_POST['note_id'] ?? null);
-        $noteId = null;
-        $productName = '';
-
-        if ($noteIdInput !== null) {
-            $noteCheck = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE id = :id AND user_id = :user AND run_id = :run LIMIT 1');
-            $noteCheck->execute([
-                ':id'   => $noteIdInput,
-                ':user' => $userId,
-                ':run'  => $runId,
-            ]);
-            $noteRow = $noteCheck->fetch(PDO::FETCH_ASSOC);
-            if ($noteRow === false) {
-                jsonResponse(400, [
-                    'ok'      => false,
-                    'message' => 'note_id ist ungültig oder gehört nicht zum Run.',
-                ]);
-            }
-
-            $noteId = (int) $noteRow['id'];
-            $productName = isset($noteRow['product_name']) ? (string) $noteRow['product_name'] : '';
-        } else {
-            $existingNote = $pdo->prepare('SELECT id, product_name FROM item_notes WHERE user_id = :user AND run_id = :run ORDER BY id ASC LIMIT 1');
-            $existingNote->execute([
-                ':user' => $userId,
-                ':run'  => $runId,
-            ]);
-            $existingNoteRow = $existingNote->fetch(PDO::FETCH_ASSOC);
-
-            if ($existingNoteRow !== false) {
-                $noteId = (int) $existingNoteRow['id'];
-                $productName = isset($existingNoteRow['product_name']) ? (string) $existingNoteRow['product_name'] : '';
-            } else {
-                $createNote = $pdo->prepare("INSERT INTO item_notes (user_id, run_id, product_name, product_description, source) VALUES (:user, :run, '', '', 'n8n')");
-                $createNote->execute([
-                    ':user' => $userId,
-                    ':run'  => $runId,
-                ]);
-                $noteId = (int) $pdo->lastInsertId();
-            }
-        }
-
-        if ($noteId === null || $noteId <= 0) {
-            jsonResponse(500, [
-                'ok'      => false,
-                'message' => 'note could not be determined.',
-            ]);
-        }
-
-        $targetTableBadge = $badge;
-        $isUpdate = in_array(strtolower((string) $badge), ['edit', '2k', '4k'], true);
-
-        $positionInput = $_POST['position'] ?? null;
-        $requestedPosition = null;
-        if ($positionInput !== null && (is_string($positionInput) || is_numeric($positionInput))) {
-            $positionValue = trim((string) $positionInput);
-            if ($positionValue !== '' && ctype_digit($positionValue)) {
-                $requestedPosition = (int) $positionValue;
-                if ($requestedPosition <= 0) {
-                    $requestedPosition = null;
-                }
-            }
-        }
-
-        $relativeUrl = $isUpdate ? '' : 'assets/default-image1.jpg';
-        $badge = 'error';
-
-        $pdo->beginTransaction();
-        try {
-            $position = $requestedPosition;
-            if ($noteId !== null) {
-                $stmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM item_images WHERE note_id = :note');
-                $stmt->execute([':note' => $noteId]);
-                $calculated = $stmt->fetchColumn();
-                $nextPosition = $calculated !== false ? (int) $calculated : 1;
-                if ($nextPosition <= 0) {
-                    $nextPosition = 1;
-                }
-
-                if ($requestedPosition === null) {
-                    $position = $nextPosition;
-                }
-            }
-
-            $targetTable = 'item_images';
-            if (is_string($targetTableBadge) && strcasecmp($targetTableBadge, 'edit') === 0) {
-                $targetTable = 'item_images_staging';
-            }
-
-            $insertImage = $pdo->prepare("INSERT INTO {$targetTable} (user_id, run_id, note_id, url, position, badge, error_message, created_at) VALUES (:user, :run, :note, :url, :position, :badge, :error_message, NOW())");
-            $insertImage->execute([
-                ':user'          => $userId,
-                ':run'           => $runId,
-                ':note'          => $noteId,
-                ':url'           => $relativeUrl,
-                ':position'      => $position,
-                ':badge'         => $badge,
-                ':error_message' => $serverMessage,
-            ]);
-
-            $eventForLogging = $statusEventFromRequest ?? resolve_status_event($statusMessageFromRequest ?? 'IMAGE_ERROR');
-            $loggedMessage = $serverMessage !== '' ? $serverMessage : ($eventForLogging['label'] ?? 'image generation failed');
-
-            log_event($pdo, $runId, $userId, $eventForLogging['code'] ?? 'IMAGE_ERROR', 'n8n');
-
-            $updateRunMessage = $pdo->prepare(
-                'UPDATE workflow_runs SET last_message = :message WHERE id = :run_id AND user_id = :user_id'
-            );
-            $updateRunMessage->execute([
-                ':message' => $loggedMessage,
-                ':run_id'  => $runId,
-                ':user_id' => $userId,
-            ]);
-
-            $stateSql = <<<'SQL'
-INSERT INTO user_state (user_id, last_image_url, current_run_id, updated_at)
-VALUES (:user, :image, :current_run_id, NOW())
-ON DUPLICATE KEY UPDATE
-    last_image_url = VALUES(last_image_url),
-    current_run_id = IFNULL(VALUES(current_run_id), current_run_id),
-    updated_at = NOW()
-SQL;
-            $updateState = $pdo->prepare($stateSql);
-            $updateState->execute([
-                ':user'           => $userId,
-                ':image'          => $relativeUrl,
-                ':current_run_id' => $runId,
-            ]);
-
-            $pdo->commit();
-        } catch (Throwable $transactionException) {
-            $pdo->rollBack();
-            throw $transactionException;
-        }
-
-        if ($runId !== null && $userId > 0) {
-            $updateStepStatus = $pdo->prepare(
-                'UPDATE workflow_runs SET last_step_status = :status WHERE id = :run_id AND user_id = :user_id'
-            );
-            $updateStepStatus->execute([
-                ':status'  => 'error',
-                ':run_id'  => $runId,
-                ':user_id' => $userId,
-            ]);
-        }
-
-        jsonResponse(200, [
-            'ok' => true,
+        $serverMessage = isset($_POST['server_api_message']) ? trim((string) $_POST['server_api_message']) : 'Ein Fehler ist aufgetreten.';
+        
+        // 1. Fehler ins Status-Log schreiben
+        $logStmt = $pdo->prepare(
+            'INSERT INTO status_logs_new (run_id, user_id, message, source, severity, code, created_at) 
+             VALUES (:run_id, :user_id, :message, :source, :severity, :code, NOW())'
+        );
+        $logStmt->execute([
+            ':run_id'   => $runId,
+            ':user_id'  => $userId,
+            ':message'  => $serverMessage,
+            ':source'   => 'n8n',
+            ':severity' => 'error',
+            ':code'     => 'WORKFLOW_ERROR'
         ]);
-    }
 
+        // 2. WICHTIG: Run Status aktualisieren, falls N8N sagt "is_running = false"
+        // $isRunningInput wird am Anfang des Skripts aus $_POST['isrunning'] geholt.
+        if ($isRunningInput !== null && toBooleanFlag($isRunningInput) === false) {
+            // Wir setzen den Status auf 'failed', damit die API (get-latest-item) 'isrunning: false' meldet.
+            // Das Frontend stoppt dann automatisch das Polling.
+            $finishStmt = $pdo->prepare(
+                "UPDATE workflow_runs SET status = 'failed', last_step_status = 'error', finished_at = NOW() WHERE id = :run_id AND user_id = :user_id"
+            );
+            $finishStmt->execute([
+                ':run_id'  => $runId,
+                ':user_id' => $userId,
+            ]);
+        }
+
+        // 3. Abbruch (Kein Bild speichern)
+        jsonResponse(200, ['ok' => true]);
+    }
     $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
     if (!is_string($contentType) || stripos($contentType, 'multipart/form-data') !== 0) {
         jsonResponse(415, [
