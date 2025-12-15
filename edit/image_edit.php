@@ -431,13 +431,15 @@ if ($image !== null) {
             };
 
             // --- POLLING & DATA HANDLER ---
-            const onNewImageReceived = (image) => {
-                if (!image) return;
+            const onNewImageReceived = (payload) => {
+                if (!payload) return;
 
-                const isError = image.is_error === true || image.data?.is_error === true;
+                const isError = payload.is_error === true;
+                const image = payload.image ?? payload;
+
                 if (isError) {
-                    const message = (typeof image.message === 'string' && image.message.trim() !== '')
-                        ? image.message
+                    const message = (typeof payload.message === 'string' && payload.message.trim() !== '')
+                        ? payload.message
                         : 'Es ist ein Fehler aufgetreten.';
 
                     setStatus(message, 'error');
@@ -449,25 +451,19 @@ if ($image !== null) {
                     promptInput.disabled = false;
 
                     if (saveBtn) {
-                        if (stagingId) {
-                            saveBtn.disabled = false;
-                            saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                            saveBtn.classList.add('hover:shadow-md');
-                        } else {
-                            saveBtn.disabled = true;
-                            saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                            saveBtn.classList.remove('hover:shadow-md');
-                        }
+                        saveBtn.disabled = true;
+                        saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                        saveBtn.classList.remove('hover:shadow-md');
                     }
 
                     return;
                 }
 
                 // State Update
-                stagingId = image.id ?? null;
-                if (image.id) currentActiveImageId = image.id; // Chain-Update!
+                stagingId = image?.id ?? null;
+                if (image?.id) currentActiveImageId = image.id; // Chain-Update!
 
-                if (image.url) {
+                if (image?.url) {
                     createdImageFilename = image.url.substring(image.url.lastIndexOf('/') + 1);
                     if (previewImage) {
                         previewImage.style.opacity = '0.5';
@@ -482,7 +478,7 @@ if ($image !== null) {
                 saveBtn.disabled = false;
                 saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 saveBtn.classList.add('hover:shadow-md');
-                
+
                 if(cancelBtn) cancelBtn.classList.remove('hidden');
 
                 // Start Button Reset
@@ -490,7 +486,7 @@ if ($image !== null) {
                 startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 if (spinner) spinner.classList.add('hidden');
                 if (btnText) btnText.textContent = 'Workflow starten';
-                
+
                 // Input entsperren
                 promptInput.disabled = false;
 
@@ -506,7 +502,7 @@ if ($image !== null) {
 
                         if (response.ok && data.ok && data.found) {
                             stopPolling();
-                            onNewImageReceived(data.image ?? null);
+                            onNewImageReceived(data);
                         }
                     } catch (error) {
                         console.error('Polling failed', error);
