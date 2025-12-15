@@ -434,10 +434,39 @@ if ($image !== null) {
             const onNewImageReceived = (image) => {
                 if (!image) return;
 
+                const isError = image.is_error === true || image.data?.is_error === true;
+                if (isError) {
+                    const message = (typeof image.message === 'string' && image.message.trim() !== '')
+                        ? image.message
+                        : 'Es ist ein Fehler aufgetreten.';
+
+                    setStatus(message, 'error');
+
+                    startBtn.disabled = false;
+                    startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if (spinner) spinner.classList.add('hidden');
+                    if (btnText) btnText.textContent = 'Workflow starten';
+                    promptInput.disabled = false;
+
+                    if (saveBtn) {
+                        if (stagingId) {
+                            saveBtn.disabled = false;
+                            saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            saveBtn.classList.add('hover:shadow-md');
+                        } else {
+                            saveBtn.disabled = true;
+                            saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                            saveBtn.classList.remove('hover:shadow-md');
+                        }
+                    }
+
+                    return;
+                }
+
                 // State Update
                 stagingId = image.id ?? null;
                 if (image.id) currentActiveImageId = image.id; // Chain-Update!
-                
+
                 if (image.url) {
                     createdImageFilename = image.url.substring(image.url.lastIndexOf('/') + 1);
                     if (previewImage) {
