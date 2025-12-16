@@ -2338,6 +2338,14 @@ const applyRunDataToUI = (payload) => {
     document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('is-active'));
 
     const data = payload && typeof payload === 'object' ? payload : {};
+
+    // --- BUGFIX START: DOM Run-ID aktualisieren ---
+    // Wir stellen sicher, dass startWorkflow() die korrekte ID aus dem DOM liest
+    const loadedRunId = (data.run && data.run.id) ? data.run.id : (data.id || null);
+    if (loadedRunId && workflowOutput) {
+        workflowOutput.dataset.runId = loadedRunId;
+    }
+    // --- BUGFIX END ---
     const note = data.note && typeof data.note === 'object' ? data.note : {};
     const images = Array.isArray(data.images) ? data.images : [];
     const originalImage = typeof data.original_image === 'string' ? data.original_image.trim() : '';
@@ -3248,6 +3256,13 @@ function stopPolling() {
 function resetFrontendState(options = {}) {
     const withPulse = Boolean(options.withPulse);
     stopPolling();
+
+    // --- BUGFIX START ---
+    if (workflowOutput) {
+        delete workflowOutput.dataset.runId;
+    }
+    // --- BUGFIX END ---
+
     setOriginalImagesLocked(false);
     setDropZoneState(false);
     activeRunId = null;
