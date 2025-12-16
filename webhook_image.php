@@ -316,11 +316,12 @@ try {
         // 2. Status Update (Zombie-Prevention)
         if ($isRunningInput !== null && toBooleanFlag($isRunningInput) === false) {
             $finishStmt = $pdo->prepare(
-                "UPDATE workflow_runs SET status = 'failed', last_step_status = 'error', finished_at = NOW() WHERE id = :run_id AND user_id = :user_id"
+                "UPDATE workflow_runs SET status = 'failed', last_step_status = 'error', last_message = :message, finished_at = NOW() WHERE id = :run_id AND user_id = :user_id"
             );
             $finishStmt->execute([
                 ':run_id'  => $runId,
                 ':user_id' => $userId,
+                ':message' => $serverMessage, // Wir nutzen die oben definierte Variable $serverMessage
             ]);
         }
 
