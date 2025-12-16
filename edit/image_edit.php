@@ -243,7 +243,7 @@ if ($image !== null) {
                                         <textarea
                                             id="edit-prompt"
                                             class="w-full bg-white border border-gray-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl p-4 text-gray-700 text-base shadow-sm transition-all resize-none modern-textarea"
-                                            placeholder="Beschreibe deine Änderungswünsche...&#10;z.B. 'Hintergrund entfernen' oder 'Model lächeln lassen'"
+                                            placeholder="Beschreibe Sie ihre Änderungswünsche...&#10;z.B. 'Hintergrund entfernen' oder 'Model lächeln lassen'"
                                         ></textarea>
                                         <div class="absolute bottom-3 right-3 text-xs text-gray-400 font-medium" id="char-count">0 Zeichen</div>
                                     </div>
@@ -536,7 +536,7 @@ if ($image !== null) {
                 // Input entsperren
                 promptInput.disabled = false;
 
-                setStatus('Vorschau aktualisiert. Gefällt es dir?', 'success');
+                setStatus('Workflow erfolgreich abgeschlossen.', 'success');
             };
 
             const startPolling = (pollRunId, minId) => {
