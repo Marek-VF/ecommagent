@@ -1,6 +1,50 @@
 <?php
 declare(strict_types=1);
 
+class PayPalApiException extends RuntimeException
+{
+    private ?array $responseData;
+    private string $rawResponse;
+    private int $statusCode;
+
+    public function __construct(string $message, int $statusCode, ?Throwable $previous, ?array $responseData, string $rawResponse)
+    {
+        parent::__construct($message, $statusCode, $previous);
+        $this->statusCode = $statusCode;
+        $this->responseData = $responseData;
+        $this->rawResponse = $rawResponse;
+    }
+
+    public function getStatusCode(): int
+    {
+        return $this->statusCode;
+    }
+
+    public function getResponseData(): ?array
+    {
+        return $this->responseData;
+    }
+
+    public function getRawResponse(): string
+    {
+        return $this->rawResponse;
+    }
+
+    public function getDebugId(): ?string
+    {
+        return isset($this->responseData['debug_id']) ? (string) $this->responseData['debug_id'] : null;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    public function getDetails(): array
+    {
+        $details = $this->responseData['details'] ?? [];
+        return is_array($details) ? $details : [];
+    }
+}
+
 class PayPalClient
 {
     private string $clientId;
@@ -72,6 +116,12 @@ class PayPalClient
         if ($body !== null) {
             if ($jsonBody) {
                 $payload = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                if (!is_string($payload)) {
+                    $jsonError = json_last_error_msg();
+                    throw new RuntimeException('PayPal API Fehler: Request-Body konnte nicht serialisiert werden: ' . $jsonError);
+                }
+
                 $requestHeaders[] = 'Content-Type: application/json';
             } else {
                 $payload = http_build_query($body);
@@ -94,19 +144,38 @@ class PayPalClient
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
 
+        $rawResponse = (string) $response;
+
         if ($errno) {
             throw new RuntimeException('PayPal API Fehler: ' . $errno);
         }
 
-        $data = json_decode((string) $response, true);
+        $data = json_decode($rawResponse, true);
 
         if ($status >= 400) {
-            $message = is_array($data) && isset($data['message']) ? (string) $data['message'] : 'Unbekannter Fehler';
-            throw new RuntimeException('PayPal API HTTP ' . $status . ': ' . $message);
+            $messageParts = ['PayPal API HTTP ' . $status];
+
+            if (is_array($data)) {
+                if (isset($data['message'])) {
+                    $messageParts[] = 'message=' . (string) $data['message'];
+                }
+
+                if (isset($data['debug_id'])) {
+                    $messageParts[] = 'debug_id=' . (string) $data['debug_id'];
+                }
+
+                if (isset($data['details'])) {
+                    $messageParts[] = 'details=' . json_encode($data['details'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                }
+            }
+
+            $messageParts[] = 'raw=' . $rawResponse;
+
+            throw new PayPalApiException(implode(' | ', $messageParts), $status, null, is_array($data) ? $data : null, $rawResponse);
         }
 
         if (!is_array($data)) {
-            throw new RuntimeException('PayPal API Antwort ungültig.');
+            throw new RuntimeException('PayPal API Antwort ungültig: ' . $rawResponse);
         }
 
         return $data;
@@ -117,7 +186,11 @@ class PayPalClient
         $headers = [
             'Authorization: Bearer ' . $accessToken,
             'Accept: application/json',
+            'Prefer: return=representation',
         ];
+
+        $requestId = bin2hex(random_bytes(16));
+        $headers[] = 'PayPal-Request-Id: ' . $requestId;
 
         $body = [
             'intent' => 'CAPTURE',
@@ -146,7 +219,9 @@ class PayPalClient
             'Accept: application/json',
         ];
 
-        $path = '/v2/checkout/orders/' . urlencode($orderId) . '/capture';
+        $path = '/v2/checkout/orders/' . rawurlencode($orderId) . '/capture';
+
+        $headers[] = 'PayPal-Request-Id: ' . bin2hex(random_bytes(16));
 
         return $this->sendRequest('POST', $path, $headers, null);
     }
