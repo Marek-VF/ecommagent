@@ -222,38 +222,38 @@ if ($image !== null) {
                         
                         <div class="lg:col-span-4 flex flex-col gap-6">
                             <div class="edit-card">
-                                <div class="edit-card__header flex items-center gap-2">
-                                    <p class="edit-card__title">Ihre Änderungswünsche</p>
-                                    <button
-                                        type="button"
-                                        class="tooltip-trigger inline-flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 rounded-full"
-                                        aria-label="Hinweis zu Änderungswünschen"
-                                        data-tooltip-trigger
-                                    >
-                                        <span class="material-icons-outlined text-lg">help_outline</span>
-                                        <span class="edit-tooltip" role="tooltip" data-tooltip>
-                                            Sie können das dargestellte Bild schrittweise bearbeiten. Ihre Änderungswünsche beziehen sich jeweils auf das aktuell angezeigte Bild. Starten Sie den Workflow bei Bedarf mehrfach, bis das Ergebnis Ihren Vorstellungen entspricht. Erst beim Speichern werden die Änderungen übernommen.
-                                        </span>
-                                    </button>
+                                <div class="edit-card__header">
+                                    <div class="flex flex-row items-center gap-2 mb-2">
+                                        <label for="edit-prompt" class="edit-card__title mb-0 whitespace-nowrap">Ihre Änderungswünsche</label>
+                                        <button
+                                            type="button"
+                                            class="tooltip-trigger inline-flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 rounded-full"
+                                            aria-label="Hinweis zu Änderungswünschen"
+                                            data-tooltip-trigger
+                                        >
+                                            <span class="material-icons-outlined text-lg">help_outline</span>
+                                            <span class="edit-tooltip" role="tooltip" data-tooltip>
+                                                Sie können das dargestellte Bild schrittweise bearbeiten. Ihre Änderungswünsche beziehen sich jeweils auf das aktuell angezeigte Bild. Starten Sie den Workflow bei Bedarf mehrfach, bis das Ergebnis Ihren Vorstellungen entspricht. Erst beim Speichern werden die Änderungen übernommen.
+                                            </span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="edit-card__body">
                                     <div class="relative">
-                                        <textarea 
-                                            id="edit-prompt" 
-                                            class="w-full bg-white border border-gray-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl p-4 text-gray-700 text-base shadow-sm transition-all resize-none modern-textarea" 
+                                        <textarea
+                                            id="edit-prompt"
+                                            class="w-full bg-white border border-gray-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl p-4 text-gray-700 text-base shadow-sm transition-all resize-none modern-textarea"
                                             placeholder="Beschreibe deine Änderungswünsche...&#10;z.B. 'Hintergrund entfernen' oder 'Model lächeln lassen'"
                                         ></textarea>
                                         <div class="absolute bottom-3 right-3 text-xs text-gray-400 font-medium" id="char-count">0 Zeichen</div>
                                     </div>
-
-                                    <div id="edit-status-message" class="hidden mt-4 p-3 rounded-lg text-sm font-medium"></div>
 
                                     <div class="mt-6">
                                         <button type="button" id="btn-start-edit" class="btn-primary w-full flex items-center justify-center gap-2" disabled
                                             data-run-id="<?php echo (int)$image['run_id']; ?>"
                                             data-image-id="<?php echo (int)$image['id']; ?>"
                                             data-position="<?php echo (int)$image['position']; ?>">
-                                            
+
                                             <svg class="loading-spinner animate-spin h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -264,12 +264,7 @@ if ($image !== null) {
                                 </div>
                             </div>
 
-                            <div class="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3">
-                                <span class="material-icons-outlined text-blue-500">info</span>
-                                <p class="text-sm text-blue-800 leading-relaxed">
-                                    Du kannst das Bild iterativ bearbeiten. Starte den Workflow mehrmals, bis das Ergebnis passt. Erst beim Speichern wird es übernommen.
-                                </p>
-                            </div>
+                            <div id="edit-status-message" class="hidden p-3 rounded-lg text-sm font-medium"></div>
                         </div>
 
                         <div class="lg:col-span-8">
