@@ -7,6 +7,19 @@ require_once __DIR__ . '/../../auth/bootstrap.php';
 require_once __DIR__ . '/../../credits.php';
 require_once __DIR__ . '/../../paypal/PayPalClient.php';
 
+if (!function_exists('paypal_log_exception')) {
+    function paypal_log_exception(Throwable $exception): void
+    {
+        $logDir = __DIR__ . '/../../logs';
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0777, true);
+        }
+
+        $message = '[' . date('c') . '] ' . $exception->getMessage() . "\n" . $exception->getTraceAsString() . "\n";
+        error_log($message, 3, $logDir . '/paypal.log');
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'error' => 'method_not_allowed']);
@@ -22,6 +35,8 @@ if ($user === null || !isset($user['id'])) {
 
 $config = auth_config();
 $paypalConfig = $config['paypal'] ?? [];
+$paypalEnv = strtolower((string) ($paypalConfig['environment'] ?? 'sandbox'));
+$paypalDebug = $paypalEnv === 'sandbox' || !empty($paypalConfig['debug']);
 
 $input = json_decode((string) file_get_contents('php://input'), true) ?? [];
 $orderId = isset($input['orderID']) && is_string($input['orderID']) ? trim($input['orderID']) : '';
@@ -39,8 +54,30 @@ try {
     $accessToken = $client->getAccessToken();
     $captureResponse = $client->captureOrder($accessToken, $orderId);
 } catch (Throwable $exception) {
+    paypal_log_exception($exception);
+
+    $debugData = null;
+    if ($paypalDebug) {
+        $debugData = ['message' => $exception->getMessage()];
+
+        if ($exception instanceof PayPalApiException) {
+            $debugData['paypal'] = [
+                'status'   => $exception->getStatusCode(),
+                'debug_id' => $exception->getDebugId(),
+                'details'  => $exception->getDetails(),
+                'raw'      => $exception->getRawResponse(),
+            ];
+        }
+    }
+
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'paypal_capture_failed']);
+    $response = ['ok' => false, 'error' => 'paypal_capture_failed'];
+
+    if ($debugData !== null) {
+        $response['debug'] = $debugData;
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -62,6 +99,9 @@ if ($captureId === null || ($orderStatus !== 'COMPLETED' && $captureStatus !== '
 }
 
 $rawPayload = json_encode($captureResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($rawPayload === false) {
+    $rawPayload = '{}';
+}
 
 try {
     $pdo->beginTransaction();
