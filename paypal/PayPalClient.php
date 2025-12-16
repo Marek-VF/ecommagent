@@ -126,6 +126,10 @@ class PayPalClient
             } else {
                 $payload = http_build_query($body);
             }
+        } elseif (strtoupper($method) === 'POST') {
+            $requestHeaders[] = 'Content-Type: application/json';
+            $requestHeaders[] = 'Content-Length: 0';
+            $payload = '';
         }
 
         curl_setopt_array($ch, [
@@ -156,13 +160,15 @@ class PayPalClient
             $messageParts = ['PayPal API HTTP ' . $status];
 
             if (is_array($data)) {
+                if (isset($data['name'])) {
+                    $messageParts[] = 'name=' . (string) $data['name'];
+                }
+
                 if (isset($data['message'])) {
                     $messageParts[] = 'message=' . (string) $data['message'];
                 }
 
-                if (isset($data['debug_id'])) {
-                    $messageParts[] = 'debug_id=' . (string) $data['debug_id'];
-                }
+                $messageParts[] = 'debug_id=' . (string) ($data['debug_id'] ?? '');
 
                 if (isset($data['details'])) {
                     $messageParts[] = 'details=' . json_encode($data['details'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
