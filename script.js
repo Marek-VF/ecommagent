@@ -2407,17 +2407,20 @@ const applyRunDataToUI = (payload) => {
 
                 if (slot.container && image.id) {
                     slot.container.dataset.imageId = image.id;
+                    syncActionButtonsForSlot(slot, image.id);
                     console.log('History Image ID set:', slotKey, image.id);
                 }
             } else {
                 clearSlotContent(slot);
                 setSlotLoadingState(slot, false);
                 lastKnownImages[slotKey] = null;
+                syncActionButtonsForSlot(slot, null);
             }
         } else {
             clearSlotContent(slot);
             setSlotLoadingState(slot, false);
             lastKnownImages[slotKey] = null;
+            syncActionButtonsForSlot(slot, null);
         }
     });
 
