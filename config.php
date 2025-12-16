@@ -35,5 +35,35 @@ return [
             'image_3'  => 0.75,
             // weitere step_type-Werte können später ergänzt werden, z.B. 'text', 'product_photo', ...
         ],
+        'packages' => [
+            // Paket-Definitionen für den Guthabenkauf
+            'starter' => [
+                'label'   => '50 Credits',
+                'credits' => 50,
+                'amount'  => 9.99,
+                'currency'=> 'EUR',
+            ],
+            'pro' => [
+                'label'   => '120 Credits',
+                'credits' => 120,
+                'amount'  => 19.99,
+                'currency'=> 'EUR',
+            ],
+            'business' => [
+                'label'   => '260 Credits',
+                'credits' => 260,
+                'amount'  => 39.99,
+                'currency'=> 'EUR',
+            ],
+        ],
+    ],
+    'paypal'           => [
+        // Umgebung: "sandbox" für Tests, "live" für Produktion
+        'environment'   => 'sandbox',
+        'client_id'     => 'your-paypal-client-id',
+        'client_secret' => 'your-paypal-client-secret',
+        'webhook_id'    => '',
+        // Standardwährung für Bestellungen
+        'currency'      => 'EUR',
     ],
 ];
