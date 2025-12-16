@@ -109,6 +109,48 @@ if ($image !== null) {
         .modern-textarea {
             min-height: 140px;
         }
+
+        .edit-tooltip {
+            position: absolute;
+            top: 135%;
+            left: 50%;
+            transform: translate(-50%, -4px);
+            background: rgba(17, 24, 39, 0.95);
+            color: #fff;
+            padding: 0.75rem 0.875rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.18);
+            max-width: 340px;
+            width: max-content;
+            min-width: 240px;
+            z-index: 60;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+        }
+
+        .edit-tooltip::after {
+            content: '';
+            position: absolute;
+            top: -7px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 8px 8px 0 8px;
+            border-style: solid;
+            border-color: rgba(17, 24, 39, 0.95) transparent transparent transparent;
+        }
+
+        .edit-tooltip.is-visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, 0);
+        }
+
+        .tooltip-trigger {
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -180,8 +222,19 @@ if ($image !== null) {
                         
                         <div class="lg:col-span-4 flex flex-col gap-6">
                             <div class="edit-card">
-                                <div class="edit-card__header">
-                                    <p class="edit-card__title">Prompting</p>
+                                <div class="edit-card__header flex items-center gap-2">
+                                    <p class="edit-card__title">Ihre Änderungswünsche</p>
+                                    <button
+                                        type="button"
+                                        class="tooltip-trigger inline-flex items-center justify-center text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 rounded-full"
+                                        aria-label="Hinweis zu Änderungswünschen"
+                                        data-tooltip-trigger
+                                    >
+                                        <span class="material-icons-outlined text-lg">help_outline</span>
+                                        <span class="edit-tooltip" role="tooltip" data-tooltip>
+                                            Sie können das dargestellte Bild schrittweise bearbeiten. Ihre Änderungswünsche beziehen sich jeweils auf das aktuell angezeigte Bild. Starten Sie den Workflow bei Bedarf mehrfach, bis das Ergebnis Ihren Vorstellungen entspricht. Erst beim Speichern werden die Änderungen übernommen.
+                                        </span>
+                                    </button>
                                 </div>
                                 <div class="edit-card__body">
                                     <div class="relative">
@@ -222,8 +275,6 @@ if ($image !== null) {
                         <div class="lg:col-span-8">
                             <div class="edit-card h-full flex flex-col">
                                 <div class="edit-card__header flex justify-between items-center">
-                                    <p class="edit-card__title">Bildvorschau</p>
-                                    
                                     <button type="button" id="btn-cancel-edit" class="text-xs text-red-500 hover:text-red-700 font-medium hidden flex items-center gap-1">
                                         <span class="material-icons-outlined text-sm">delete</span>
                                         Entwurf verwerfen
@@ -621,6 +672,72 @@ if ($image !== null) {
                         });
                         window.location.reload();
                     } catch(e) { console.error(e); }
+                });
+            }
+
+            const tooltipTrigger = document.querySelector('[data-tooltip-trigger]');
+            const tooltip = document.querySelector('[data-tooltip]');
+            let tooltipClickActive = false;
+
+            const showTooltip = () => {
+                if (tooltip) {
+                    tooltip.classList.add('is-visible');
+                }
+            };
+
+            const hideTooltip = () => {
+                if (tooltip) {
+                    tooltip.classList.remove('is-visible');
+                }
+            };
+
+            if (tooltipTrigger && tooltip) {
+                tooltipTrigger.addEventListener('mouseenter', () => {
+                    if (!tooltipClickActive) {
+                        showTooltip();
+                    }
+                });
+
+                tooltipTrigger.addEventListener('mouseleave', () => {
+                    if (!tooltipClickActive) {
+                        hideTooltip();
+                    }
+                });
+
+                tooltipTrigger.addEventListener('focus', () => {
+                    if (!tooltipClickActive) {
+                        showTooltip();
+                    }
+                });
+
+                tooltipTrigger.addEventListener('blur', () => {
+                    if (!tooltipClickActive) {
+                        hideTooltip();
+                    }
+                });
+
+                tooltipTrigger.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    tooltipClickActive = !tooltipClickActive;
+                    if (tooltipClickActive) {
+                        showTooltip();
+                    } else {
+                        hideTooltip();
+                    }
+                });
+
+                document.addEventListener('click', (event) => {
+                    if (!tooltipTrigger.contains(event.target) && !tooltip.contains(event.target)) {
+                        tooltipClickActive = false;
+                        hideTooltip();
+                    }
+                });
+
+                window.addEventListener('resize', () => {
+                    if (tooltipClickActive && window.innerWidth >= 1024) {
+                        tooltipClickActive = false;
+                        hideTooltip();
+                    }
                 });
             }
         });
