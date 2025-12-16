@@ -134,3 +134,66 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
         throw $e;
     }
 }
+
+/**
+ * Gutschrift von Credits für einen Benutzer (z. B. nach erfolgreicher Zahlung).
+ * Gibt die ID des erzeugten credit_transactions-Eintrags zurück oder 0, wenn nichts gebucht wurde.
+ */
+function add_credits(PDO $pdo, int $userId, float $amount, string $reason = 'manual', array $meta = []): int
+{
+    if ($amount <= 0) {
+        return 0;
+    }
+
+    try {
+        $manageTransaction = !$pdo->inTransaction();
+
+        if ($manageTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $stmt = $pdo->prepare('SELECT credits_balance FROM users WHERE id = :user_id FOR UPDATE');
+        $stmt->execute([':user_id' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            $pdo->rollBack();
+            return 0;
+        }
+
+        $currentBalance = (float) $row['credits_balance'];
+        $newBalance = $currentBalance + $amount;
+
+        $updateStmt = $pdo->prepare('UPDATE users SET credits_balance = :balance WHERE id = :user_id');
+        $updateStmt->execute([
+            ':balance' => $newBalance,
+            ':user_id' => $userId,
+        ]);
+
+        $metaJson = !empty($meta) ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+
+        $insertStmt = $pdo->prepare('
+            INSERT INTO credit_transactions (user_id, run_id, amount, reason, meta)
+            VALUES (:user_id, NULL, :amount, :reason, :meta)
+        ');
+        $insertStmt->execute([
+            ':user_id' => $userId,
+            ':amount'  => $amount,
+            ':reason'  => $reason,
+            ':meta'    => $metaJson,
+        ]);
+
+        $transactionId = (int) $pdo->lastInsertId();
+
+        if ($manageTransaction) {
+            $pdo->commit();
+        }
+
+        return $transactionId;
+    } catch (Throwable $e) {
+        if ($manageTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}

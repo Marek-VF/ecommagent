@@ -428,6 +428,16 @@ credits:
 
 prices für Step-Typen (analysis, image_1, image_2, image_3, …)
 
+PayPal Checkout (Sandbox) testen
+
+1. In config.php die PayPal-Konfiguration setzen:
+   - `paypal.environment` auf `sandbox` lassen
+   - `paypal.client_id` und `paypal.client_secret` mit Sandbox-Daten füllen
+   - optional `paypal.webhook_id`, falls der Webhook genutzt wird
+2. Credit-Pakete in `credits.packages` anpassen (Betrag, Credits, Currency).
+3. Seite `settings/credits.php` aufrufen, Paket auswählen und mit dem PayPal-Button bezahlen.
+4. Nach erfolgreichem Capture wird der neue Kontostand angezeigt; Webhook-Aufrufe an `/api/paypal/webhook.php` sichern eine finale Buchung ab.
+
 Mail einrichten
 
 auth/mail.php nutzt config['mail'] zur Initialisierung von PHPMailer.

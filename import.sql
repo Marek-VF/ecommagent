@@ -40,6 +40,28 @@ CREATE TABLE `credit_transactions` (
 -- --------------------------------------------------------
 
 --
+-- Tabellenstruktur für Tabelle `paypal_payments`
+--
+
+CREATE TABLE `paypal_payments` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `package_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `paypal_order_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `paypal_capture_id` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `currency` char(3) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `credits` decimal(10,3) NOT NULL,
+  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `credit_transaction_id` int UNSIGNED DEFAULT NULL,
+  `raw_payload` mediumtext COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Tabellenstruktur für Tabelle `item_images`
 --
 
@@ -205,6 +227,15 @@ ALTER TABLE `credit_transactions`
   ADD KEY `fk_credit_transactions_run` (`run_id`);
 
 --
+-- Indizes für die Tabelle `paypal_payments`
+--
+ALTER TABLE `paypal_payments`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_paypal_order` (`paypal_order_id`),
+  ADD UNIQUE KEY `uq_paypal_capture` (`paypal_capture_id`),
+  ADD KEY `idx_paypal_payments_user` (`user_id`);
+
+--
 -- Indizes für die Tabelle `item_images`
 --
 ALTER TABLE `item_images`
@@ -287,6 +318,12 @@ ALTER TABLE `credit_transactions`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT für Tabelle `paypal_payments`
+--
+ALTER TABLE `paypal_payments`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT für Tabelle `item_images`
 --
 ALTER TABLE `item_images`
@@ -344,6 +381,12 @@ ALTER TABLE `workflow_runs`
 ALTER TABLE `credit_transactions`
   ADD CONSTRAINT `fk_credit_transactions_run` FOREIGN KEY (`run_id`) REFERENCES `workflow_runs` (`id`),
   ADD CONSTRAINT `fk_credit_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+
+--
+-- Constraints der Tabelle `paypal_payments`
+--
+ALTER TABLE `paypal_payments`
+  ADD CONSTRAINT `fk_paypal_payments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
 
 --
 -- Constraints der Tabelle `item_images`
