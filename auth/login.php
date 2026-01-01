@@ -90,7 +90,7 @@ function renderMessages(array $flashes, array $errors): void
 <body>
     <div class="auth-card">
         <header class="auth-card__header">
-            <h1>Willkommen zurück</h1>
+            <h1>Willkommen</h1>
             <p>Melden Sie sich an, um Ihre Artikel zu verwalten.</p>
         </header>
         <?php renderMessages($flashes, $errors); ?>
