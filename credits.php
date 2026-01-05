@@ -88,24 +88,19 @@ function get_credit_step_prices(PDO $pdo): array
  *
  * @return array<string, mixed>|null
  */
-function get_credit_package(PDO $pdo, string $packageKey): ?array
-{
-    $packageKey = trim($packageKey);
-    if ($packageKey === '') {
-        return null;
-    }
+  function get_credit_package(PDO $pdo, string $packageKey): ?array
+  {
+      $stmt = $pdo->prepare(
+          "SELECT package_key, label, credits, price, currency
+           FROM credit_packages
+           WHERE active = 1 AND package_key = :key
+           LIMIT 1"
+      );
+      $stmt->execute([':key' => $packageKey]);
+      $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $stmt = $pdo->prepare(
-        "SELECT product_key, label, credits, price, currency
-         FROM products
-         WHERE type = 'package' AND active = 1 AND product_key = :key
-         LIMIT 1"
-    );
-    $stmt->execute([':key' => $packageKey]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    return $row !== false ? $row : null;
-}
+      return $row !== false ? $row : null;
+  }
 
 /**
  * Liefert alle aktiven Credit-Pakete fuer die UI/Checkout.
