@@ -26,7 +26,7 @@ $paypalCurrency = isset($paypalConfig['currency']) && is_string($paypalConfig['c
 $availablePackages = [];
 $packageRows = get_credit_packages($pdo);
 foreach ($packageRows as $package) {
-    $packageId = isset($package['package_key']) ? (string) $package['package_key'] : '';
+    $packageId = isset($package['product_key']) ? (string) $package['product_key'] : '';
     if ($packageId === '') {
         continue;
     }
