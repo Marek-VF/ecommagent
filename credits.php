@@ -115,9 +115,9 @@ function get_credit_package(PDO $pdo, string $packageKey): ?array
 function get_credit_packages(PDO $pdo): array
 {
     $stmt = $pdo->query(
-        "SELECT product_key, label, credits, price, currency
-         FROM products
-         WHERE type = 'package' AND active = 1
+        "SELECT package_key, label, credits, price, currency
+         FROM credit_packages
+         WHERE active = 1
          ORDER BY sort_order ASC, id ASC"
     );
 
