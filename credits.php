@@ -1,73 +1,135 @@
 <?php
 
 /**
- * Liefert den hinterlegten Preis für einen Step-Typ zurück.
- * Unterstützt das neue Array-Format ['price' => 1.00, 'group_id' => 1]
- * sowie das alte Float-Format.
+ * Liefert den hinterlegten Preis (Credits) fuer einen Step-Typ aus der Datenbank.
  */
-function get_credit_price(array $config, string $stepType): ?float
+function get_credit_price(PDO $pdo, string $stepType): ?float
 {
-    $prices = $config['credits']['prices'] ?? [];
-    
-    if (!isset($prices[$stepType])) {
+    $stepType = trim($stepType);
+    if ($stepType === '') {
         return null;
     }
 
-    $entry = $prices[$stepType];
+    $prices = get_credit_step_prices($pdo);
 
-    // Neu: Array-Struktur supporten
-    if (is_array($entry)) {
-        return isset($entry['price']) ? (float)$entry['price'] : null;
+    if (!array_key_exists($stepType, $prices)) {
+        return null;
     }
 
-    // Fallback: Direkter Float (alte Config)
-    return (float)$entry;
+    return (float) $prices[$stepType];
 }
 
 /**
- * Ermittelt, wie viele Credits ein vollständiger Workflow (Haupt-Run) benötigt.
- * Summiert NUR Einträge mit 'group_id' => 1.
+ * Ermittelt, wie viele Credits ein vollstaendiger Workflow (Haupt-Run) benoetigt.
+ * Summiert NUR Eintraege mit group_id = 1; falls keine group_id definiert ist,
+ * wird auf alle aktiven Step-Preise zurueckgefallen.
+ */
+function get_required_credits_for_run(PDO $pdo, int $groupId = 1): float
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) AS cnt, COALESCE(SUM(credits), 0) AS total
+         FROM products
+         WHERE type = :type AND active = 1 AND group_id = :group_id AND credits > 0'
+    );
+    $stmt->execute([
+        ':type' => 'step',
+        ':group_id' => $groupId,
+    ]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['cnt' => 0, 'total' => 0];
+
+    $count = (int) ($row['cnt'] ?? 0);
+    $total = (float) ($row['total'] ?? 0);
+
+    if ($count === 0) {
+        $fallback = $pdo->query(
+            "SELECT COALESCE(SUM(credits), 0) AS total
+             FROM products
+             WHERE type = 'step' AND active = 1 AND credits > 0"
+        );
+        $fallbackRow = $fallback->fetch(PDO::FETCH_ASSOC) ?: ['total' => 0];
+        $total = (float) ($fallbackRow['total'] ?? 0);
+    }
+
+    return $total;
+}
+
+/**
+ * Liefert alle aktiven Step-Preise (product_key => credits) aus der Datenbank.
  *
- * @param array $config Globale Konfiguration aus config.php
- * @return float Benötigte Credits
+ * @return array<string, float>
  */
-function get_required_credits_for_run(array $config): float
+function get_credit_step_prices(PDO $pdo): array
 {
-    $prices = $config['credits']['prices'] ?? [];
-    $total = 0.0;
-
-    foreach ($prices as $entry) {
-        // Wir verarbeiten primär das neue Array-Format
-        if (is_array($entry)) {
-            $price = (float)($entry['price'] ?? 0.0);
-            $groupId = (int)($entry['group_id'] ?? 0);
-
-            // Nur Gruppe 1 (Haupt-Run) wird für den Start-Button berechnet
-            if ($groupId === 1 && $price > 0) {
-                $total += $price;
-            }
-        } 
-        // Optionaler Fallback: Wenn in der Config noch einfache Floats stehen (z.B. 'analysis' => 0.5),
-        // zählen wir diese sicherheitshalber dazu, damit der Workflow nicht "kostenlos" wird.
-        elseif (is_numeric($entry)) {
-             $val = (float)$entry;
-             if ($val > 0) {
-                 $total += $val;
-             }
-        }
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
     }
 
-    return (float) $total;
+    $stmt = $pdo->query(
+        "SELECT product_key, credits
+         FROM products
+         WHERE type = 'step' AND active = 1"
+    );
+
+    $cache = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $key = isset($row['product_key']) ? trim((string) $row['product_key']) : '';
+        if ($key === '') {
+            continue;
+        }
+        $cache[$key] = (float) ($row['credits'] ?? 0);
+    }
+
+    return $cache;
 }
 
 /**
- * Bucht Credits für einen bestimmten Step eines Users ab und protokolliert die Bewegung.
- * (Diese Funktion bleibt in ihrer Logik unverändert, nutzt aber jetzt das neue get_credit_price)
+ * Liefert ein aktives Credit-Paket anhand des product_key.
+ *
+ * @return array<string, mixed>|null
  */
-function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, string $stepType, array $meta = []): void
+function get_credit_package(PDO $pdo, string $packageKey): ?array
 {
-    // Hier wird automatisch die neue Logik von oben verwendet
-    $price = get_credit_price($config, $stepType);
+    $packageKey = trim($packageKey);
+    if ($packageKey === '') {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT product_key, label, credits, price, currency
+         FROM products
+         WHERE type = 'package' AND active = 1 AND product_key = :key
+         LIMIT 1"
+    );
+    $stmt->execute([':key' => $packageKey]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return $row !== false ? $row : null;
+}
+
+/**
+ * Liefert alle aktiven Credit-Pakete fuer die UI/Checkout.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function get_credit_packages(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT product_key, label, credits, price, currency
+         FROM products
+         WHERE type = 'package' AND active = 1
+         ORDER BY sort_order ASC, id ASC"
+    );
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Bucht Credits fuer einen bestimmten Step eines Users ab und protokolliert die Bewegung.
+ */
+function charge_credits(PDO $pdo, int $userId, ?int $runId, string $stepType, array $meta = []): void
+{
+    $price = get_credit_price($pdo, $stepType);
 
     // Keine Abbuchung vornehmen, wenn kein Preis hinterlegt ist oder der Preis 0/negativ ist.
     if ($price === null || $price <= 0) {
@@ -122,11 +184,6 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
         ]);
 
         $pdo->commit();
-
-        // ENTFERNT: Status-Meldung über Abbuchung.
-        // Wir wollen den User-Feed nicht mit "Guthaben: -0,50" zuspammen.
-        // Die Transaktion ist oben bereits sicher in 'credit_transactions' protokolliert.
-
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -136,8 +193,8 @@ function charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, strin
 }
 
 /**
- * Gutschrift von Credits für einen Benutzer (z. B. nach erfolgreicher Zahlung).
- * Gibt die ID des erzeugten credit_transactions-Eintrags zurück oder 0, wenn nichts gebucht wurde.
+ * Gutschrift von Credits fuer einen Benutzer (z. B. nach erfolgreicher Zahlung).
+ * Gibt die ID des erzeugten credit_transactions-Eintrags zurueck oder 0, wenn nichts gebucht wurde.
  */
 function add_credits(PDO $pdo, int $userId, float $amount, string $reason = 'manual', array $meta = []): int
 {
