@@ -24,7 +24,4 @@ VALUES
   ('analysis', 'step', 'Analysis', 0.500, NULL, NULL, NULL, 1, 1, 10),
   ('image_1', 'step', 'Image 1', 0.750, NULL, NULL, NULL, 1, 1, 20),
   ('image_2', 'step', 'Image 2', 0.750, NULL, NULL, NULL, 1, 1, 30),
-  ('image_3', 'step', 'Image 3', 0.750, NULL, NULL, NULL, 1, 1, 40),
-  ('starter', 'package', '50 Credits', 50.000, 9.99, NULL, 'EUR', NULL, 1, 10),
-  ('pro', 'package', '120 Credits', 120.000, 19.99, NULL, 'EUR', NULL, 1, 20),
-  ('business', 'package', '260 Credits', 260.000, 39.99, NULL, 'EUR', NULL, 1, 30);
+  ('image_3', 'step', 'Image 3', 0.750, NULL, NULL, NULL, 1, 1, 40);

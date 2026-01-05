@@ -84,7 +84,7 @@ function get_credit_step_prices(PDO $pdo): array
 }
 
 /**
- * Liefert ein aktives Credit-Paket anhand des product_key.
+ * Liefert ein aktives Credit-Paket anhand des package_key.
  *
  * @return array<string, mixed>|null
  */
@@ -96,9 +96,9 @@ function get_credit_package(PDO $pdo, string $packageKey): ?array
     }
 
     $stmt = $pdo->prepare(
-        "SELECT product_key, label, credits, price, currency
-         FROM products
-         WHERE type = 'package' AND active = 1 AND product_key = :key
+        "SELECT package_key, label, credits, price, currency
+         FROM credit_packages
+         WHERE active = 1 AND package_key = :key
          LIMIT 1"
     );
     $stmt->execute([':key' => $packageKey]);
@@ -115,9 +115,9 @@ function get_credit_package(PDO $pdo, string $packageKey): ?array
 function get_credit_packages(PDO $pdo): array
 {
     $stmt = $pdo->query(
-        "SELECT product_key, label, credits, price, currency
-         FROM products
-         WHERE type = 'package' AND active = 1
+        "SELECT package_key, label, credits, price, currency
+         FROM credit_packages
+         WHERE active = 1
          ORDER BY sort_order ASC, id ASC"
     );
 
