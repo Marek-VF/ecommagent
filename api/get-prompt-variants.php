@@ -153,7 +153,7 @@ try {
     if ($executedSuccessfully && $stepType !== null) {
         try {
             $meta = ['source' => 'get-prompt-variants.php'];
-            charge_credits($pdo, $config, $userId, $runId, $stepType, $meta);
+            charge_credits($pdo, $userId, $runId, $stepType, $meta);
         } catch (Throwable $creditException) {
             error_log('[get-prompt-variants][credits] ' . $creditException->getMessage());
         }

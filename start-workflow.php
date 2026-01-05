@@ -241,7 +241,7 @@ try {
         ], 500);
     }
 
-    $requiredCredits = get_required_credits_for_run($config);
+    $requiredCredits = get_required_credits_for_run($pdo);
 
     if ($requiredCredits > 0 && (float) $creditsBalance < $requiredCredits) {
         // Credits für die Anzeige auf 2 Nachkommastellen formatieren
