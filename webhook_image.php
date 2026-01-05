@@ -704,7 +704,7 @@ SQL;
                 'image_url' => $relativeUrl,
                 'step_type' => $stepTypeRaw,
             ];
-            charge_credits($pdo, $config, $userId, $runId, $stepTypeRaw, $meta);
+            charge_credits($pdo, $userId, $runId, $stepTypeRaw, $meta);
         } catch (Throwable $creditException) {
             error_log('[webhook_image][credits] ' . $creditException->getMessage());
         }

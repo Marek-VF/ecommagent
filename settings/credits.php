@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth/bootstrap.php';
+require_once __DIR__ . '/../credits.php';
 
 auth_require_login();
 
@@ -16,7 +17,6 @@ if ($currentUser === null || !isset($currentUser['id'])) {
 $userId = (int) $currentUser['id'];
 $config = auth_config();
 
-$creditPackagesConfig = $config['credits']['packages'] ?? [];
 $paypalConfig = $config['paypal'] ?? [];
 $paypalClientId = isset($paypalConfig['client_id']) && is_string($paypalConfig['client_id']) ? $paypalConfig['client_id'] : '';
 $paypalCurrency = isset($paypalConfig['currency']) && is_string($paypalConfig['currency'])
@@ -24,8 +24,14 @@ $paypalCurrency = isset($paypalConfig['currency']) && is_string($paypalConfig['c
     : 'EUR';
 
 $availablePackages = [];
-foreach ($creditPackagesConfig as $packageId => $package) {
-    $amount = isset($package['amount']) ? (float) $package['amount'] : 0.0;
+$packageRows = get_credit_packages($pdo);
+foreach ($packageRows as $package) {
+    $packageId = isset($package['product_key']) ? (string) $package['product_key'] : '';
+    if ($packageId === '') {
+        continue;
+    }
+
+    $amount = isset($package['price']) ? (float) $package['price'] : 0.0;
     $credits = isset($package['credits']) ? (float) $package['credits'] : 0.0;
     $currency = isset($package['currency']) && is_string($package['currency']) && $package['currency'] !== ''
         ? strtoupper($package['currency'])
@@ -39,7 +45,7 @@ foreach ($creditPackagesConfig as $packageId => $package) {
     }
 
     $availablePackages[] = [
-        'id'        => (string) $packageId,
+        'id'        => $packageId,
         'label'     => $label,
         'amount'    => $amount,
         'credits'   => $credits,

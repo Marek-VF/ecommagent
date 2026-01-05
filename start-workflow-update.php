@@ -81,12 +81,11 @@ if ($action === 'edit' && mb_strlen($userPrompt) < 3) {
 }
 
 // --- CREDIT CHECK START ---
-$stepPrice = get_credit_price($config, $action);
+$pdo = auth_pdo();
+$stepPrice = get_credit_price($pdo, $action);
 $requiredCredits = $stepPrice !== null ? $stepPrice : 0.0;
 
 if ($requiredCredits > 0) {
-    $pdo = auth_pdo();
-    
     $balanceStmt = $pdo->prepare('SELECT credits_balance FROM users WHERE id = :uid LIMIT 1');
     $balanceStmt->execute([':uid' => $userId]);
     $currentBalance = (float) $balanceStmt->fetchColumn();
@@ -172,7 +171,7 @@ try {
     }
 
     // 6. Credits prüfen (Optional, hier vereinfacht)
-    // $requiredCredits = get_credit_price($config, $action);
+    // $requiredCredits = get_credit_price($pdo, $action);
     // ... Credit Logik hier einfügen falls gewünscht ...
 
     // 7. Webhook Payload vorbereiten

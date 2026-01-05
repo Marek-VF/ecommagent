@@ -37,7 +37,7 @@ $config = auth_config();
 $paypalConfig = $config['paypal'] ?? [];
 $paypalEnv = strtolower((string) ($paypalConfig['environment'] ?? 'sandbox'));
 $paypalDebug = $paypalEnv === 'sandbox' || !empty($paypalConfig['debug']);
-$packages = $config['credits']['packages'] ?? [];
+$pdo = auth_pdo();
 $defaultCurrency = isset($paypalConfig['currency']) && is_string($paypalConfig['currency'])
     ? strtoupper($paypalConfig['currency'])
     : 'EUR';
@@ -45,14 +45,20 @@ $defaultCurrency = isset($paypalConfig['currency']) && is_string($paypalConfig['
 $input = json_decode((string) file_get_contents('php://input'), true) ?? [];
 $packageId = isset($input['package_id']) && is_string($input['package_id']) ? trim($input['package_id']) : '';
 
-if ($packageId === '' || !isset($packages[$packageId])) {
+if ($packageId === '') {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'unknown_package']);
     exit;
 }
 
-$package = $packages[$packageId];
-$amount = isset($package['amount']) ? (float) $package['amount'] : 0.0;
+$package = get_credit_package($pdo, $packageId);
+if ($package === null) {
+    http_response_code(400);
+    echo json_encode(['ok' => false, 'error' => 'unknown_package']);
+    exit;
+}
+
+$amount = isset($package['price']) ? (float) $package['price'] : 0.0;
 $credits = isset($package['credits']) ? (float) $package['credits'] : 0.0;
 $currency = isset($package['currency']) && is_string($package['currency']) && $package['currency'] !== ''
     ? strtoupper($package['currency'])
@@ -116,7 +122,6 @@ if ($orderId === '') {
     exit;
 }
 
-$pdo = auth_pdo();
 $rawPayload = json_encode($orderData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 if ($rawPayload === false) {
     $rawPayload = '{}';
