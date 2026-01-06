@@ -119,6 +119,29 @@ reason (z. B. analysis, image_1)
 meta (JSON, z. B. {"source":"webhook_image.php"})
 
 created_at
+products
+
+Produkt- und Step-Definitionen (purchase_price in Cent, credits nicht mehr genutzt).
+
+Spalten (Auszug):
+
+product_key (Step-ID), type (step/package), label, purchase_price, price, currency, group_id, active
+
+credit_packages
+
+Credit-Pakete fuer den Checkout.
+
+Spalten (Auszug):
+
+package_key, label, credits, price, currency, active
+
+options
+
+Globale Pricing-Optionen (Key/Value).
+
+Spalten (Auszug):
+
+opt_key, opt_value (z. B. pricing.factor, pricing.credits_per_eur)
 
 user_state
 
@@ -225,40 +248,45 @@ Die anderen auth/*.php-Dateien nutzen diese Funktionen.
 
 2.3 Credit-System (Details)
 
-Definiert über:
+Definiert ueber Datenbanktabellen und credits.php:
 
-config.php:
+Preise pro Step:
 
-'credits' => [
-    'prices' => [
-        'analysis' => 0.50,
-        'image_1'  => 0.75,
-        'image_2'  => 0.75,
-        'image_3'  => 0.75,
-        // ...
-    ],
-],
+Tabelle products (type = 'step', active = 1, purchase_price > 0; Wert in Cent)
 
+product_key entspricht step_type aus den Webhooks
 
 credits.php:
 
-get_credit_price(array $config, string $stepType): ?float
+get_credit_price(PDO , string ): ?float
 
-estimate_workflow_credits(array $config): float
-→ Summe aller positiven Preise in credits.prices.
+berechnet den Preis aus products.purchase_price (Cent) und options (pricing.factor, pricing.credits_per_eur); null wenn nicht vorhanden
 
-charge_credits(PDO $pdo, array $config, int $userId, ?int $runId, string $stepType, array $meta): void
+get_required_credits_for_run(PDO , int  = 1): float
+
+summe aller aktiven Steps anhand purchase_price (group_id = 1), fallback: alle Steps
+
+charge_credits(PDO , int , ?int , string , array ): void
 
 ermittelt Preis
 
+zieht users.credits_balance ab
+
+erhoeht workflow_runs.credits_spent (wenn run_id vorhanden)
+
 schreibt Datensatz in credit_transactions (negativer Betrag)
 
-aktualisiert ggf. “Current Balance” (Balance wird meist als Summe der Transaktionen interpretiert)
+add_credits(PDO , int , float , string , array ): int
+
+erhoeht users.credits_balance
+
+schreibt Datensatz in credit_transactions (positiver Betrag)
 
 Nutzung:
 
 Vor Start des Workflows:
-start-workflow.php ruft estimate_workflow_credits() auf und vergleicht mit get_user_credits_balance().
+start-workflow.php ermittelt requiredCredits via get_required_credits_for_run()
+und vergleicht mit users.credits_balance.
 Bei zu wenig Credits: HTTP 400 mit not_enough_credits = true.
 
 Pro Step:
@@ -267,7 +295,19 @@ receiver.php und api/get-prompt-variants.php (Text/Analyse)
 
 webhook_image.php (Bild-Generierung)
 
-immer nur, wenn executed_successfully === true und ein gültiger step_type gesetzt ist.
+immer nur, wenn executed_successfully === true und ein gueltiger step_type gesetzt ist.
+
+Gutschrift (Aufladung):
+
+api/paypal/capture-order.php und api/paypal/webhook.php
+
+ruft add_credits() nach erfolgreichem Zahlungscapture auf.
+
+Credit-Pakete (Checkout):
+
+Tabelle credit_packages (package_key, label, credits, price, currency, active)
+
+settings/credits.php listet aktive Pakete und startet den PayPal-Checkout.
 
 2.4 n8n-Integration (Felder & Sicherheit)
 2.4.1 Outgoing (Start Webhook)
@@ -314,7 +354,7 @@ product_name / produktname
 
 product_description / produktbeschreibung
 
-step_type – string, muss zu credits.prices passen
+step_type � string, muss zu products.product_key (type = 'step') passen
 
 executed_successfully – kann true/false, 1/0, "true"/"false" sein
 
@@ -467,3 +507,6 @@ prepared statements für DB-Zugriffe
 Output-Encoding:
 
 htmlspecialchars(...) an vielen Stellen in index.php, settings/*.php etc.
+
+
+

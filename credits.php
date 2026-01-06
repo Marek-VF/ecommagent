@@ -1,6 +1,79 @@
 <?php
 
 /**
+ * Holt die globalen Pricing-Optionen aus der Tabelle options.
+ *
+ * @return array{factor: float, credits_per_eur: float}
+ */
+function get_pricing_settings(PDO $pdo): array
+{
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+
+    $requiredKeys = ['pricing.factor', 'pricing.credits_per_eur'];
+    $placeholders = implode(', ', array_fill(0, count($requiredKeys), '?'));
+
+    $stmt = $pdo->prepare("SELECT opt_key, opt_value FROM options WHERE opt_key IN ($placeholders)");
+    $stmt->execute($requiredKeys);
+    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
+    $missing = array_diff($requiredKeys, array_keys($rows));
+    if ($missing) {
+        throw new RuntimeException('Missing pricing option(s): ' . implode(', ', $missing));
+    }
+
+    $factorRaw = trim((string) $rows['pricing.factor']);
+    $creditsRaw = trim((string) $rows['pricing.credits_per_eur']);
+
+    if ($factorRaw == '' || !is_numeric($factorRaw)) {
+        throw new RuntimeException('Pricing option pricing.factor must be numeric.');
+    }
+
+    if ($creditsRaw == '' || !is_numeric($creditsRaw)) {
+        throw new RuntimeException('Pricing option pricing.credits_per_eur must be numeric.');
+    }
+
+    $factor = (float) $factorRaw;
+    $creditsPerEur = (float) $creditsRaw;
+
+    if ($factor <= 0 || $creditsPerEur <= 0) {
+        throw new RuntimeException('Pricing options must be greater than 0.');
+    }
+
+    $cache = [
+        'factor' => $factor,
+        'credits_per_eur' => $creditsPerEur,
+    ];
+
+    return $cache;
+}
+
+/**
+ * Berechnet den Credit-Preis auf Basis des Einkaufspreises (in Cent).
+ */
+function calculate_price_credits(PDO $pdo, mixed $purchasePriceCents): ?float
+{
+    if (!is_numeric($purchasePriceCents)) {
+        return null;
+    }
+
+    $purchasePriceCents = (float) $purchasePriceCents;
+
+    if ($purchasePriceCents <= 0) {
+        return null;
+    }
+
+    $pricing = get_pricing_settings($pdo);
+    $baseCostEur = $purchasePriceCents / 100;
+    $sellEur = $baseCostEur * $pricing['factor'];
+    $credits = $sellEur * $pricing['credits_per_eur'];
+
+    return $credits;
+}
+
+/**
  * Liefert den hinterlegten Preis (Credits) fuer einen Step-Typ aus der Datenbank.
  */
 function get_credit_price(PDO $pdo, string $stepType): ?float
@@ -27,9 +100,9 @@ function get_credit_price(PDO $pdo, string $stepType): ?float
 function get_required_credits_for_run(PDO $pdo, int $groupId = 1): float
 {
     $stmt = $pdo->prepare(
-        'SELECT COUNT(*) AS cnt, COALESCE(SUM(credits), 0) AS total
+        'SELECT COUNT(*) AS cnt, COALESCE(SUM(purchase_price), 0) AS total
          FROM products
-         WHERE type = :type AND active = 1 AND group_id = :group_id AND credits > 0'
+         WHERE type = :type AND active = 1 AND group_id = :group_id AND purchase_price > 0'
     );
     $stmt->execute([
         ':type' => 'step',
@@ -42,15 +115,17 @@ function get_required_credits_for_run(PDO $pdo, int $groupId = 1): float
 
     if ($count === 0) {
         $fallback = $pdo->query(
-            "SELECT COALESCE(SUM(credits), 0) AS total
+            "SELECT COALESCE(SUM(purchase_price), 0) AS total
              FROM products
-             WHERE type = 'step' AND active = 1 AND credits > 0"
+             WHERE type = 'step' AND active = 1 AND purchase_price > 0"
         );
         $fallbackRow = $fallback->fetch(PDO::FETCH_ASSOC) ?: ['total' => 0];
         $total = (float) ($fallbackRow['total'] ?? 0);
     }
 
-    return $total;
+    $totalCredits = calculate_price_credits($pdo, $total);
+
+    return $totalCredits ?? 0.0;
 }
 
 /**
@@ -66,7 +141,7 @@ function get_credit_step_prices(PDO $pdo): array
     }
 
     $stmt = $pdo->query(
-        "SELECT product_key, credits
+        "SELECT product_key, purchase_price
          FROM products
          WHERE type = 'step' AND active = 1"
     );
@@ -77,7 +152,13 @@ function get_credit_step_prices(PDO $pdo): array
         if ($key === '') {
             continue;
         }
-        $cache[$key] = (float) ($row['credits'] ?? 0);
+
+        $credits = calculate_price_credits($pdo, $row['purchase_price'] ?? null);
+        if ($credits === null) {
+            continue;
+        }
+
+        $cache[$key] = (float) $credits;
     }
 
     return $cache;
