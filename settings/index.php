@@ -62,6 +62,10 @@ $content = ob_get_clean();
                     class="settings-nav-item<?php echo $activePage === 'credits' ? ' active' : ''; ?>"
                     href="credits.php"
                 >Credits</a>
+                <a
+                    class="settings-nav-item<?php echo $activePage === 'pricelist' ? ' active' : ''; ?>"
+                    href="pricelist.php"
+                >Preisliste</a>
             </nav>
             <div class="settings-content">
                 <?php echo $content; ?>

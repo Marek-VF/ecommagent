@@ -225,6 +225,39 @@
     margin-top: 4px;
 }
 
+
+/* --- PREISLISTE --- */
+.price-list-panel {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 16px;
+}
+
+.price-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.price-list-table th,
+.price-list-table td {
+    text-align: left;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.price-list-table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.price-list-table tbody tr:last-child td {
+    border-bottom: none;
+}
 /* --- FORMULARE & INPUTS (Global Fix) --- */
 .settings-form {
     display: flex;
