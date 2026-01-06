@@ -79,6 +79,28 @@ VALUES
 -- --------------------------------------------------------
 
 --
+-- Tabellenstruktur fuer Tabelle `options`
+--
+
+CREATE TABLE `options` (
+  `opt_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `opt_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Standarddaten fuer Tabelle `options`
+--
+
+INSERT INTO `options` (`opt_key`, `opt_value`)
+VALUES
+  ('pricing.factor', '1'),
+  ('pricing.credits_per_eur', '1');
+
+-- --------------------------------------------------------
+
+--
 -- Tabellenstruktur für Tabelle `paypal_payments`
 --
 
@@ -273,6 +295,13 @@ ALTER TABLE `products`
   ADD UNIQUE KEY `uq_products_key` (`product_key`),
   ADD KEY `idx_products_type_active` (`type`,`active`),
   ADD KEY `idx_products_group` (`group_id`);
+
+
+--
+-- Indizes fuer die Tabelle `options`
+--
+ALTER TABLE `options`
+  ADD PRIMARY KEY (`opt_key`);
 
 --
 -- Indizes für die Tabelle `paypal_payments`
