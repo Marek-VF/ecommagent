@@ -259,6 +259,24 @@ CREATE TABLE `user_state` (
 -- --------------------------------------------------------
 
 --
+-- Tabellenstruktur fuer Tabelle `billing_addresses`
+--
+
+CREATE TABLE `billing_addresses` (
+  `user_id` int UNSIGNED NOT NULL,
+  `company_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `street` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `house_number` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `postal_code` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `city` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `vat_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Tabellenstruktur für Tabelle `workflow_runs`
 --
 
@@ -369,6 +387,12 @@ ALTER TABLE `users`
   ADD KEY `idx_verification_token` (`verification_token`),
   ADD KEY `idx_reset_token` (`reset_token`),
   ADD KEY `fk_users_prompt_category` (`prompt_category_id`);
+
+--
+-- Indizes für die Tabelle `billing_addresses`
+--
+ALTER TABLE `billing_addresses`
+  ADD PRIMARY KEY (`user_id`);
 
 --
 -- Indizes für die Tabelle `user_state`
@@ -509,6 +533,12 @@ ALTER TABLE `status_logs_new`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_prompt_category` FOREIGN KEY (`prompt_category_id`) REFERENCES `prompt_categories` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints der Tabelle `billing_addresses`
+--
+ALTER TABLE `billing_addresses`
+  ADD CONSTRAINT `fk_billing_addresses_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints der Tabelle `user_state`
