@@ -47,6 +47,10 @@ $content = ob_get_clean();
                     href="index.php"
                 >Profil</a>
                 <a
+                    class="settings-nav-item<?php echo $activePage === 'billing' ? ' active' : ''; ?>"
+                    href="billing.php"
+                >Rechnungsadresse</a>
+                <a
                     class="settings-nav-item<?php echo $activePage === 'industry' ? ' active' : ''; ?>"
                     href="industry.php"
                 >Branche</a>
